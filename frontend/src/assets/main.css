@@ -1,0 +1,478 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens.
+ *
+ * Colours are stored as bare RGB channels so Tailwind's opacity modifiers
+ * (bg-slate-900/50) keep working. tailwind.config.js maps every palette step to
+ * one of these, so switching the theme is a matter of swapping variables under
+ * .dark - no component needs a dark: variant of its own.
+ *
+ * In dark mode each chromatic scale is mirrored around 500: the pale tint that
+ * backs an alert becomes a deep tint, and the deep text on it becomes pale, so
+ * a pairing that was readable in light mode stays readable in dark mode.
+ */
+@layer base {
+  :root {
+    color-scheme: light;
+    --slate-50: 252 248 244; --slate-100: 246 239 232; --slate-200: 237 227 217; --slate-300: 222 208 195; --slate-400: 148 163 184; --slate-500: 100 116 139; --slate-600: 71 85 105; --slate-700: 51 65 85; --slate-800: 30 41 59; --slate-900: 15 23 42; --slate-950: 2 6 23;
+    --brand-50: 255 247 237; --brand-100: 255 237 213; --brand-200: 254 215 170; --brand-300: 253 186 116; --brand-400: 251 146 60; --brand-500: 249 115 22; --brand-600: 194 65 12; --brand-700: 154 52 18; --brand-800: 124 45 18; --brand-900: 102 36 14; --brand-950: 67 20 7;
+    --red-50: 254 242 242; --red-100: 254 226 226; --red-200: 254 202 202; --red-300: 252 165 165; --red-400: 248 113 113; --red-500: 239 68 68; --red-600: 220 38 38; --red-700: 185 28 28; --red-800: 153 27 27; --red-900: 127 29 29; --red-950: 69 10 10;
+    --amber-50: 255 251 235; --amber-100: 254 243 199; --amber-200: 253 230 138; --amber-300: 252 211 77; --amber-400: 251 191 36; --amber-500: 245 158 11; --amber-600: 217 119 6; --amber-700: 180 83 9; --amber-800: 146 64 14; --amber-900: 120 53 15; --amber-950: 69 26 3;
+    --emerald-50: 236 253 245; --emerald-100: 209 250 229; --emerald-200: 167 243 208; --emerald-300: 110 231 183; --emerald-400: 52 211 153; --emerald-500: 16 185 129; --emerald-600: 5 150 105; --emerald-700: 4 120 87; --emerald-800: 6 95 70; --emerald-900: 6 78 59; --emerald-950: 2 44 34;
+    --sky-50: 240 249 255; --sky-100: 224 242 254; --sky-200: 186 230 253; --sky-300: 125 211 252; --sky-400: 56 189 248; --sky-500: 14 165 233; --sky-600: 2 132 199; --sky-700: 3 105 161; --sky-800: 7 89 133; --sky-900: 12 74 110; --sky-950: 8 47 73;
+    --blue-50: 239 246 255; --blue-100: 219 234 254; --blue-200: 191 219 254; --blue-300: 147 197 253; --blue-400: 96 165 250; --blue-500: 59 130 246; --blue-600: 37 99 235; --blue-700: 29 78 216; --blue-800: 30 64 175; --blue-900: 30 58 138; --blue-950: 23 37 84;
+    --indigo-50: 238 242 255; --indigo-100: 224 231 255; --indigo-200: 199 210 254; --indigo-300: 165 180 252; --indigo-400: 129 140 248; --indigo-500: 99 102 241; --indigo-600: 79 70 229; --indigo-700: 67 56 202; --indigo-800: 55 48 163; --indigo-900: 49 46 129; --indigo-950: 30 27 75;
+    --violet-50: 245 243 255; --violet-100: 237 233 254; --violet-200: 221 214 254; --violet-300: 196 181 253; --violet-400: 167 139 250; --violet-500: 139 92 246; --violet-600: 124 58 237; --violet-700: 109 40 217; --violet-800: 91 33 182; --violet-900: 76 29 149; --violet-950: 46 16 101;
+
+    --surface: 255 255 255;
+    --primary: 194 65 12;       /* brand 600: 5.2:1 against white text */
+    --primary-hover: 154 52 18;
+    --danger: 220 38 38;
+    --danger-hover: 185 28 28;
+    --success: 4 120 87;        /* emerald 700: 600 is only 3.8:1 with white */
+
+    /* Teal: the accent that complements the orange primary. */
+    --teal-50: 240 253 250; --teal-100: 204 251 241; --teal-200: 153 246 228; --teal-300: 94 234 212; --teal-400: 45 212 191; --teal-500: 20 184 166; --teal-600: 13 148 136; --teal-700: 15 118 110; --teal-800: 17 94 89; --teal-900: 19 78 74; --teal-950: 4 47 46;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --slate-50: 11 17 32; --slate-100: 30 41 59; --slate-200: 45 56 75; --slate-300: 71 85 105; --slate-400: 115 130 153; --slate-500: 148 163 184; --slate-600: 170 182 200; --slate-700: 203 213 225; --slate-800: 226 232 240; --slate-900: 241 245 249; --slate-950: 248 250 252;
+    --brand-50: 67 20 7; --brand-100: 102 36 14; --brand-200: 124 45 18; --brand-300: 154 52 18; --brand-400: 194 65 12; --brand-500: 249 115 22; --brand-600: 251 146 60; --brand-700: 253 186 116; --brand-800: 254 215 170; --brand-900: 255 237 213; --brand-950: 255 247 237;
+    --red-50: 69 10 10; --red-100: 127 29 29; --red-200: 153 27 27; --red-300: 185 28 28; --red-400: 220 38 38; --red-500: 239 68 68; --red-600: 248 113 113; --red-700: 252 165 165; --red-800: 254 202 202; --red-900: 254 226 226; --red-950: 254 242 242;
+    --amber-50: 69 26 3; --amber-100: 120 53 15; --amber-200: 146 64 14; --amber-300: 180 83 9; --amber-400: 217 119 6; --amber-500: 245 158 11; --amber-600: 251 191 36; --amber-700: 252 211 77; --amber-800: 253 230 138; --amber-900: 254 243 199; --amber-950: 255 251 235;
+    --emerald-50: 2 44 34; --emerald-100: 6 78 59; --emerald-200: 6 95 70; --emerald-300: 4 120 87; --emerald-400: 5 150 105; --emerald-500: 16 185 129; --emerald-600: 52 211 153; --emerald-700: 110 231 183; --emerald-800: 167 243 208; --emerald-900: 209 250 229; --emerald-950: 236 253 245;
+    --sky-50: 8 47 73; --sky-100: 12 74 110; --sky-200: 7 89 133; --sky-300: 3 105 161; --sky-400: 2 132 199; --sky-500: 14 165 233; --sky-600: 56 189 248; --sky-700: 125 211 252; --sky-800: 186 230 253; --sky-900: 224 242 254; --sky-950: 240 249 255;
+    --blue-50: 23 37 84; --blue-100: 30 58 138; --blue-200: 30 64 175; --blue-300: 29 78 216; --blue-400: 37 99 235; --blue-500: 59 130 246; --blue-600: 96 165 250; --blue-700: 147 197 253; --blue-800: 191 219 254; --blue-900: 219 234 254; --blue-950: 239 246 255;
+    --indigo-50: 30 27 75; --indigo-100: 49 46 129; --indigo-200: 55 48 163; --indigo-300: 67 56 202; --indigo-400: 79 70 229; --indigo-500: 99 102 241; --indigo-600: 129 140 248; --indigo-700: 165 180 252; --indigo-800: 199 210 254; --indigo-900: 224 231 255; --indigo-950: 238 242 255;
+    --violet-50: 46 16 101; --violet-100: 76 29 149; --violet-200: 91 33 182; --violet-300: 109 40 217; --violet-400: 124 58 237; --violet-500: 139 92 246; --violet-600: 167 139 250; --violet-700: 196 181 253; --violet-800: 221 214 254; --violet-900: 237 233 254; --violet-950: 245 243 255;
+
+    --surface: 17 24 39;
+    --primary: 194 65 12;
+    --primary-hover: 154 52 18;
+    --danger: 185 28 28;
+    --danger-hover: 153 27 27;
+    --success: 4 120 87;
+  }
+
+  .dark {
+    --teal-50: 4 47 46; --teal-100: 19 78 74; --teal-200: 17 94 89; --teal-300: 15 118 110; --teal-400: 13 148 136; --teal-500: 20 184 166; --teal-600: 45 212 191; --teal-700: 94 234 212; --teal-800: 153 246 228; --teal-900: 204 251 241; --teal-950: 240 253 250;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-slate-50 font-sans text-slate-900 antialiased;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+
+  h1, h2, h3 {
+    @apply tracking-tight;
+  }
+
+  /* Visible focus is retained rather than reset away (NFR-14). */
+  :focus-visible {
+    outline: 2px solid rgb(var(--brand-600));
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: rgb(var(--brand-200));
+    color: rgb(var(--slate-900));
+  }
+
+  /* Native popups (select menus, date pickers) follow the theme via
+     color-scheme; their option rows need the surface colour explicitly. */
+  option {
+    background-color: rgb(var(--surface));
+    color: rgb(var(--slate-900));
+  }
+
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: rgb(var(--primary));
+  }
+
+  /* Photos and placeholders are bright by nature; take the glare off them. */
+  .dark img {
+    filter: brightness(0.85);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .field-label {
+    @apply mb-1 block text-sm font-medium text-slate-700;
+  }
+
+  .field-input {
+    @apply w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900
+           shadow-sm transition-colors placeholder:text-slate-400
+           hover:border-slate-400
+           focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40
+           disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500;
+  }
+
+  .field-input[aria-invalid='true'] {
+    @apply border-red-500 focus:ring-red-500/40;
+  }
+
+  .field-error {
+    @apply mt-1 text-sm text-red-700;
+  }
+
+  .card {
+    @apply rounded-xl border border-slate-200 bg-surface shadow-card;
+  }
+
+  .dark .card {
+    box-shadow: none;
+  }
+}
+
+/*
+ * Cuisine covers.
+ *
+ * Restaurants without a photo get a cover in their cuisine's colours rather
+ * than a grey box. The colours are fixed (not theme tokens) because they are
+ * illustration, not interface; dark mode only takes the glare off them.
+ */
+.cuisine-cover {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--cover-from), var(--cover-to));
+}
+.cuisine-cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgb(255 255 255 / 0.16) 1.5px, transparent 1.5px);
+  background-size: 14px 14px;
+}
+.dark .cuisine-cover {
+  filter: brightness(0.8) saturate(0.9);
+}
+.cover-egyptian { --cover-from: #b45309; --cover-to: #713f12; }
+.cover-levantine { --cover-from: #059669; --cover-to: #065f46; }
+.cover-seafood { --cover-from: #0284c7; --cover-to: #1e3a8a; }
+.cover-italian { --cover-from: #dc2626; --cover-to: #7f1d1d; }
+.cover-desserts { --cover-from: #c026d3; --cover-to: #6d28d9; }
+.cover-burgers { --cover-from: #d97706; --cover-to: #9a3412; }
+.cover-asian { --cover-from: #e11d48; --cover-to: #9f1239; }
+.cover-indian { --cover-from: #ea580c; --cover-to: #b45309; }
+.cover-default { --cover-from: #c2410c; --cover-to: #7c2d12; }
+
+/* Item tiles: the same idea at thumbnail size. */
+.tile-0 { background: #ffedd5; color: #9a3412; }
+.tile-1 { background: #ccfbf1; color: #115e59; }
+.tile-2 { background: #e0e7ff; color: #3730a3; }
+.tile-3 { background: #fce7f3; color: #9d174d; }
+.tile-4 { background: #fef3c7; color: #92400e; }
+.tile-5 { background: #dcfce7; color: #166534; }
+.dark .tile-0 { background: #431407; color: #fdba74; }
+.dark .tile-1 { background: #042f2e; color: #5eead4; }
+.dark .tile-2 { background: #1e1b4b; color: #a5b4fc; }
+.dark .tile-3 { background: #500724; color: #f9a8d4; }
+.dark .tile-4 { background: #451a03; color: #fcd34d; }
+.dark .tile-5 { background: #052e16; color: #86efac; }
+
+/* A hairline of the brand under the header. Light theme only. */
+.app-accent-bar {
+  height: 3px;
+  background: linear-gradient(90deg, #c2410c, #f59e0b 50%, #0d9488);
+}
+.dark .app-accent-bar {
+  display: none;
+}
+
+/*
+ * Light theme identity.
+ *
+ * Everything here is scoped to :root:not(.dark), so none of it can reach the
+ * dark theme. It gives the light theme depth and colour: a warm page with a
+ * soft glow, white cards with warm borders and shadows, and orange or teal
+ * accents on the interactive elements.
+ */
+:root:not(.dark) body {
+  background-image:
+    radial-gradient(1100px 420px at 0% -8%, rgb(255 237 213 / 0.95), transparent 62%),
+    radial-gradient(900px 380px at 100% -4%, rgb(204 251 241 / 0.7), transparent 60%);
+  background-repeat: no-repeat;
+}
+
+:root:not(.dark) .app-header {
+  background-color: rgb(255 255 255 / 0.82);
+  border-bottom-color: rgb(var(--brand-100));
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.6), 0 6px 20px -12px rgb(124 45 18 / 0.18);
+}
+
+:root:not(.dark) .app-footer {
+  background-color: rgb(255 255 255 / 0.7);
+  border-top-color: rgb(var(--brand-100));
+}
+
+:root:not(.dark) .card {
+  border-color: rgb(var(--slate-200));
+  box-shadow: 0 1px 2px rgb(124 45 18 / 0.04), 0 6px 18px -8px rgb(124 45 18 / 0.12);
+}
+:root:not(.dark) a.card:hover {
+  border-color: rgb(var(--brand-200));
+  box-shadow: 0 2px 4px rgb(124 45 18 / 0.05), 0 14px 30px -12px rgb(124 45 18 / 0.25);
+}
+
+:root:not(.dark) .field-input {
+  background-color: #fff;
+}
+:root:not(.dark) .field-input:hover:not(:disabled):not(:focus) {
+  border-color: rgb(var(--brand-300));
+}
+:root:not(.dark) .field-input:focus {
+  background-color: #fffdfb;
+}
+
+/* Buttons. White text stays on 4.5:1 or darker throughout the gradient. */
+:root:not(.dark) .btn-primary:not(:disabled) {
+  background-image: linear-gradient(180deg, #c2410c, #a8380b);
+  box-shadow: 0 1px 2px rgb(154 52 18 / 0.3), 0 4px 12px -4px rgb(194 65 12 / 0.45),
+    inset 0 1px 0 rgb(255 255 255 / 0.14);
+}
+:root:not(.dark) .btn-primary:not(:disabled):hover {
+  background-image: linear-gradient(180deg, #a8380b, #8a2f0f);
+}
+:root:not(.dark) .btn-secondary {
+  border-color: rgb(var(--brand-200));
+  background-color: #fff;
+  color: rgb(var(--brand-800));
+}
+:root:not(.dark) .btn-secondary:not(:disabled):hover {
+  border-color: rgb(var(--brand-300));
+  background-color: rgb(var(--brand-50));
+}
+:root:not(.dark) .btn-danger:not(:disabled) {
+  box-shadow: 0 1px 2px rgb(153 27 27 / 0.3), 0 4px 12px -4px rgb(220 38 38 / 0.4);
+}
+:root:not(.dark) .btn-ghost:not(:disabled):hover {
+  background-color: rgb(var(--brand-50));
+  color: rgb(var(--brand-800));
+}
+
+/* Top navigation. */
+:root:not(.dark) .nav-link:hover {
+  background-color: rgb(var(--brand-50));
+  color: rgb(var(--brand-800));
+}
+:root:not(.dark) .nav-link-active {
+  background-color: rgb(var(--brand-100) / 0.7);
+  color: rgb(var(--brand-800));
+}
+
+/* Dashboard sidebar. */
+:root:not(.dark) .side-link:hover {
+  background-color: rgb(255 255 255 / 0.75);
+  color: rgb(var(--brand-800));
+}
+:root:not(.dark) .side-link-active {
+  box-shadow: inset 3px 0 0 rgb(var(--brand-600)), 0 4px 14px -6px rgb(124 45 18 / 0.2) !important;
+  --tw-ring-color: rgb(var(--brand-200)) !important;
+}
+:root:not(.dark)[dir='rtl'] .side-link-active {
+  box-shadow: inset -3px 0 0 rgb(var(--brand-600)), 0 4px 14px -6px rgb(124 45 18 / 0.2) !important;
+}
+
+/* Tables read as a ledger: a tinted header row and warm rules. */
+:root:not(.dark) thead {
+  background-color: rgb(var(--brand-50) / 0.8);
+}
+
+/* Empty states invite rather than shrug. */
+:root:not(.dark) .empty-state {
+  border-color: rgb(var(--brand-200));
+  background-image: linear-gradient(180deg, rgb(var(--brand-50) / 0.6), #fff);
+}
+
+/* Section titles get a brand underline as wide as the title itself. */
+:root:not(.dark) .section-title {
+  width: fit-content;
+}
+:root:not(.dark) .section-title::after {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 3px;
+  margin-top: 0.35rem;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #c2410c, #f59e0b);
+}
+
+/* Layout wrappers let the body's glow show through. */
+:root:not(.dark) .app-shell {
+  background-color: transparent;
+}
+.cover-coffee { --cover-from: #92400e; --cover-to: #451a03; }
+.cover-healthy { --cover-from: #16a34a; --cover-to: #0f766e; }
+
+/* Stat tiles: each in its own colour, so a dashboard scans at a glance. */
+:root:not(.dark) .stat-card {
+  --stat: var(--brand-600);
+  --stat-tint: var(--brand-50);
+  border-top: 3px solid rgb(var(--stat));
+  background-image: linear-gradient(180deg, rgb(var(--stat-tint)), #fff 70%);
+}
+:root:not(.dark) .stat-card:nth-child(4n + 2) { --stat: var(--teal-600); --stat-tint: var(--teal-50); }
+:root:not(.dark) .stat-card:nth-child(4n + 3) { --stat: var(--violet-600); --stat-tint: var(--violet-50); }
+:root:not(.dark) .stat-card:nth-child(4n + 4) { --stat: var(--amber-500); --stat-tint: var(--amber-50); }
+:root:not(.dark) .stat-card dd {
+  color: rgb(var(--slate-900));
+}
+
+/*
+ * Arabic.
+ *
+ * Letter-spacing pulls apart the joined letters of Arabic script, so the
+ * tracking utilities are neutralised; and the stack leads with fonts that
+ * carry Arabic glyphs, since Inter has none.
+ */
+html[lang='ar'] body {
+  font-family: 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Geeza Pro', system-ui, sans-serif;
+  line-height: 1.6;
+}
+html[lang='ar'] * {
+  letter-spacing: 0 !important;
+}
+
+/*
+ * Responsive data tables.
+ *
+ * Below the laptop breakpoint (1024px) a `.table-cards` table stops being a grid the
+ * thumb has to scroll sideways and becomes a stack of cards: the first cell is
+ * the card's title, every other cell is a "label  value" row whose label comes
+ * from its data-label attribute (the column heading, translated). Tablets get
+ * the cards too: beside the sidebar a six-column table no longer fits.
+ *
+ * The rows stay real <tr> elements, so nothing that finds a row by its text
+ * has to know which layout it is looking at.
+ */
+@media (max-width: 1023.98px) {
+  .table-wrap {
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+  }
+
+  .table-cards,
+  .table-cards tbody,
+  .table-cards tr,
+  .table-cards td {
+    display: block;
+    width: 100%;
+  }
+
+  /* Visually hidden, still announced: the headings are now on every row. */
+  .table-cards thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .table-cards tr {
+    margin-bottom: 0.75rem;
+    overflow: hidden;
+    border: 1px solid rgb(var(--slate-200)) !important;
+    border-radius: 0.75rem;
+    background-color: rgb(var(--surface));
+  }
+
+  .table-cards td {
+    display: grid;
+    grid-template-columns: minmax(6rem, 38%) minmax(0, 1fr);
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem !important;
+    overflow-wrap: anywhere;
+  }
+  .table-cards td::before {
+    content: attr(data-label);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: rgb(var(--slate-500));
+  }
+
+  /* The first cell is the card's title. */
+  .table-cards td:first-child {
+    grid-template-columns: minmax(0, 1fr);
+    padding-block: 0.75rem !important;
+    border-bottom: 1px solid rgb(var(--slate-200));
+    background-color: rgb(var(--slate-50));
+  }
+  .table-cards td:first-child::before {
+    display: none;
+  }
+
+  /* Row actions become proper buttons for a thumb. */
+  .table-cards td:last-child button {
+    min-height: 2.75rem;
+    padding-inline: 0.75rem;
+    border: 1px solid currentColor;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    text-decoration: none !important;
+  }
+}
+
+@media (max-width: 1023.98px) {
+  :root:not(.dark) .table-cards tr {
+    box-shadow: 0 1px 2px rgb(124 45 18 / 0.04), 0 6px 18px -8px rgb(124 45 18 / 0.12);
+  }
+}
+
+/*
+ * Touch targets. On phones every form control and action is at least 44px
+ * tall - Apple's and WCAG 2.5.5's comfortable minimum - without inflating the
+ * denser desktop layout.
+ */
+@media (max-width: 767.98px) {
+  .field-input {
+    min-height: 2.75rem;
+    font-size: 1rem; /* 16px stops iOS zooming into the field on focus */
+  }
+}
+
+/*
+ * Text actions ("Edit", "Remove", "View details"): plain links on a desktop,
+ * a full 44px tap area on a phone. The padding grows the hit area without
+ * moving the text.
+ */
+@media (max-width: 767.98px) {
+  .action-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding-inline: 0.25rem;
+  }
+}
+
+/* Horizontal rails: a slim scrollbar, and no page-level bounce sideways. */
+.rail {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--slate-300)) transparent;
+  overscroll-behavior-x: contain;
+}

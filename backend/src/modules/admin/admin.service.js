@@ -1,0 +1,403 @@
+import crypto from 'node:crypto';
+import { knex } from '../../shared/db/knex.js';
+import { withTransaction } from '../../shared/db/transaction.js';
+import {
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+} from '../../shared/errors/AppError.js';
+import { toLimitOffset, paginationMeta } from '../../shared/http/pagination.js';
+import { config } from '../../config/index.js';
+import * as auth from '../auth/index.js';
+import * as users from '../users/index.js';
+import * as restaurants from '../restaurants/index.js';
+import * as orders from '../orders/index.js';
+import * as delivery from '../delivery/index.js';
+import * as reviews from '../reviews/index.js';
+import { audit } from './audit.service.js';
+import { toAdminRestaurantDto } from '../restaurants/index.js';
+
+/**
+ * Every mutation in this module follows one shape: do the thing through the
+ * owning module's interface, then write the audit row - both in the same
+ * transaction, so an unaudited change is impossible without deleting the code
+ * that writes it (BR-AD1).
+ *
+ * The admin module owns only `admin_audit_logs`. Everything else goes through
+ * another module's public interface; writing directly to `orders` here would
+ * create a second status-changing code path and G3 would stop being true.
+ */
+
+/* ------------------------------------------------------------------ users */
+
+export async function listUsers(query) {
+  const { limit, offset, page } = toLimitOffset(query);
+  const q = knex('users')
+    .whereNull('deleted_at')
+    .select('*', knex.raw('count(*) OVER() AS total_count'))
+    .orderBy('created_at', 'desc')
+    .limit(limit)
+    .offset(offset);
+  if (query.role) q.where('role', query.role);
+  if (query.status) q.where('status', query.status);
+  if (query.q) {
+    q.where((b) => b.whereILike('full_name', `%${query.q}%`).orWhereILike('email', `%${query.q}%`));
+  }
+  const rows = await q;
+  return {
+    data: rows.map((u) => ({
+      id: u.id, email: u.email, fullName: u.full_name, phone: u.phone,
+      role: u.role, status: u.status, createdAt: u.created_at, lastLoginAt: u.last_login_at,
+    })),
+    meta: paginationMeta({ page, limit, total: rows[0]?.total_count ?? 0 }),
+  };
+}
+
+export async function getUser(id) {
+  const user = await users.getUserById(id);
+  if (!user) throw new NotFoundError('RESOURCE_NOT_FOUND');
+  const [orderCount] = await knex('orders').where({ customer_user_id: id }).count();
+  return {
+    id: user.id, email: user.email, fullName: user.full_name, phone: user.phone,
+    role: user.role, status: user.status, createdAt: user.created_at,
+    lastLoginAt: user.last_login_at,
+    activity: { orderCount: Number(orderCount?.count ?? 0) },
+  };
+}
+
+/**
+ * Suspension revokes every refresh token AND blocks the existing access token
+ * (via the per-request user load in `authenticate`). Without both, FR-9.3 would
+ * be untrue and suspension would be decorative.
+ */
+export async function suspendUser(adminUserId, userId, { reason }) {
+  if (adminUserId === userId) {
+    throw new ValidationError('UNPROCESSABLE', {
+      details: [{ field: 'id', issue: 'You cannot suspend your own account.' }],
+    });
+  }
+  return withTransaction(async (trx) => {
+    const user = await users.getUserById(userId, trx);
+    if (!user) throw new NotFoundError('RESOURCE_NOT_FOUND');
+
+    // A driver mid-delivery cannot be locked out: an order already in someone's
+    // car is not made safer by taking away their app (BR-AD4).
+    if (user.role === 'DRIVER') {
+      const active = await delivery.findActiveAssignment(userId, trx);
+      if (active) {
+        throw new ConflictError('DRIVER_HAS_ACTIVE_DELIVERY', {
+          details: [{ field: 'id', issue: 'This driver has an active delivery.', orderId: active.order_id }],
+        });
+      }
+    }
+
+    await users.setUserStatus(userId, 'SUSPENDED', trx);
+    await auth.revokeAllForUser(userId, trx);
+    await audit(
+      { adminUserId, action: 'USER_SUSPENDED', entityType: 'user', entityId: userId, metadata: { reason } },
+      trx,
+    );
+    return { id: userId, status: 'SUSPENDED' };
+  });
+}
+
+export async function reactivateUser(adminUserId, userId, { reason } = {}) {
+  return withTransaction(async (trx) => {
+    const user = await users.getUserById(userId, trx);
+    if (!user) throw new NotFoundError('RESOURCE_NOT_FOUND');
+    await users.setUserStatus(userId, 'ACTIVE', trx);
+    await audit(
+      { adminUserId, action: 'USER_REACTIVATED', entityType: 'user', entityId: userId, metadata: { reason } },
+      trx,
+    );
+    return { id: userId, status: 'ACTIVE' };
+  });
+}
+
+/* ------------------------------------------------------------ restaurants */
+
+export async function listRestaurants(query) {
+  const { limit, offset, page } = toLimitOffset(query);
+  const { rows, total } = await restaurants.adminList({ ...query, limit, offset });
+  return { data: rows.map(toAdminRestaurantDto), meta: paginationMeta({ page, limit, total }) };
+}
+
+/** Approving an empty restaurant would put a dead listing in front of
+ *  customers, so at least one available item is required (BR-AD10). */
+export async function approveRestaurant(adminUserId, restaurantId, { reason } = {}) {
+  return withTransaction(async (trx) => {
+    const restaurant = await restaurants.getRestaurantById(restaurantId, trx);
+    if (!restaurant) throw new NotFoundError('RESOURCE_NOT_FOUND');
+    if (restaurant.status === 'ACTIVE') {
+      throw new ConflictError('CONFLICT', {
+        details: [{ field: 'status', issue: 'This restaurant is already active.' }],
+      });
+    }
+
+    const availableItems = await restaurants.countAvailableItems(restaurantId, trx);
+    if (availableItems === 0) {
+      throw new ValidationError('UNPROCESSABLE', {
+        details: [{
+          field: 'menu',
+          issue: 'A restaurant needs at least one available food item before it can be approved.',
+        }],
+      });
+    }
+
+    const { updated } = await restaurants.setStatus(
+      restaurantId, 'ACTIVE',
+      { approved_at: trx.fn.now(), approved_by_user_id: adminUserId, rejection_reason: null },
+      trx,
+    );
+    await audit(
+      { adminUserId, action: 'RESTAURANT_APPROVED', entityType: 'restaurant', entityId: restaurantId, metadata: { reason } },
+      trx,
+    );
+    return { id: updated.id, status: updated.status };
+  });
+}
+
+export async function rejectRestaurant(adminUserId, restaurantId, { reason }) {
+  return withTransaction(async (trx) => {
+    const { updated } = await restaurants.setStatus(
+      restaurantId, 'REJECTED', { rejection_reason: reason }, trx,
+    );
+    await audit(
+      { adminUserId, action: 'RESTAURANT_REJECTED', entityType: 'restaurant', entityId: restaurantId, metadata: { reason } },
+      trx,
+    );
+    return { id: updated.id, status: updated.status, rejectionReason: updated.rejection_reason };
+  });
+}
+
+/** Suspending a restaurant does NOT cancel its in-flight orders (BR-R9) and
+ *  does not touch the owner's user account (BR-AD3). */
+export async function suspendRestaurant(adminUserId, restaurantId, { reason }) {
+  return withTransaction(async (trx) => {
+    const { updated } = await restaurants.setStatus(restaurantId, 'SUSPENDED', {}, trx);
+    await audit(
+      { adminUserId, action: 'RESTAURANT_SUSPENDED', entityType: 'restaurant', entityId: restaurantId, metadata: { reason } },
+      trx,
+    );
+    return { id: updated.id, status: updated.status };
+  });
+}
+
+export async function reactivateRestaurant(adminUserId, restaurantId, { reason } = {}) {
+  return withTransaction(async (trx) => {
+    const { updated } = await restaurants.setStatus(
+      restaurantId, 'ACTIVE', { rejection_reason: null }, trx,
+    );
+    await audit(
+      { adminUserId, action: 'RESTAURANT_REACTIVATED', entityType: 'restaurant', entityId: restaurantId, metadata: { reason } },
+      trx,
+    );
+    return { id: updated.id, status: updated.status };
+  });
+}
+
+/* ---------------------------------------------------------------- drivers */
+
+export async function listDrivers(query) {
+  const { limit, offset, page } = toLimitOffset(query);
+  const { rows, total } = await delivery.adminListDrivers({ ...query, limit, offset });
+  return {
+    data: rows.map((d) => ({
+      id: d.id,
+      userId: d.user_id,
+      fullName: d.full_name,
+      email: d.email,
+      phone: d.phone,
+      status: d.status,
+      availability: d.availability,
+      vehicleType: d.vehicle_type,
+      vehiclePlate: d.vehicle_plate,
+      ratingAverage: d.rating_average,
+      ratingCount: d.rating_count,
+      userStatus: d.user_status,
+      createdAt: d.created_at,
+    })),
+    meta: paginationMeta({ page, limit, total }),
+  };
+}
+
+/**
+ * Drivers are admin-provisioned (ADR-006): a driver receives a stranger's home
+ * address, so self-service registration would put that data one signup form
+ * away from anyone.
+ *
+ * The generated password is returned EXACTLY ONCE, here, and is never
+ * retrievable afterwards (BR-AD8).
+ */
+export async function createDriver(adminUserId, input) {
+  const existing = await knex('users').where({ email: input.email }).first('id');
+  if (existing) throw new ConflictError('EMAIL_ALREADY_REGISTERED');
+
+  const initialPassword = generateInitialPassword();
+  const passwordHash = await auth.hashPassword(initialPassword);
+
+  const result = await withTransaction(async (trx) => {
+    const [user] = await trx('users')
+      .insert({
+        email: input.email,
+        password_hash: passwordHash,
+        full_name: input.fullName,
+        phone: input.phone,
+        role: 'DRIVER',
+        status: 'ACTIVE',
+      })
+      .returning('*');
+
+    // PENDING_APPROVAL even though an admin created it, so approval stays an
+    // explicit, audited second step rather than a side effect of typing a name.
+    const profile = await delivery.insertProfile(
+      {
+        user_id: user.id,
+        vehicle_type: input.vehicleType,
+        vehicle_plate: input.vehiclePlate,
+        status: 'PENDING_APPROVAL',
+        availability: 'OFFLINE',
+      },
+      trx,
+    );
+
+    await audit(
+      { adminUserId, action: 'DRIVER_CREATED', entityType: 'user', entityId: user.id, metadata: { email: input.email } },
+      trx,
+    );
+    return { user, profile };
+  });
+
+  return {
+    user: {
+      id: result.user.id, email: result.user.email, fullName: result.user.full_name,
+      phone: result.user.phone, role: result.user.role, status: result.user.status,
+    },
+    driverProfile: {
+      id: result.profile.id, status: result.profile.status,
+      availability: result.profile.availability, vehicleType: result.profile.vehicle_type,
+    },
+    initialPassword,
+  };
+}
+
+function generateInitialPassword() {
+  const chunk = () => crypto.randomBytes(3).toString('base64url').slice(0, 4);
+  return `${chunk()}-${chunk()}-${chunk()}`;
+}
+
+export async function approveDriver(adminUserId, driverUserId, { reason } = {}) {
+  return withTransaction(async (trx) => {
+    const profile = await delivery.findProfile(driverUserId, trx);
+    if (!profile) throw new NotFoundError('RESOURCE_NOT_FOUND');
+    await delivery.updateProfileRaw(
+      driverUserId, { status: 'ACTIVE', approved_at: trx.fn.now(), approved_by_user_id: adminUserId }, trx,
+    );
+    await audit(
+      { adminUserId, action: 'DRIVER_APPROVED', entityType: 'user', entityId: driverUserId, metadata: { reason } },
+      trx,
+    );
+    return { userId: driverUserId, status: 'ACTIVE' };
+  });
+}
+
+export async function suspendDriver(adminUserId, driverUserId, { reason }) {
+  return withTransaction(async (trx) => {
+    const profile = await delivery.findProfile(driverUserId, trx);
+    if (!profile) throw new NotFoundError('RESOURCE_NOT_FOUND');
+
+    const active = await delivery.findActiveAssignment(driverUserId, trx);
+    if (active) {
+      throw new ConflictError('DRIVER_HAS_ACTIVE_DELIVERY', {
+        details: [{ field: 'id', issue: 'This driver has an active delivery.', orderId: active.order_id }],
+      });
+    }
+
+    await delivery.updateProfileRaw(driverUserId, { status: 'SUSPENDED', availability: 'OFFLINE' }, trx);
+    await audit(
+      { adminUserId, action: 'DRIVER_SUSPENDED', entityType: 'user', entityId: driverUserId, metadata: { reason } },
+      trx,
+    );
+    return { userId: driverUserId, status: 'SUSPENDED' };
+  });
+}
+
+/* ----------------------------------------------------------------- orders */
+
+export const listOrders = orders.adminList;
+export const getOrder = orders.adminGetOrder;
+export const listUnassigned = orders.listUnassigned;
+export const listStuck = orders.listStuck;
+
+export async function forceCancelOrder(adminUserId, orderId, { reason, note }) {
+  return withTransaction(async (trx) => {
+    const updated = await orders.adminForceCancel(adminUserId, orderId, { reason, note }, trx);
+    await audit(
+      { adminUserId, action: 'ORDER_FORCE_CANCELLED', entityType: 'order', entityId: orderId, metadata: { reason, note } },
+      trx,
+    );
+    return { id: updated.id, status: updated.status, cancellationReason: updated.cancellation_reason };
+  });
+}
+
+/* ---------------------------------------------------------------- reviews */
+
+export const listReviews = reviews.adminList;
+
+export async function hideReview(adminUserId, reviewId, { reason }) {
+  return withTransaction(async (trx) => {
+    const row = await reviews.setModerationStatus(
+      { reviewId, status: 'HIDDEN', adminUserId, reason }, trx,
+    );
+    await audit(
+      { adminUserId, action: 'REVIEW_HIDDEN', entityType: 'review', entityId: reviewId, metadata: { reason } },
+      trx,
+    );
+    return { id: row.id, status: row.status };
+  });
+}
+
+export async function restoreReview(adminUserId, reviewId, { reason } = {}) {
+  return withTransaction(async (trx) => {
+    const row = await reviews.setModerationStatus(
+      { reviewId, status: 'PUBLISHED', adminUserId, reason }, trx,
+    );
+    await audit(
+      { adminUserId, action: 'REVIEW_RESTORED', entityType: 'review', entityId: reviewId, metadata: { reason } },
+      trx,
+    );
+    return { id: row.id, status: row.status };
+  });
+}
+
+/* ------------------------------------------------------------- audit logs */
+
+export async function listAuditLogs(query) {
+  const { limit, offset, page } = toLimitOffset(query);
+  const q = knex('admin_audit_logs as a')
+    .join('users as u', 'u.id', 'a.admin_user_id')
+    .select('a.*', 'u.full_name as admin_name', 'u.email as admin_email',
+      knex.raw('count(*) OVER() AS total_count'))
+    .orderBy('a.created_at', 'desc')
+    .limit(limit)
+    .offset(offset);
+  if (query.entityType) q.where('a.entity_type', query.entityType);
+  if (query.entityId) q.where('a.entity_id', query.entityId);
+  if (query.adminId) q.where('a.admin_user_id', query.adminId);
+
+  const rows = await q;
+  return {
+    data: rows.map((r) => ({
+      id: r.id,
+      action: r.action,
+      entityType: r.entity_type,
+      entityId: r.entity_id,
+      metadata: r.metadata,
+      createdAt: r.created_at,
+      admin: { id: r.admin_user_id, fullName: r.admin_name, email: r.admin_email },
+    })),
+    meta: paginationMeta({ page, limit, total: rows[0]?.total_count ?? 0 }),
+  };
+}
+
+export { config as adminConfig };

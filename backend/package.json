@@ -1,0 +1,50 @@
+{
+  "name": "@foodflow/backend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "migrate": "knex migrate:latest",
+    "migrate:make": "knex migrate:make",
+    "migrate:rollback": "knex migrate:rollback",
+    "migrate:test": "cross-env NODE_ENV=test knex migrate:latest",
+    "seed": "knex seed:run",
+    "seed:test": "cross-env NODE_ENV=test knex seed:run",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src tests seeds migrations scripts",
+    "lint:fix": "eslint src tests seeds migrations scripts --fix",
+    "db:local": "node scripts/start-test-db.js start",
+    "db:local:stop": "node scripts/start-test-db.js stop",
+    "db:local:recreate": "node scripts/start-test-db.js recreate",
+    "routes": "node scripts/list-routes.js",
+    "db:local:status": "node scripts/start-test-db.js status"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "knex": "^3.1.0",
+    "pg": "^8.13.1",
+    "pino": "^9.5.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.8",
+    "cross-env": "^7.0.3",
+    "embedded-postgres": "^18.4.0-beta.17",
+    "eslint": "^9.17.0",
+    "supertest": "^7.0.0",
+    "vitest": "^2.1.8"
+  }
+}

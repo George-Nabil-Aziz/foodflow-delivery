@@ -1,0 +1,42 @@
+{
+  "name": "foodflow",
+  "private": true,
+  "version": "1.0.0",
+  "description": "FoodFlow — food delivery management platform (modular monolith)",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "setup": "npm install && npm run migrate && npm run seed",
+    "migrate": "npm run migrate -w backend",
+    "migrate:test": "npm run migrate:test -w backend",
+    "seed": "npm run seed -w backend",
+    "dev": "concurrently --kill-others-on-fail --names backend,frontend --prefix-colors cyan,magenta \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev:backend": "npm run dev -w backend",
+    "dev:frontend": "npm run dev -w frontend",
+    "build": "npm run build -w frontend",
+    "lint": "npm run lint -w backend && npm run lint -w frontend",
+    "test": "npm run test -w backend && npm run test -w frontend",
+    "test:unit": "npm run test:unit -w backend && npm run test -w frontend",
+    "test:integration": "npm run test:integration -w backend",
+    "test:coverage": "npm run test:coverage -w backend && npm run test:coverage -w frontend",
+    "db:local": "npm run db:local -w backend",
+    "db:local:stop": "npm run db:local:stop -w backend",
+    "db:local:recreate": "npm run db:local:recreate -w backend",
+    "lint:fix": "npm run lint:fix -w backend && npm run lint -w frontend -- --fix",
+    "routes": "npm run routes -w backend",
+    "start": "npm run start -w backend",
+    "test:e2e": "npm run test:e2e -w frontend",
+    "test:all": "npm test && npm run test:e2e",
+    "db:local:status": "npm run db:local:status -w backend"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}

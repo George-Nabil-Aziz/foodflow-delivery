@@ -1,0 +1,160 @@
+/**
+ * Arabic catalogue: layouts, shared components, landing and home, cards, and
+ * the shared vocabulary (roles, statuses, cuisines) used across every area.
+ */
+export default {
+  // Layout and navigation
+  'Skip to content': 'انتقل إلى المحتوى',
+  Main: 'القائمة الرئيسية',
+  Section: 'أقسام الصفحة',
+  Restaurants: 'المطاعم',
+  'My orders': 'طلباتي',
+  Cart: 'السلة',
+  Dashboard: 'لوحة التحكم',
+  Account: 'حسابي',
+  'Sign in': 'تسجيل الدخول',
+  'Sign out': 'تسجيل الخروج',
+  'Sign up': 'إنشاء حساب',
+  'Dark mode': 'الوضع الداكن',
+  'Switch to dark mode': 'التبديل إلى الوضع الداكن',
+  'Switch to light mode': 'التبديل إلى الوضع الفاتح',
+  'a demonstration food delivery platform': 'منصة تجريبية لتوصيل الطعام',
+  unavailable: 'غير متاح',
+  Menu: 'القائمة',
+  'Open menu': 'فتح القائمة',
+  'Close menu': 'إغلاق القائمة',
+
+  // Dashboard navigation
+  Orders: 'الطلبات',
+  'Menu items': 'الأصناف',
+  Categories: 'التصنيفات',
+  Profile: 'الملف الشخصي',
+  'Opening hours': 'ساعات العمل',
+  Offers: 'العروض',
+  History: 'السجل',
+  Users: 'المستخدمون',
+  Drivers: 'السائقون',
+  Reviews: 'التقييمات',
+
+  // Roles
+  Admin: 'مسؤول',
+  Customer: 'عميل',
+  Restaurant: 'مطعم',
+  Driver: 'سائق',
+
+  // Account status words, as they appear inside sentences
+  'pending approval': 'بانتظار الموافقة',
+  suspended: 'موقوف',
+  rejected: 'مرفوض',
+  active: 'نشط',
+  'Your restaurant is awaiting approval. Customers cannot see it yet, but you can finish your profile, hours and menu setup.':
+    'مطعمك بانتظار الموافقة. لا يمكن للعملاء رؤيته بعد، لكن يمكنك إكمال الملف الشخصي وساعات العمل وإعداد القائمة.',
+  'Your restaurant is {status}. Operational screens are unavailable.':
+    'حالة مطعمك: {status}. شاشات التشغيل غير متاحة.',
+  'Your driver account is {status}. You cannot receive deliveries yet.':
+    'حالة حساب السائق: {status}. لا يمكنك استلام توصيلات بعد.',
+
+  // Shared components
+  'We could not load this': 'تعذر تحميل هذا المحتوى',
+  'Something went wrong.': 'حدث خطأ ما.',
+  'Try again': 'حاول مرة أخرى',
+  Loading: 'جارٍ التحميل',
+  'Dismiss notification': 'إغلاق الإشعار',
+  Previous: 'السابق',
+  Pagination: 'التنقل بين الصفحات',
+  'Page {n}': 'صفحة {n}',
+  Next: 'التالي',
+  'Page {page} of {pages} · {total} results': 'صفحة {page} من {pages} · {total} نتيجة',
+  Cancel: 'إلغاء',
+  Confirm: 'تأكيد',
+
+  // Order statuses (STATUS_LABEL)
+  'Waiting for the restaurant': 'بانتظار المطعم',
+  Confirmed: 'مؤكد',
+  'Being prepared': 'قيد التحضير',
+  'Ready for pickup': 'جاهز للاستلام',
+  'On the way': 'في الطريق',
+  Delivered: 'تم التوصيل',
+  Cancelled: 'ملغي',
+
+  // Restaurant availability (UNAVAILABLE_REASON_LABEL)
+  'Not currently on FoodFlow': 'غير متوفر حاليًا على FoodFlow',
+  'Not accepting orders right now': 'لا يستقبل طلبات حاليًا',
+  'Closed right now': 'مغلق الآن',
+  Unavailable: 'غير متاح',
+  'Not available': 'غير متاح',
+
+  // Cuisines
+  Egyptian: 'مصري',
+  Levantine: 'شامي',
+  Italian: 'إيطالي',
+  Indian: 'هندي',
+  Burgers: 'برجر',
+  Seafood: 'مأكولات بحرية',
+  Asian: 'آسيوي',
+  Desserts: 'حلويات',
+  Coffee: 'قهوة',
+  Healthy: 'صحي',
+  Other: 'أخرى',
+
+  // Cards
+  'New restaurant': 'مطعم جديد',
+  Delivery: 'التوصيل',
+  Minimum: 'الحد الأدنى',
+  Prep: 'التحضير',
+  '{n} min': '{n} دقيقة',
+  Add: 'أضف',
+  'Add {name} to cart': 'أضف {name} إلى السلة',
+  '{name} is unavailable': '{name} غير متاح',
+  'This restaurant is not taking orders right now': 'هذا المطعم لا يستقبل طلبات حاليًا',
+
+  // Home (signed in)
+  'Welcome back, {name}': 'أهلًا بعودتك يا {name}',
+  'Order from restaurants near you': 'اطلب من المطاعم القريبة منك',
+  'Browse menus, track your order, and rate what you ate.': 'تصفّح القوائم، وتابع طلبك، وقيّم ما تناولته.',
+  'Search restaurants and dishes': 'ابحث عن المطاعم والأطباق',
+  'Search restaurants or dishes': 'ابحث عن مطعم أو طبق',
+  Suggestions: 'اقتراحات',
+  'Searching...': 'جارٍ البحث...',
+  'No matches for "{q}"': 'لا توجد نتائج لـ "{q}"',
+  Dishes: 'الأطباق',
+  'at {restaurant}': 'من {restaurant}',
+  'See all results for "{q}"': 'عرض كل نتائج "{q}"',
+  'Scroll left': 'التمرير لليسار',
+  'Scroll right': 'التمرير لليمين',
+  Search: 'بحث',
+  'Loading restaurants': 'جارٍ تحميل المطاعم',
+  'Browse by cuisine': 'تصفّح حسب المطبخ',
+  'Top rated': 'الأعلى تقييمًا',
+  'See all': 'عرض الكل',
+
+  // Landing
+  'Fresh food, delivered fast': 'طعام طازج يصلك بسرعة',
+  'Your favourite local food, at your door': 'أكلك المفضل من مطاعم حيّك، حتى باب بيتك',
+  'Discover restaurants near you, order in minutes, and follow your meal all the way from the kitchen.':
+    'اكتشف المطاعم القريبة منك، واطلب في دقائق، وتابع وجبتك من المطبخ حتى تصلك.',
+  'Browse restaurants': 'تصفّح المطاعم',
+  'Create an account': 'أنشئ حسابًا',
+  'How it works': 'كيف يعمل',
+  'Three steps between you and a good meal.': 'ثلاث خطوات تفصلك عن وجبة لذيذة.',
+  'Step {n}': 'الخطوة {n}',
+  'Pick a restaurant': 'اختر مطعمًا',
+  'Browse local menus by cuisine, rating or delivery fee.': 'تصفّح القوائم حسب المطبخ أو التقييم أو رسوم التوصيل.',
+  'Place your order': 'أرسل طلبك',
+  'Add dishes to your cart and check out in a few taps.': 'أضف الأطباق إلى السلة وأتمم الطلب بخطوات قليلة.',
+  'Track it to your door': 'تابعه حتى بابك',
+  'Follow every step, from the kitchen to the driver.': 'تابع كل خطوة، من المطبخ إلى السائق.',
+  '{n} restaurants': '{n} مطاعم',
+  'Popular right now': 'الأكثر طلبًا الآن',
+  'Made for everyone at the table': 'مصمَّم لكل من على المائدة',
+  'For customers': 'للعملاء',
+  'Order from the best local kitchens and rate what you ate.': 'اطلب من أفضل المطابخ المحلية وقيّم ما تناولته.',
+  'For restaurants': 'للمطاعم',
+  'List your menu, accept orders and watch your sales grow.': 'اعرض قائمتك، واستقبل الطلبات، وشاهد مبيعاتك تنمو.',
+  'Register your restaurant': 'سجّل مطعمك',
+  'For drivers': 'للسائقين',
+  'Driver accounts are set up by the FoodFlow operations team.': 'يُنشئ فريق عمليات FoodFlow حسابات السائقين.',
+  'Hungry already?': 'جعت؟',
+  'Create an account in under a minute and place your first order.': 'أنشئ حسابك في أقل من دقيقة واطلب أول وجبة.',
+  'Get started': 'ابدأ الآن',
+};

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FoodFlow</title>
+    <meta name="description" content="FoodFlow - order from local restaurants." />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      // Applied before first paint so a dark-mode visitor never sees a white
+      // flash. Mirrors src/composables/useTheme.js, which takes over once the
+      // app has mounted.
+      (function () {
+        var theme = null;
+        try { theme = localStorage.getItem('foodflow.theme'); } catch (e) {}
+        if (theme !== 'dark' && theme !== 'light') {
+          theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark' : 'light';
+        }
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+        document.documentElement.style.colorScheme = theme;
+
+        // Language and direction, mirrored by src/i18n/index.js.
+        var lang = null;
+        try { lang = localStorage.getItem('foodflow.locale'); } catch (e) {}
+        if (lang === 'ar') {
+          document.documentElement.lang = 'ar';
+          document.documentElement.dir = 'rtl';
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
