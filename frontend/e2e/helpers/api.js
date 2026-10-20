@@ -39,13 +39,13 @@ export const uniqueEmail = (prefix) =>
 
 export const PASSWORD = 'Passw0rd!e2e';
 export const SEED = {
-  adminEmail: 'admin@foodflow.test',
+  adminEmail: 'sayed.hanafy@foodflow.com',
   adminPassword: 'Admin123!seed',
   userPassword: 'Passw0rd!seed',
   restA: 'Olive Grill',
   restB: 'Pasta House',
-  ownerA: 'owner@example.com',
-  ownerB: 'owner.b@example.com',
+  ownerA: 'olive.grill@foodflow.com',
+  ownerB: 'pasta.house@foodflow.com',
 };
 
 export async function login(email, password) {

@@ -179,7 +179,7 @@ These are the rules that keep test activity from ever touching real data:
 3. **Staging and production use separate credentials, hosts and JWT secrets.** A staging token is not valid in production.
 4. **No test ever runs against production**, including read-only smoke tests. Production verification is done by observing real traffic and `/api/health`, not by executing test cases.
 5. **Staging data is anonymized or synthetic.** No real customer name, email, phone or address is copied into a lower environment.
-6. **Seed data is fictional throughout** — see [test-data.md](test-data.md). Emails use `@example.com`, which is reserved by RFC 2606 and cannot receive mail.
+6. **Seed data is fictional throughout** — see [test-data.md](test-data.md). Seeded accounts use `@foodflow.com`; FoodFlow sends no email.
 7. **Credentials come from environment variables**, never from committed files. `.env.test.example` documents the variables with placeholder values.
 
 ### Required environment variables for the test run

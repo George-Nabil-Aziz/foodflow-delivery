@@ -10,9 +10,10 @@
  * Everything is derived from the tables below by position, so every run of
  * the seed produces the same names, slugs, coordinates and prices.
  *
- * They are deliberately unrated. A rating is computed from published reviews
- * of delivered orders; writing a number straight into rating_average would
- * show "4.6 (23)" over a review list that is empty.
+ * No rating is written here. A rating is computed from published reviews of
+ * delivered orders - the seed's order history gives some of them reviews -
+ * since writing a number straight into rating_average would show "4.6 (23)"
+ * over a review list that is empty.
  */
 
 const NAMES = {
@@ -140,7 +141,7 @@ export function showcaseRestaurants() {
         // One in twelve is paused, so "not accepting orders" shows up in the
         // listing as it would on a real evening.
         accepting: i % 12 !== 11,
-        owner: `owner.${slugify(name)}@example.com`,
+        owner: `${slugify(name).replace(/-/g, '.')}@foodflow.com`,
         ownerName: `${name} Owner`,
         // Egyptian mobile numbers on the WE (015) prefix.
         phone: `+2015${String(40000000 + i)}`,

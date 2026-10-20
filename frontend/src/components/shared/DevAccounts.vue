@@ -13,10 +13,10 @@ import { t } from '../../i18n/index.js';
 const emit = defineEmits(['pick']);
 
 const ACCOUNTS = [
-  { role: 'Admin', email: 'admin@foodflow.test', password: 'Admin123!seed' },
-  { role: 'Customer', email: 'customer@example.com', password: 'Passw0rd!seed' },
-  { role: 'Restaurant', email: 'owner@example.com', password: 'Passw0rd!seed', note: 'Olive Grill' },
-  { role: 'Driver', email: 'driver@example.com', password: 'Passw0rd!seed' },
+  { role: 'Admin', email: 'sayed.hanafy@foodflow.com', password: 'Admin123!seed' },
+  { role: 'Customer', email: 'sara.idris@gmail.com', password: 'Passw0rd!seed' },
+  { role: 'Restaurant', email: 'olive.grill@foodflow.com', password: 'Passw0rd!seed' },
+  { role: 'Driver', email: 'driver@foodflow.com', password: 'Passw0rd!seed' },
 ];
 
 const pick = ({ email, password }) => emit('pick', { email, password });

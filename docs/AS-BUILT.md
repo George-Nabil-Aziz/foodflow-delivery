@@ -179,8 +179,8 @@ No real secret exists anywhere in the repository.
 * Startup fails if `JWT_SECRET` is shorter than 32 characters, so the
   placeholder cannot quietly reach production.
 * Seed credentials come from `SEED_ADMIN_PASSWORD` / `SEED_USER_PASSWORD` and
-  use `@example.com` and `.test` domains, which RFC 2606 reserves and which
-  cannot receive mail.
+  use `@foodflow.com` addresses. FoodFlow has no email transport, so nothing
+  is ever sent to them.
 * `CORS_ORIGINS=*` is rejected when `NODE_ENV=production`.
 
 ### 3.3 Background jobs

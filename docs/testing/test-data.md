@@ -5,8 +5,8 @@
 > below are the contract between the test cases and the fixtures.
 
 **No real credentials appear anywhere in this document or in the repository.**
-All emails use `@example.com`, reserved by RFC 2606 and incapable of receiving
-mail. All passwords are placeholders resolved from environment variables at run
+Seeded accounts use `@foodflow.com` (restaurant owners are named after their
+restaurant). FoodFlow sends no email. All passwords are placeholders resolved from environment variables at run
 time. All phone numbers are in the reserved-for-documentation range.
 
 ---
@@ -34,22 +34,28 @@ e.g. `"short1"` or `"nodigitshere"`.
 
 | ID | Role | Email | Status | Notes |
 |----|------|-------|--------|-------|
-| `CUST_A` | CUSTOMER | `customer@example.com` | ACTIVE | Primary customer; has addresses and order history |
-| `CUST_B` | CUSTOMER | `customer.b@example.com` | ACTIVE | **Second customer — the cross-tenant probe subject** |
-| `CUST_NEW` | CUSTOMER | `customer.new@example.com` | ACTIVE | No addresses, no cart, no orders — empty-state fixture |
-| `CUST_SUSPENDED` | CUSTOMER | `customer.suspended@example.com` | SUSPENDED | For BR-A5 / FR-1.7 |
-| `CUST_DELETED` | CUSTOMER | `customer.deleted@example.com` | ACTIVE, `deleted_at` set | Soft-deleted (BR-A6) |
-| `OWNER_A` | RESTAURANT | `owner@example.com` | ACTIVE | Owns `REST_A` (ACTIVE) |
-| `OWNER_B` | RESTAURANT | `owner.b@example.com` | ACTIVE | Owns `REST_B` (ACTIVE) — **cross-restaurant probe subject** |
-| `OWNER_PENDING` | RESTAURANT | `owner.pending@example.com` | ACTIVE | Owns `REST_PENDING` |
-| `OWNER_SUSPENDED` | RESTAURANT | `owner.suspended@example.com` | ACTIVE | Owns `REST_SUSPENDED` — note the *user* stays ACTIVE (BR-AD3) |
-| `DRIVER_A` | DRIVER | `driver@example.com` | ACTIVE | Profile ACTIVE, availability AVAILABLE |
-| `DRIVER_B` | DRIVER | `driver.b@example.com` | ACTIVE | Profile ACTIVE, AVAILABLE — second candidate for dispatch races |
-| `DRIVER_BUSY` | DRIVER | `driver.busy@example.com` | ACTIVE | Profile ACTIVE, availability ON_DELIVERY, holds an accepted assignment |
-| `DRIVER_PENDING` | DRIVER | `driver.pending@example.com` | ACTIVE | Profile PENDING_APPROVAL — must receive no offers |
-| `DRIVER_OFFLINE` | DRIVER | `driver.offline@example.com` | ACTIVE | Profile ACTIVE, availability OFFLINE |
+| `CUST_A` | CUSTOMER | `sara.idris@gmail.com` | ACTIVE | Primary customer; has addresses and order history |
+| `CUST_B` | CUSTOMER | `omar.haddad@gmail.com` | ACTIVE | **Second customer — the cross-tenant probe subject** |
+| `CUST_NEW` | CUSTOMER | `nora.fresh@gmail.com` | ACTIVE | No addresses, no cart, no orders — empty-state fixture |
+| `CUST_SUSPENDED` | CUSTOMER | `sam.suspended@gmail.com` | SUSPENDED | For BR-A5 / FR-1.7 |
+| `CUST_DELETED` | CUSTOMER | `customer.deleted@foodflow.com` | ACTIVE, `deleted_at` set | Soft-deleted (BR-A6) |
+| `CUST_FILLER` | CUSTOMER | `ahmed.mansour@gmail.com` … `habiba.saad@gmail.com` | ACTIVE (3 SUSPENDED) | 26 more customers (`first.last@gmail.com`) who joined across 2026; they place the seeded order history and its reviews |
+| `OWNER_A` | RESTAURANT | `olive.grill@foodflow.com` | ACTIVE | Owns `REST_A` (ACTIVE) |
+| `OWNER_B` | RESTAURANT | `pasta.house@foodflow.com` | ACTIVE | Owns `REST_B` (ACTIVE) — **cross-restaurant probe subject** |
+| `OWNER_PENDING` | RESTAURANT | `new.spice@foodflow.com` | ACTIVE | Owns `REST_PENDING` |
+| `OWNER_SUSPENDED` | RESTAURANT | `paused.kitchen@foodflow.com` | ACTIVE | Owns `REST_SUSPENDED` — note the *user* stays ACTIVE (BR-AD3) |
+| `DRIVER_A` | DRIVER | `driver@foodflow.com` | ACTIVE | Profile ACTIVE, availability AVAILABLE |
+| `DRIVER_B` | DRIVER | `driver.b@foodflow.com` | ACTIVE | Profile ACTIVE, AVAILABLE — second candidate for dispatch races |
+| `DRIVER_BUSY` | DRIVER | `driver.busy@foodflow.com` | ACTIVE | Profile ACTIVE, availability ON_DELIVERY, holds an accepted assignment |
+| `DRIVER_PENDING` | DRIVER | `driver.pending@foodflow.com` | ACTIVE | Profile PENDING_APPROVAL — must receive no offers |
+| `DRIVER_OFFLINE` | DRIVER | `driver.offline@foodflow.com` | ACTIVE | Profile ACTIVE, availability OFFLINE |
 | `ADMIN_A` | ADMIN | `${TEST_ADMIN_EMAIL}` | ACTIVE | Seeded admin |
-| `ADMIN_B` | ADMIN | `admin.b@example.com` | ACTIVE | Second admin — needed for BR-AD7 (self-suspension) and audit-review cases |
+| `ADMIN_B` | ADMIN | `raya.johonson@foodflow.com` (Raya Johonson) | ACTIVE | Second admin — needed for BR-AD7 (self-suspension) and audit-review cases |
+| `ADMIN_FILLER` | ADMIN | `nadia.farouk@foodflow.com`, `omar.said@foodflow.com`, `rami.fikry@foodflow.com` | ACTIVE / SUSPENDED / SUSPENDED | Admin password; fill the Admin tab, two of them suspended |
+| `OWNER_FILLER` | RESTAURANT | `corner.diner@foodflow.com` (SUSPENDED, owns suspended Corner Diner), `rejected.bistro@foodflow.com` (ACTIVE, owns REJECTED Rejected Bistro) | — | Fill the restaurant Suspended and Rejected tabs |
+| `DRIVER_FILLER` | DRIVER | `karim.road@`, `mina.pedal@` (bicycle, no plate), `hesham.cruise@` (ACTIVE, OFFLINE); `fady.halt@`, `waleed.stop@` (SUSPENDED) — all `@foodflow.com` | — | Carried the past deliveries; offline, so never in a live dispatch |
+
+**History.** Join dates, restaurant approvals and driver approvals are spread over 2026. The seed also adds 89 past orders (75 delivered, 14 cancelled, February to two days ago) and 60 reviews of them — happy, so-so and unhappy, some without a comment, five hidden by a moderator. Generated from a fixed random seed (`seeds/data/history.js`): the same rows on every run, with order dates running up to the day it is run. The named fixtures above keep only their documented orders.
 
 ### Invalid / boundary registration inputs
 

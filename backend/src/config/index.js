@@ -36,7 +36,7 @@ const schema = z
     // working correctly. Never below 1, so limits can only be relaxed for a
     // test environment, never tightened into a surprise.
     RATE_LIMIT_MULTIPLIER: z.coerce.number().min(1).default(1),
-    SEED_ADMIN_EMAIL: z.string().email().default('admin@foodflow.test'),
+    SEED_ADMIN_EMAIL: z.string().email().default('sayed.hanafy@foodflow.com'),
     SEED_ADMIN_PASSWORD: z.string().min(8).default('Admin123!seed'),
     SEED_USER_PASSWORD: z.string().min(8).default('Passw0rd!seed'),
   })

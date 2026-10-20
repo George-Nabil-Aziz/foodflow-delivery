@@ -1,12 +1,17 @@
 import bcrypt from 'bcryptjs';
 import { config } from '../src/config/index.js';
 import { showcaseRestaurants, menuFor } from './data/showcase-restaurants.js';
+import {
+  makeRng, YEAR_START, DAY, between, addMinutes, ymd, DISTRICTS, STREETS, CANCELLATIONS,
+  COMMENTS, HIDDEN_REVIEWS, ratingsFor, moodFor,
+} from './data/history.js';
 
 /**
  * Development seed.
  *
  * Every credential is a documented development placeholder resolved from the
- * environment; all emails use @example.com / .test, which cannot receive mail.
+ * environment. Customers use name-based @gmail.com addresses and every other
+ * account uses @foodflow.com; no mail is ever sent.
  * Nothing here is a real secret.
  *
  * Creates a superset of the fixtures in docs/testing/test-data.md, so every
@@ -37,33 +42,78 @@ export async function seed(knex) {
 
   /* ------------------------------------------------------------- users */
 
-  const mkUser = (email, fullName, phone, role, extra = {}) => ({
-    email,
-    password_hash: role === 'ADMIN' ? adminHash : userHash,
-    full_name: fullName,
-    phone,
-    role,
-    status: 'ACTIVE',
-    ...extra,
-  });
+  // Join dates are spread over 2026 (admins first, customers keep arriving),
+  // so the admin lists sort and read like a platform with a history.
+  const rng = makeRng(2026);
+  const now = new Date();
+  const JOIN_WINDOW = {
+    ADMIN: [YEAR_START, new Date('2026-02-15T00:00:00Z')],
+    RESTAURANT: [YEAR_START, new Date('2026-06-30T00:00:00Z')],
+    DRIVER: [new Date('2026-01-15T00:00:00Z'), new Date('2026-07-31T00:00:00Z')],
+    CUSTOMER: [YEAR_START, new Date('2026-08-31T00:00:00Z')],
+  };
+  const joined = (role) => between(rng, ...JOIN_WINDOW[role]);
+
+  const mkUser = (email, fullName, phone, role, extra = {}) => {
+    const createdAt = joined(role);
+    return {
+      email,
+      password_hash: role === 'ADMIN' ? adminHash : userHash,
+      full_name: fullName,
+      phone,
+      role,
+      status: 'ACTIVE',
+      created_at: createdAt,
+      updated_at: createdAt,
+      ...extra,
+    };
+  };
+  const suspended = { status: 'SUSPENDED' };
+
+  // Customers sign in with their own name (sara.idris@gmail.com). Beyond the
+  // four fixtures, these fill the admin user list with enough rows to page.
+  const customerEmail = (fullName) => `${fullName.toLowerCase().replace(' ', '.')}@gmail.com`;
+  const moreCustomers = [
+    'Ahmed Mansour', 'Mona Khalil', 'Youssef Adel', 'Hana Mostafa', 'Karim Nabil',
+    'Salma Fathy', 'Mahmoud Gamal', 'Farida Hassan', 'Tarek Samir', 'Laila Ashraf',
+    'Hassan Ragab', 'Yasmin Fouad', 'Mostafa Ezzat', 'Rana Tawfik', 'Amr Shawky',
+    'Dina Lotfy', 'Khaled Zaki', 'Nour Hamdy', 'Ibrahim Sobhy', 'Malak Sherif',
+    'Ziad Wahba', 'Reem Selim', 'Adham Kamel', 'Jana Magdy', 'Sherif Anwar',
+    'Habiba Saad',
+  ].map((fullName, i) => mkUser(customerEmail(fullName), fullName, `+2010011111${15 + i}`, 'CUSTOMER',
+    // A few suspended accounts among them, so the Suspended filter has rows.
+    [5, 12, 19].includes(i) ? suspended : {}));
 
   const users = await knex('users')
     .insert([
-      mkUser(config.seed.adminEmail, 'Platform Admin', '+201000000001', 'ADMIN'),
-      mkUser('admin.b@example.com', 'Second Admin', '+201000000002', 'ADMIN'),
-      mkUser('customer@example.com', 'Sara Idris', '+201001111111', 'CUSTOMER'),
-      mkUser('customer.b@example.com', 'Omar Haddad', '+201001111112', 'CUSTOMER'),
-      mkUser('customer.new@example.com', 'Nora Fresh', '+201001111113', 'CUSTOMER'),
-      mkUser('customer.suspended@example.com', 'Sam Suspended', '+201001111114', 'CUSTOMER', { status: 'SUSPENDED' }),
-      mkUser('owner@example.com', 'Layla Grill', '+201002222221', 'RESTAURANT'),
-      mkUser('owner.b@example.com', 'Marco Pasta', '+201002222222', 'RESTAURANT'),
-      mkUser('owner.pending@example.com', 'Pending Owner', '+201002222223', 'RESTAURANT'),
-      mkUser('owner.suspended@example.com', 'Suspended Owner', '+201002222224', 'RESTAURANT'),
-      mkUser('owner.closed@example.com', 'Closed Owner', '+201002222225', 'RESTAURANT'),
-      mkUser('owner.paused@example.com', 'Paused Owner', '+201002222226', 'RESTAURANT'),
-      mkUser('driver@example.com', 'Ali Wheels', '+201003333331', 'DRIVER'),
-      mkUser('driver.b@example.com', 'Bilal Swift', '+201003333332', 'DRIVER'),
-      mkUser('driver.pending@example.com', 'Pending Driver', '+201003333333', 'DRIVER'),
+      mkUser(config.seed.adminEmail, 'Sayed Hanafy', '+201000000001', 'ADMIN'),
+      mkUser('raya.johonson@foodflow.com', 'Raya Johonson', '+201000000002', 'ADMIN'),
+      // Five admins in all, two of them suspended; same password as the first.
+      mkUser('nadia.farouk@foodflow.com', 'Nadia Farouk', '+201000000003', 'ADMIN'),
+      mkUser('omar.said@foodflow.com', 'Omar Said', '+201000000004', 'ADMIN', suspended),
+      mkUser('rami.fikry@foodflow.com', 'Rami Fikry', '+201000000005', 'ADMIN', suspended),
+      mkUser('sara.idris@gmail.com', 'Sara Idris', '+201001111111', 'CUSTOMER'),
+      mkUser('omar.haddad@gmail.com', 'Omar Haddad', '+201001111112', 'CUSTOMER'),
+      mkUser('nora.fresh@gmail.com', 'Nora Fresh', '+201001111113', 'CUSTOMER'),
+      mkUser('sam.suspended@gmail.com', 'Sam Suspended', '+201001111114', 'CUSTOMER', { status: 'SUSPENDED' }),
+      ...moreCustomers,
+      mkUser('olive.grill@foodflow.com', 'Layla Grill', '+201002222221', 'RESTAURANT'),
+      mkUser('pasta.house@foodflow.com', 'Marco Pasta', '+201002222222', 'RESTAURANT'),
+      mkUser('new.spice@foodflow.com', 'Pending Owner', '+201002222223', 'RESTAURANT'),
+      mkUser('paused.kitchen@foodflow.com', 'Suspended Owner', '+201002222224', 'RESTAURANT'),
+      mkUser('dawn.bakery@foodflow.com', 'Closed Owner', '+201002222225', 'RESTAURANT'),
+      mkUser('blue.sea@foodflow.com', 'Paused Owner', '+201002222226', 'RESTAURANT'),
+      mkUser('corner.diner@foodflow.com', 'Hamdy Shaker', '+201002222227', 'RESTAURANT', suspended),
+      mkUser('rejected.bistro@foodflow.com', 'Tamer Bistro', '+201002222228', 'RESTAURANT'),
+      mkUser('driver@foodflow.com', 'Ali Wheels', '+201003333331', 'DRIVER'),
+      mkUser('driver.b@foodflow.com', 'Bilal Swift', '+201003333332', 'DRIVER'),
+      mkUser('driver.pending@foodflow.com', 'Pending Driver', '+201003333333', 'DRIVER'),
+      // Past-delivery drivers: offline, so they never compete for live offers.
+      mkUser('karim.road@foodflow.com', 'Karim Road', '+201003333334', 'DRIVER'),
+      mkUser('mina.pedal@foodflow.com', 'Mina Pedal', '+201003333335', 'DRIVER'),
+      mkUser('hesham.cruise@foodflow.com', 'Hesham Cruise', '+201003333336', 'DRIVER'),
+      mkUser('fady.halt@foodflow.com', 'Fady Halt', '+201003333337', 'DRIVER', suspended),
+      mkUser('waleed.stop@foodflow.com', 'Waleed Stop', '+201003333338', 'DRIVER', suspended),
     ])
     .returning('*');
 
@@ -73,17 +123,17 @@ export async function seed(knex) {
 
   await knex('customer_addresses').insert([
     {
-      user_id: byEmail['customer@example.com'].id,
+      user_id: byEmail['sara.idris@gmail.com'].id,
       label: 'Home', line1: '26 Abu El Feda Street', city: 'Cairo', district: 'Zamalek',
       postal_code: '11211', latitude: 30.0650, longitude: 31.2210, is_default: true,
     },
     {
-      user_id: byEmail['customer@example.com'].id,
+      user_id: byEmail['sara.idris@gmail.com'].id,
       label: 'Work', line1: '15 Tahrir Street', city: 'Giza', district: 'Dokki',
       latitude: 30.0380, longitude: 31.2120, is_default: false,
     },
     {
-      user_id: byEmail['customer.b@example.com'].id,
+      user_id: byEmail['omar.haddad@gmail.com'].id,
       label: 'Home', line1: '8 Baghdad Street', city: 'Cairo', district: 'Heliopolis',
       latitude: 30.0890, longitude: 31.3260, is_default: true,
     },
@@ -92,29 +142,47 @@ export async function seed(knex) {
   /* ------------------------------------------------------- restaurants */
 
   const restaurantSeeds = [
-    { owner: 'owner@example.com', name: 'Olive Grill', slug: 'olive-grill', cuisine: 'LEVANTINE',
+    { owner: 'olive.grill@foodflow.com', name: 'Olive Grill', slug: 'olive-grill', cuisine: 'LEVANTINE',
       status: 'ACTIVE', accepting: true, fee: '25.00', min: '150.00', prep: 25,
       desc: 'Charcoal-grilled Levantine classics, made to order.',
       lat: 30.0626, lng: 31.2197, district: 'Zamalek' },
-    { owner: 'owner.b@example.com', name: 'Pasta House', slug: 'pasta-house', cuisine: 'ITALIAN',
+    { owner: 'pasta.house@foodflow.com', name: 'Pasta House', slug: 'pasta-house', cuisine: 'ITALIAN',
       status: 'ACTIVE', accepting: true, fee: '20.00', min: '100.00', prep: 20,
       desc: 'Fresh pasta, slow sauces, no shortcuts.',
       lat: 30.0561, lng: 31.2001, district: 'Mohandessin' },
-    { owner: 'owner.closed@example.com', name: 'Dawn Bakery', slug: 'dawn-bakery', cuisine: 'DESSERTS',
+    { owner: 'dawn.bakery@foodflow.com', name: 'Dawn Bakery', slug: 'dawn-bakery', cuisine: 'DESSERTS',
       status: 'ACTIVE', accepting: true, fee: '20.00', min: '100.00', prep: 15,
       desc: 'Morning pastries and cakes.', closedToday: true,
       lat: 30.0384, lng: 31.2123, district: 'Dokki' },
-    { owner: 'owner.paused@example.com', name: 'Blue Sea', slug: 'blue-sea', cuisine: 'SEAFOOD',
+    { owner: 'blue.sea@foodflow.com', name: 'Blue Sea', slug: 'blue-sea', cuisine: 'SEAFOOD',
       status: 'ACTIVE', accepting: false, fee: '35.00', min: '200.00', prep: 35,
       desc: 'Daily catch, grilled or fried.',
       lat: 29.9602, lng: 31.2569, district: 'Maadi' },
-    { owner: 'owner.pending@example.com', name: 'New Spice', slug: 'new-spice', cuisine: 'INDIAN',
+    { owner: 'new.spice@foodflow.com', name: 'New Spice', slug: 'new-spice', cuisine: 'INDIAN',
       status: 'PENDING_APPROVAL', accepting: true, fee: '25.00', min: '0.00', prep: 30,
       desc: 'Awaiting platform approval.', lat: 30.0911, lng: 31.3225, district: 'Heliopolis' },
-    { owner: 'owner.suspended@example.com', name: 'Paused Kitchen', slug: 'paused-kitchen', cuisine: 'BURGERS',
+    { owner: 'paused.kitchen@foodflow.com', name: 'Paused Kitchen', slug: 'paused-kitchen', cuisine: 'BURGERS',
       status: 'SUSPENDED', accepting: true, fee: '25.00', min: '120.00', prep: 20,
       desc: 'Temporarily suspended by an administrator.', lat: 30.0561, lng: 31.3301, district: 'Nasr City' },
+    { owner: 'corner.diner@foodflow.com', name: 'Corner Diner', slug: 'corner-diner', cuisine: 'BURGERS',
+      status: 'SUSPENDED', accepting: false, fee: '20.00', min: '90.00', prep: 20,
+      desc: 'Suspended along with its owner after repeated complaints.', lat: 30.0444, lng: 31.2357, district: 'Garden City' },
+    { owner: 'rejected.bistro@foodflow.com', name: 'Rejected Bistro', slug: 'rejected-bistro', cuisine: 'ITALIAN',
+      status: 'REJECTED', accepting: true, fee: '30.00', min: '150.00', prep: 25,
+      desc: 'Application rejected.', rejection: 'Commercial registration number could not be verified.',
+      lat: 30.0131, lng: 31.4089, district: 'New Cairo' },
   ];
+
+  /** Opened a few days after the owner joined; approved (if ever) a few days later. */
+  const restaurantDates = (ownerJoined, status) => {
+    const createdAt = addMinutes(ownerJoined, rng.int(1, 4) * 24 * 60);
+    const decided = addMinutes(createdAt, rng.int(1, 6) * 24 * 60 + rng.int(0, 600));
+    return {
+      created_at: createdAt,
+      updated_at: status === 'PENDING_APPROVAL' ? createdAt : decided,
+      approved_at: status === 'ACTIVE' || status === 'SUSPENDED' ? decided : null,
+    };
+  };
 
   const restaurants = await knex('restaurants')
     .insert(
@@ -125,7 +193,7 @@ export async function seed(knex) {
         description: r.desc,
         cuisine_type: r.cuisine,
         phone: '+201001234567',
-        email: `hello@${r.slug}.example.com`,
+        email: `hello@${r.slug}.foodflow.com`,
         logo_url: null,
         cover_image_url: null,
         address_line1: `${r.name} Street`,
@@ -138,8 +206,9 @@ export async function seed(knex) {
         avg_preparation_minutes: r.prep,
         status: r.status,
         is_accepting_orders: r.accepting,
-        approved_at: r.status === 'ACTIVE' ? knex.fn.now() : null,
-        approved_by_user_id: r.status === 'ACTIVE' ? byEmail[config.seed.adminEmail].id : null,
+        rejection_reason: r.rejection ?? null,
+        ...restaurantDates(byEmail[r.owner].created_at, r.status),
+        approved_by_user_id: ['ACTIVE', 'SUSPENDED'].includes(r.status) ? byEmail[config.seed.adminEmail].id : null,
       })),
     )
     .returning('*');
@@ -223,21 +292,44 @@ export async function seed(knex) {
 
   /* ----------------------------------------------------- driver profiles */
 
+  // Profile created with the account; approved a few days later.
+  const driverRow = (email, fields) => {
+    const createdAt = byEmail[email].created_at;
+    return {
+      user_id: byEmail[email].id,
+      created_at: createdAt,
+      updated_at: createdAt,
+      approved_at: fields.status === 'PENDING_APPROVAL' ? null : addMinutes(createdAt, rng.int(1, 5) * 24 * 60),
+      ...fields,
+    };
+  };
+
   await knex('driver_profiles').insert([
-    { user_id: byEmail['driver@example.com'].id, vehicle_type: 'MOTORCYCLE', vehicle_plate: 'ن ط ق 1234',
+    driverRow('driver@foodflow.com', { vehicle_type: 'MOTORCYCLE', vehicle_plate: 'ن ط ق 1234',
       status: 'ACTIVE', availability: 'AVAILABLE', current_latitude: 30.0630, current_longitude: 31.2190,
-      location_updated_at: knex.fn.now(), approved_at: knex.fn.now() },
-    { user_id: byEmail['driver.b@example.com'].id, vehicle_type: 'CAR', vehicle_plate: 'س ع د 5678',
+      location_updated_at: knex.fn.now() }),
+    driverRow('driver.b@foodflow.com', { vehicle_type: 'CAR', vehicle_plate: 'س ع د 5678',
       status: 'ACTIVE', availability: 'AVAILABLE', current_latitude: 30.0560, current_longitude: 31.2010,
-      location_updated_at: knex.fn.now(), approved_at: knex.fn.now() },
-    { user_id: byEmail['driver.pending@example.com'].id, vehicle_type: 'BICYCLE', vehicle_plate: 'م ص ر 9012',
-      status: 'PENDING_APPROVAL', availability: 'OFFLINE' },
+      location_updated_at: knex.fn.now() }),
+    // A bicycle has no plate.
+    driverRow('driver.pending@foodflow.com', { vehicle_type: 'BICYCLE', vehicle_plate: null,
+      status: 'PENDING_APPROVAL', availability: 'OFFLINE' }),
+    driverRow('karim.road@foodflow.com', { vehicle_type: 'MOTORCYCLE', vehicle_plate: 'ك ر م 3141',
+      status: 'ACTIVE', availability: 'OFFLINE' }),
+    driverRow('mina.pedal@foodflow.com', { vehicle_type: 'BICYCLE', vehicle_plate: null,
+      status: 'ACTIVE', availability: 'OFFLINE' }),
+    driverRow('hesham.cruise@foodflow.com', { vehicle_type: 'CAR', vehicle_plate: 'ه ش م 2718',
+      status: 'ACTIVE', availability: 'OFFLINE' }),
+    driverRow('fady.halt@foodflow.com', { vehicle_type: 'MOTORCYCLE', vehicle_plate: 'ف د ي 1618',
+      status: 'SUSPENDED', availability: 'OFFLINE' }),
+    driverRow('waleed.stop@foodflow.com', { vehicle_type: 'CAR', vehicle_plate: 'و ل د 1414',
+      status: 'SUSPENDED', availability: 'OFFLINE' }),
   ]);
 
   /* ------------------------------------------------------------ orders */
 
   const address = await knex('customer_addresses')
-    .where({ user_id: byEmail['customer@example.com'].id, is_default: true })
+    .where({ user_id: byEmail['sara.idris@gmail.com'].id, is_default: true })
     .first();
 
   const snapshot = {
@@ -259,7 +351,7 @@ export async function seed(knex) {
     const [order] = await knex('orders')
       .insert({
         order_number: `FF-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-SEED${String(counter).padStart(2, '0')}`,
-        customer_user_id: byEmail['customer@example.com'].id,
+        customer_user_id: byEmail['sara.idris@gmail.com'].id,
         restaurant_id: bySlug['olive-grill'].id,
         delivery_address_id: address.id,
         delivery_address_snapshot: JSON.stringify(snapshot),
@@ -287,7 +379,7 @@ export async function seed(knex) {
 
     await knex('order_status_events').insert({
       order_id: order.id, from_status: null, to_status: 'PENDING',
-      actor_user_id: byEmail['customer@example.com'].id, actor_role: 'CUSTOMER',
+      actor_user_id: byEmail['sara.idris@gmail.com'].id, actor_role: 'CUSTOMER',
     });
     return order;
   };
@@ -303,7 +395,7 @@ export async function seed(knex) {
     status: 'DELIVERED',
     lines: [{ name: 'Mixed Grill', price: '385.00', qty: 1 }],
     extra: {
-      driver_user_id: byEmail['driver@example.com'].id,
+      driver_user_id: byEmail['driver@foodflow.com'].id,
       dispatch_state: 'COMPLETED',
       confirmed_at: knex.fn.now(), preparing_at: knex.fn.now(), ready_at: knex.fn.now(),
       picked_up_at: knex.raw("now() - interval '35 minutes'"),
@@ -315,7 +407,7 @@ export async function seed(knex) {
     status: 'DELIVERED',
     lines: [{ name: 'Lentil Soup', price: '75.00', qty: 2 }],
     extra: {
-      driver_user_id: byEmail['driver@example.com'].id,
+      driver_user_id: byEmail['driver@foodflow.com'].id,
       dispatch_state: 'COMPLETED',
       confirmed_at: knex.fn.now(), preparing_at: knex.fn.now(), ready_at: knex.fn.now(),
       picked_up_at: knex.raw("now() - interval '50 minutes'"),
@@ -334,7 +426,7 @@ export async function seed(knex) {
 
   await knex('delivery_assignments').insert({
     order_id: delivered.id,
-    driver_user_id: byEmail['driver@example.com'].id,
+    driver_user_id: byEmail['driver@foodflow.com'].id,
     status: 'COMPLETED',
     expires_at: knex.raw("now() - interval '30 minutes'"),
     responded_at: knex.raw("now() - interval '40 minutes'"),
@@ -345,30 +437,13 @@ export async function seed(knex) {
 
   await knex('reviews').insert({
     order_id: delivered.id,
-    customer_user_id: byEmail['customer@example.com'].id,
+    customer_user_id: byEmail['sara.idris@gmail.com'].id,
     restaurant_id: bySlug['olive-grill'].id,
-    driver_user_id: byEmail['driver@example.com'].id,
+    driver_user_id: byEmail['driver@foodflow.com'].id,
     restaurant_rating: 5,
     driver_rating: 4,
     comment: 'Fast and hot. The grill was excellent.',
   });
-
-  // Aggregates are maintained by the reviews module in production; the seed
-  // computes them directly because it bypasses the service layer.
-  await knex.raw(`
-    UPDATE restaurants r SET
-      rating_average = COALESCE((SELECT ROUND(AVG(restaurant_rating)::numeric, 2) FROM reviews
-                                 WHERE restaurant_id = r.id AND status = 'PUBLISHED'), 0),
-      rating_count   = (SELECT count(*) FROM reviews WHERE restaurant_id = r.id AND status = 'PUBLISHED')
-  `);
-  await knex.raw(`
-    UPDATE driver_profiles d SET
-      rating_average = COALESCE((SELECT ROUND(AVG(driver_rating)::numeric, 2) FROM reviews
-                                 WHERE driver_user_id = d.user_id AND driver_rating IS NOT NULL
-                                   AND status = 'PUBLISHED'), 0),
-      rating_count   = (SELECT count(*) FROM reviews WHERE driver_user_id = d.user_id
-                        AND driver_rating IS NOT NULL AND status = 'PUBLISHED')
-  `);
 
   /* ------------------------------------------- showcase restaurants */
 
@@ -390,7 +465,7 @@ export async function seed(knex) {
       description: `${s.name} - ${s.district}, ${s.city}.`,
       cuisine_type: s.cuisine,
       phone: s.phone,
-      email: `hello@${s.slug}.example.com`,
+      email: `hello@${s.slug}.foodflow.com`,
       address_line1: `${s.name} Street`,
       city: s.city,
       district: s.district,
@@ -401,7 +476,7 @@ export async function seed(knex) {
       avg_preparation_minutes: s.prep,
       status: 'ACTIVE',
       is_accepting_orders: s.accepting,
-      approved_at: knex.fn.now(),
+      ...restaurantDates(ownerByEmail[s.owner].created_at, 'ACTIVE'),
       approved_by_user_id: byEmail[config.seed.adminEmail].id,
     })))
     .returning('*');
@@ -416,19 +491,204 @@ export async function seed(knex) {
       menuFor(r.cuisine_type).map(([name], i) => ({ restaurant_id: r.id, name, display_order: i + 1 }))))
     .returning('*');
 
-  await knex('food_items').insert(showcaseRows.flatMap((r) =>
+  const showcaseItems = await knex('food_items').insert(showcaseRows.flatMap((r) =>
     menuFor(r.cuisine_type).flatMap(([categoryName, dishes]) => {
       const category = showcaseCategories.find((c) => c.restaurant_id === r.id && c.name === categoryName);
       return dishes.map(([name, description, price], i) => ({
         restaurant_id: r.id, category_id: category.id, name, description, price, display_order: i + 1,
       }));
-    })));
+    })))
+    .returning('*');
+
+  /* ------------------------------------------------------- order history */
+
+  // Past orders across the year: mostly delivered, some cancelled, placed by
+  // the filler customers (the named fixtures keep their documented history)
+  // at the original two restaurants and a slice of the showcase, carried by
+  // every driver who has ever been approved.
+  const historyCustomers = users.filter((u) => u.role === 'CUSTOMER'
+    && !['sara.idris@gmail.com', 'omar.haddad@gmail.com', 'nora.fresh@gmail.com', 'sam.suspended@gmail.com'].includes(u.email));
+  const historyRestaurants = [bySlug['olive-grill'], bySlug['pasta-house'],
+    ...showcaseRows.filter((_, i) => i % 3 === 0)];
+  const historyDrivers = await knex('driver_profiles').whereNotNull('approved_at');
+  const menuOf = (restaurantId) => [...items, ...showcaseItems]
+    .filter((i) => i.restaurant_id === restaurantId && i.is_available);
+
+  const DELIVERED_COUNT = 75;
+  const CANCELLED_COUNT = 14;
+  const historyOrders = [];
+
+  for (let n = 1; n <= DELIVERED_COUNT + CANCELLED_COUNT; n += 1) {
+    const delivered = n <= DELIVERED_COUNT;
+    // The date first, spread over the year; then only people and places that
+    // existed a day before it: joined, approved, on the road.
+    const placedAt = between(rng, new Date('2026-02-01T09:00:00Z'), new Date(now.getTime() - 2 * DAY));
+    const before = (date) => date && date.getTime() + DAY < placedAt.getTime();
+    const customers = historyCustomers.filter((c) => before(c.created_at));
+    const openRestaurants = historyRestaurants.filter((r) => before(r.approved_at));
+    const drivers = historyDrivers.filter((d) => before(d.approved_at));
+    if (!customers.length || !openRestaurants.length || !drivers.length) continue;
+    const customer = rng.pick(customers);
+    const restaurant = rng.pick(openRestaurants);
+    const driver = rng.pick(drivers);
+
+    const menu = menuOf(restaurant.id);
+    const lines = Array.from({ length: rng.int(1, 3) }, () => rng.pick(menu))
+      .filter((it, i, all) => all.indexOf(it) === i)
+      .map((it) => ({ item: it, qty: rng.int(1, 3) }));
+    const subtotal = lines.reduce((sum, l) => sum + Number(l.item.price) * l.qty, 0).toFixed(2);
+    const fee = restaurant.delivery_fee;
+    const tax = (Math.round(Number(subtotal) * config.taxRate * 100) / 100).toFixed(2);
+    const total = (Number(subtotal) + Number(fee) + Number(tax)).toFixed(2);
+
+    const [city, district] = rng.pick(DISTRICTS);
+    const snapshot = {
+      label: rng.pick(['Home', 'Work', 'Home']), line1: `${rng.int(1, 120)} ${rng.pick(STREETS)}`, line2: null,
+      city, district, postalCode: null, latitude: null, longitude: null,
+    };
+
+    const order = {
+      order_number: `FF-${ymd(placedAt)}-H${String(n).padStart(3, '0')}`,
+      customer_user_id: customer.id,
+      restaurant_id: restaurant.id,
+      delivery_address_id: null,
+      delivery_address_snapshot: JSON.stringify(snapshot),
+      restaurant_name_snapshot: restaurant.name,
+      subtotal, delivery_fee: fee, tax_amount: tax, total_amount: total,
+      placed_at: placedAt,
+      created_at: placedAt,
+    };
+    // Each step a few minutes after the last, with who took it.
+    const events = [{ to: 'PENDING', at: placedAt, role: 'CUSTOMER', actor: customer.id }];
+
+    if (delivered) {
+      const confirmedAt = addMinutes(placedAt, rng.int(1, 6));
+      const preparingAt = addMinutes(confirmedAt, rng.int(1, 4));
+      const readyAt = addMinutes(preparingAt, restaurant.avg_preparation_minutes + rng.int(-5, 15));
+      const pickedUpAt = addMinutes(readyAt, rng.int(3, 15));
+      const deliveredAt = addMinutes(pickedUpAt, rng.int(10, 40));
+      Object.assign(order, {
+        status: 'DELIVERED', dispatch_state: 'COMPLETED', driver_user_id: driver.user_id,
+        confirmed_at: confirmedAt, preparing_at: preparingAt, ready_at: readyAt,
+        picked_up_at: pickedUpAt, delivered_at: deliveredAt, updated_at: deliveredAt,
+      });
+      events.push(
+        { from: 'PENDING', to: 'CONFIRMED', at: confirmedAt, role: 'RESTAURANT', actor: restaurant.owner_user_id },
+        { from: 'CONFIRMED', to: 'PREPARING', at: preparingAt, role: 'RESTAURANT', actor: restaurant.owner_user_id },
+        { from: 'PREPARING', to: 'READY_FOR_PICKUP', at: readyAt, role: 'RESTAURANT', actor: restaurant.owner_user_id },
+        { from: 'READY_FOR_PICKUP', to: 'OUT_FOR_DELIVERY', at: pickedUpAt, role: 'DRIVER', actor: driver.user_id },
+        { from: 'OUT_FOR_DELIVERY', to: 'DELIVERED', at: deliveredAt, role: 'DRIVER', actor: driver.user_id },
+      );
+    } else {
+      const cancel = rng.pick(CANCELLATIONS);
+      const cancelledAt = addMinutes(placedAt, rng.int(2, 25));
+      Object.assign(order, {
+        status: 'CANCELLED', dispatch_state: 'NOT_REQUIRED',
+        cancelled_at: cancelledAt, cancelled_by: cancel.by,
+        cancellation_reason: cancel.reason, cancellation_note: cancel.note, updated_at: cancelledAt,
+      });
+      const actor = { CUSTOMER: customer.id, RESTAURANT: restaurant.owner_user_id,
+        ADMIN: byEmail[config.seed.adminEmail].id, SYSTEM: null }[cancel.by];
+      events.push({ from: 'PENDING', to: 'CANCELLED', at: cancelledAt, role: cancel.by, actor, reason: cancel.reason });
+    }
+    historyOrders.push({ order, lines, events, delivered, customer, restaurant, driver });
+  }
+
+  const insertedHistory = await knex('orders').insert(historyOrders.map((h) => h.order)).returning('*');
+  insertedHistory.forEach((row, i) => { historyOrders[i].row = row; });
+
+  await knex('order_items').insert(historyOrders.flatMap(({ row, lines }) => lines.map((l) => ({
+    order_id: row.id,
+    food_item_id: l.item.id,
+    item_name_snapshot: l.item.name,
+    item_description_snapshot: l.item.description,
+    unit_price: l.item.price,
+    quantity: l.qty,
+    line_total: (Number(l.item.price) * l.qty).toFixed(2),
+    created_at: row.placed_at,
+  }))));
+
+  await knex('order_status_events').insert(historyOrders.flatMap(({ row, events }) => events.map((e) => ({
+    order_id: row.id, from_status: e.from ?? null, to_status: e.to,
+    actor_user_id: e.actor, actor_role: e.role, reason: e.reason ?? null, created_at: e.at,
+  }))));
+
+  const deliveredHistory = historyOrders.filter((h) => h.delivered);
+  await knex('delivery_assignments').insert(deliveredHistory.map(({ row }) => {
+    const offeredAt = addMinutes(row.ready_at, -rng.int(2, 6));
+    return {
+      order_id: row.id,
+      driver_user_id: row.driver_user_id,
+      status: 'COMPLETED',
+      distance_km: (rng.int(8, 75) / 10).toFixed(2),
+      offered_at: offeredAt,
+      expires_at: addMinutes(offeredAt, 2),
+      responded_at: addMinutes(offeredAt, 1),
+      created_at: offeredAt,
+      updated_at: row.delivered_at,
+    };
+  }));
+
+  /* ------------------------------------------------------ review history */
+
+  // Sixty reviews of those deliveries: happy, so-so and unhappy customers,
+  // a few left without a comment, and a handful a moderator has hidden.
+  const REVIEW_COUNT = 60;
+  const hiddenSlots = new Set([7, 19, 31, 44, 56]);
+  let hiddenIndex = 0;
+  const reviewRows = deliveredHistory.slice(0, REVIEW_COUNT).map(({ row }, i) => {
+    const createdAt = new Date(Math.min(
+      addMinutes(row.delivered_at, rng.int(20, 48 * 60)).getTime(),
+      now.getTime() - 60 * 60 * 1000,
+    ));
+    const base = {
+      order_id: row.id,
+      customer_user_id: row.customer_user_id,
+      restaurant_id: row.restaurant_id,
+      driver_user_id: row.driver_user_id,
+      created_at: createdAt,
+      updated_at: createdAt,
+    };
+    if (hiddenSlots.has(i)) {
+      const hidden = HIDDEN_REVIEWS[hiddenIndex++ % HIDDEN_REVIEWS.length];
+      return {
+        ...base, restaurant_rating: 1, driver_rating: null, comment: hidden.comment,
+        status: 'HIDDEN', moderation_reason: hidden.reason,
+        hidden_by_user_id: byEmail[rng.pick([config.seed.adminEmail, 'raya.johonson@foodflow.com'])].id,
+        updated_at: addMinutes(createdAt, rng.int(30, 24 * 60)),
+      };
+    }
+    const mood = moodFor(rng);
+    const rating = ratingsFor(rng, mood);
+    return {
+      ...base, restaurant_rating: rating.restaurant, driver_rating: rating.driver,
+      comment: rng.pick(COMMENTS[mood]), status: 'PUBLISHED',
+    };
+  });
+  await knex('reviews').insert(reviewRows);
+
+  // Aggregates are maintained by the reviews module in production; the seed
+  // computes them directly because it bypasses the service layer.
+  await knex.raw(`
+    UPDATE restaurants r SET
+      rating_average = COALESCE((SELECT ROUND(AVG(restaurant_rating)::numeric, 2) FROM reviews
+                                 WHERE restaurant_id = r.id AND status = 'PUBLISHED'), 0),
+      rating_count   = (SELECT count(*) FROM reviews WHERE restaurant_id = r.id AND status = 'PUBLISHED')
+  `);
+  await knex.raw(`
+    UPDATE driver_profiles d SET
+      rating_average = COALESCE((SELECT ROUND(AVG(driver_rating)::numeric, 2) FROM reviews
+                                 WHERE driver_user_id = d.user_id AND driver_rating IS NOT NULL
+                                   AND status = 'PUBLISHED'), 0),
+      rating_count   = (SELECT count(*) FROM reviews WHERE driver_user_id = d.user_id
+                        AND driver_rating IS NOT NULL AND status = 'PUBLISHED')
+  `);
 
   /* -------------------------------------------------------------- cart */
 
   const [cart] = await knex('carts')
     .insert({
-      customer_user_id: byEmail['customer.b@example.com'].id,
+      customer_user_id: byEmail['omar.haddad@gmail.com'].id,
       restaurant_id: bySlug['pasta-house'].id,
       status: 'ACTIVE',
     })
@@ -444,10 +704,11 @@ export async function seed(knex) {
   // eslint-disable-next-line no-console
   console.log(`Seed complete.
   Admin:      ${config.seed.adminEmail} / ${config.seed.adminPassword}
-  Customer:   customer@example.com / ${config.seed.userPassword}
-  Restaurant: owner@example.com / ${config.seed.userPassword}
-  Driver:     driver@example.com / ${config.seed.userPassword}
+  Customer:   sara.idris@gmail.com / ${config.seed.userPassword}
+  Restaurant: olive.grill@foodflow.com / ${config.seed.userPassword}
+  Driver:     driver@foodflow.com / ${config.seed.userPassword}
   (development credentials only - see backend/.env.example)
   Restaurants: ${restaurantSeeds.length + showcase.length} (${showcase.length} showcase)
-  Orders seeded: ${counter} (including delivered ${delivered.order_number} and unreviewed ${deliveredUnreviewed.order_number})`);
+  Orders seeded: ${counter} (including delivered ${delivered.order_number} and unreviewed ${deliveredUnreviewed.order_number})
+  History:    ${insertedHistory.length} past orders (${deliveredHistory.length} delivered), ${reviewRows.length + 1} reviews in all`);
 }

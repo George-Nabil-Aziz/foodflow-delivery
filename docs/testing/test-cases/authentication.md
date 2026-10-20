@@ -17,7 +17,7 @@ the damage is complete before it is noticed.
 **Spec** spec-02 · **Story** story-02 · **AC** AC-02-01 · **Rules** FR-1.1, FR-1.2
 **Type** API · **Priority** Critical
 **Pre** No account exists for the email.
-**Data** `customer.new@example.com`, `${TEST_USER_PASSWORD}`
+**Data** `nora.fresh@gmail.com`, `${TEST_USER_PASSWORD}`
 **Steps** 1. `POST /api/auth/register` `{ email, password, fullName, phone, role: "CUSTOMER" }`.
 **Expected** 201; `data.user` has `id`, `email`, `fullName`, `role: "CUSTOMER"`, `status: "ACTIVE"`; `data.accessToken`, `data.refreshToken`, `expiresIn: 900` present; `data.restaurant` is null.
 **Post** One `users` row, `status ACTIVE`. One `refresh_tokens` row with a hashed token.
@@ -40,7 +40,7 @@ the damage is complete before it is noticed.
 **Spec** spec-02 · **Story** story-02 · **AC** AC-02-02 · **Rules** BR-A1
 **Type** API · **Priority** High
 **Pre** `CUST_A` exists.
-**Steps** 1. Register with `customer@example.com`.
+**Steps** 1. Register with `sara.idris@gmail.com`.
 **Expected** 409; `error.code = EMAIL_ALREADY_REGISTERED`.
 **Post** Still exactly one `users` row for that email.
 
