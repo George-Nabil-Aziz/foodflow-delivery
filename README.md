@@ -17,198 +17,202 @@ application. It is not a microservice system, and the reasoning is recorded in
 | API | REST, 91 endpoints under `/api`, all documented |
 | Tests | 615 backend · 43 frontend · 14 end-to-end browser scenarios |
 
----
-
 ## Table of contents
 
-1. [Requirements](#requirements)
-2. [Start the project](#start-the-project)
-3. [Configuration](#configuration)
-4. [Everyday commands](#everyday-commands)
-5. [Testing](#testing)
-6. [Development accounts](#development-accounts)
-7. [Project structure](#project-structure)
-8. [Architecture notes](#architecture-notes)
-9. [Security controls](#security-controls)
-10. [What was built](#what-was-built)
-11. [Documentation](#documentation)
-12. [Troubleshooting](#troubleshooting)
-13. [Known limitations](#known-limitations)
+**Run it**
+
+1. [Getting started](#getting-started)
+2. [Development accounts](#development-accounts)
+3. [Using the app](#using-the-app)
+4. [Commands](#commands)
+5. [Configuration](#configuration)
+6. [Testing](#testing)
+7. [Troubleshooting](#troubleshooting)
+
+**Understand it**
+
+8. [Project structure](#project-structure)
+9. [Architecture notes](#architecture-notes)
+10. [Security controls](#security-controls)
+11. [What was built](#what-was-built)
+12. [Known limitations](#known-limitations)
+13. [Documentation](#documentation)
 
 ---
 
-## Requirements
+## Getting started
 
-### Required
+### Requirements
 
-| | Version | Check with | Notes |
-|---|---|---|---|
-| **Node.js** | **20 or later** | `node --version` | The code uses top-level `await` and native ES modules. Built and verified on Node 24. |
-| **npm** | 9 or later | `npm --version` | Ships with Node. The repo is an npm **workspace**, so always install from the root. |
-| **PostgreSQL** | **16 or later** | `psql --version` | Not optional and not substitutable — see below. Two ways to get one are in [Start the project](#start-the-project). |
+| | Version | Check with |
+|---|---|---|
+| **Node.js** | 20 or later (built and verified on 24) | `node --version` |
+| **npm** | 9 or later | `npm --version` |
 
-### Optional
+You do **not** need to install PostgreSQL: `npm run db:local` runs a
+PostgreSQL 16 server that ships with the project. Docker is optional (see
+[below](#using-docker-for-the-database)). Allow about 400 MB of disk space.
 
-| | Why you might want it |
-|---|---|
-| **Docker + Docker Compose** | The easiest way to get PostgreSQL. Without it, the project ships its own PostgreSQL binaries instead. |
-| **Git** | To clone the repository. |
-| **~400 MB disk** | `node_modules` plus, if you use the Docker-less database, the PostgreSQL binaries and data directory. |
+Run every command from the **project root**, in **one** terminal. They work in
+PowerShell, Command Prompt, Git Bash, macOS and Linux.
 
-### Why PostgreSQL specifically
-
-This is not a preference. Core business rules are enforced *by the database*,
-not by application code:
-
-* **partial unique indexes** — one active cart per customer, one active
-  delivery per driver, one default address per customer, one review per order;
-* **`SELECT … FOR UPDATE`** row locks, so concurrent requests serialise rather
-  than interleave;
-* **check constraints** — for example, an order cannot be cancelled without
-  recording who cancelled it;
-* **`NUMERIC(10,2)`** for money, so no float ever touches a price.
-
-SQLite, MySQL and in-memory fakes cannot express these. The test suites run
-against real PostgreSQL for the same reason: a fake would return whatever the
-test author expected and pass while the real invariant was broken.
-
----
-
-## Start the project
-
-Every command below is run from the **project root** (the folder that contains
-this README), in **one** terminal. They work the same in PowerShell, Command
-Prompt, Git Bash, macOS and Linux.
-
-### First time only
-
-Do these once, in order. Each step has to finish before the next one.
-
-**Step 1 — Install the dependencies**
+### First run
 
 ```bash
+# 1. Install backend and frontend together (npm workspace — always from the root)
 npm install
-```
 
-Installs the backend and the frontend together. Takes a minute or two.
+# 2. Create the settings file. The defaults work as-is (database on port 5433)
+copy backend\.env.example backend\.env      # PowerShell / Command Prompt
+cp backend/.env.example backend/.env        # Git Bash / macOS / Linux
 
-**Step 2 — Create the settings file**
-
-Copy `backend/.env.example` to `backend/.env`:
-
-```bash
-# PowerShell or Command Prompt
-copy backend\.env.example backend\.env
-
-# Git Bash, macOS or Linux
-cp backend/.env.example backend/.env
-```
-
-The defaults are ready to use with the database from the next step (port
-**5433**). Nothing in this file is a real secret, and it is never committed.
-
-**Step 3 — Start the database**
-
-```bash
+# 3. Start the database. Wait for "PostgreSQL is running on port 5433"
 npm run db:local
-```
 
-Wait for `PostgreSQL is running on port 5433`. The very first run sets the
-database up and takes a minute or two; after that it starts in seconds.
-It keeps running in the background after the command finishes.
-
-**Step 4 — Create the tables and the sample data**
-
-```bash
+# 4. Create the tables and load the sample data
 npm run migrate
 npm run seed
-```
 
-`seed` creates the sample restaurants, menus, orders and the
-[development accounts](#development-accounts).
-
-**Step 5 — Start the app**
-
-```bash
+# 5. Start the app. Wait for "FoodFlow API listening" and "Local: http://localhost:5173/"
 npm run dev
 ```
 
-Wait until you see both `FoodFlow API listening` and `Local: http://localhost:5173/`.
+Open **<http://localhost:5173>**, click **Sign in**, and use one of the account
+buttons under the form or any [development account](#development-accounts).
 
-**Step 6 — Open it**
-
-Go to **<http://localhost:5173>**. The landing page opens. Click
-**Sign in** and use one of the account buttons under the form, or any account
-from [Development accounts](#development-accounts).
+The first `db:local` takes a minute or two to set the database up; after that
+it starts in seconds and keeps running in the background.
 
 ### Every day after that
 
-Two commands:
-
 ```bash
 npm run db:local
 npm run dev
 ```
 
-Then open **<http://localhost:5173>**. Leave that terminal open while you use
-the app — closing it stops the app.
+Leave that terminal open while you use the app. Closing it stops the app.
 
 ### Stopping
 
-1. In the terminal running `npm run dev`, press **Ctrl + C**.
-2. Stop the database:
+1. Press **Ctrl + C** in the terminal running `npm run dev`.
+2. Run `npm run db:local:stop`.
 
-   ```bash
-   npm run db:local:stop
-   ```
+### Using Docker for the database
 
-### If something goes wrong
+If you have Docker, run `npm run db:up` instead of `npm run db:local`. That
+starts PostgreSQL 16 on port **5432**, so change the port in `backend/.env` from
+5433 to **5432**. Stop it with `npm run db:down`.
 
-| What you see | Why | Fix |
+### Is it working?
+
+Open <http://localhost:4000/api/health>. It should say
+`"status":"ok","database":"up"`. If it does not, see
+[Troubleshooting](#troubleshooting).
+
+---
+
+## Development accounts
+
+Created by `npm run seed`. These are development placeholders only and must
+never be used outside a local database. FoodFlow sends no email, so nothing is
+ever delivered to these addresses.
+
+| Role | Email | Password |
 |---|---|---|
-| **Request failed** on the sign-in page | The backend is not running, almost always because the database is down | Run `npm run db:local`, then stop and re-run `npm run dev` |
-| `Port 5173 is in use` or `EADDRINUSE :4000` | `npm run dev` is already running in another terminal | Close the other terminal. Run `npm run dev` **once** only |
-| `Cannot reach the database` | Database stopped, or `backend/.env` points at the wrong port | `npm run db:local:status`; check `.env` says **5433** |
-| `JWT_SECRET must be at least 32 characters` | `backend/.env` is missing | Repeat Step 2 |
-| Accounts do not work / data looks wrong | Old data | `npm run seed` resets everything to the sample data |
+| Admin | `sayed.hanafy@foodflow.com` | `Admin123!seed` |
+| Customer | `sara.idris@gmail.com` | `Passw0rd!seed` |
+| Customer (no orders yet) | `nora.fresh@gmail.com` | `Passw0rd!seed` |
+| Restaurant owner | `olive.grill@foodflow.com` | `Passw0rd!seed` |
+| Owner awaiting approval | `new.spice@foodflow.com` | `Passw0rd!seed` |
+| Driver | `driver@foodflow.com` | `Passw0rd!seed` |
+| Driver awaiting approval | `driver.pending@foodflow.com` | `Passw0rd!seed` |
 
-To check the backend directly: open <http://localhost:4000/api/health>. It
-should say `"status":"ok","database":"up"`.
+Passwords come from `SEED_ADMIN_PASSWORD` / `SEED_USER_PASSWORD` in
+`backend/.env`.
 
-### Using Docker for the database instead
+**Sample data.** The seed creates:
 
-If you have Docker, you can replace Step 3 with `npm run db:up` (PostgreSQL 16
-on port **5432**). In that case `backend/.env` must use port **5432** instead
-of 5433, and you stop the database with `npm run db:down`.
+* 6 restaurants in a range of states: active, pending, suspended, closed today
+  and paused;
+* menus for the restaurants that can take orders;
+* 7 orders across the lifecycle, including one delivered order with a review
+  and one without, so every screen has something to show;
+* 96 showcase restaurants (nine cuisines, a six-dish menu each, owner
+  named after the restaurant, e.g. `cedar.house@foodflow.com`).
 
-### Using the app
+That makes **100 restaurants across 9 pages**, so browsing, filtering and
+pagination all have real data to work on. The showcase restaurants have no
+ratings on purpose: ratings come only from reviews of delivered orders, and
+the seed does not invent reviews. Source:
+`backend/seeds/data/showcase-restaurants.js`.
 
-* **Light and dark theme** — the moon/sun button in the header. The choice is
-  remembered; on the first visit the app follows your system setting.
-* **English and Arabic** — the language button in the header (it reads
+### A five-minute tour
+
+1. Sign in as `sara.idris@gmail.com`, add items from **Olive Grill**, and
+   check out.
+2. In a private window, sign in as `olive.grill@foodflow.com`. The order is in the
+   incoming queue. Accept it, start preparing, then mark it ready.
+3. Sign in as `sayed.hanafy@foodflow.com`, go to **Drivers**, and approve
+   `driver.pending@foodflow.com`.
+4. Sign in as a driver, go online, accept the offer, pick up the order and
+   deliver it.
+5. Back as the customer, the tracking view reaches **Delivered** and invites a
+   review.
+
+---
+
+## Using the app
+
+* **Landing page.** Visitors land on `/`. Anyone can browse restaurants and
+  menus; placing an order needs an account. Once a customer signs in, `/`
+  becomes their ordering home.
+* **Light and dark theme.** Use the moon/sun button in the header. Your choice
+  is remembered; on the first visit the app follows your system setting.
+* **English and Arabic.** Use the language button in the header (it reads
   **العربية** in English and **English** in Arabic). Arabic switches the whole
-  layout to right-to-left. The choice is remembered.
-* **Phones and tablets** — below 768px the header collapses into a menu
-  drawer (the cart stays in the bar), admin tables turn into cards below
-  1024px, and every control on a phone is at least 44px tall. Checked from
+  layout to right-to-left. Your choice is remembered.
+* **Phones and tablets.** Below 768px the header collapses into a menu drawer
+  (the cart stays in the bar). Below 1024px, admin tables turn into cards. On
+  a phone every control is at least 44px tall. The layout was checked from
   320px to 1920px wide, in both themes and both languages.
-* **Landing page** — visitors land on `/`. Browsing restaurants and menus is
-  open to everyone; placing an order needs an account. Once signed in, a
-  customer's `/` becomes their ordering home.
+
+---
+
+## Commands
+
+Run all of these from the project root.
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Backend (`:4000`) and frontend (`:5173`) together |
+| `npm run dev:backend` / `npm run dev:frontend` | One at a time |
+| `npm start` | Backend in production mode |
+| `npm run build` | Production frontend bundle into `frontend/dist` |
+| `npm run db:local` / `:status` / `:stop` | Bundled PostgreSQL (port 5433) |
+| `npm run db:up` / `npm run db:down` | PostgreSQL in Docker (port 5432) |
+| `npm run migrate` | Apply migrations to `DATABASE_URL` |
+| `npm run migrate:test` | Apply migrations to `TEST_DATABASE_URL` |
+| `npm run seed` | Reset the database to the sample data (**destructive**) |
+| `npm run routes` | Print every mounted route with its middleware chain |
+| `npm run lint` / `npm run lint:fix` | ESLint across both workspaces |
+| `npm test` | Backend + frontend unit and integration suites |
+| `npm run test:e2e` | 14 Playwright browser scenarios |
+| `npm run test:all` | Everything |
+| `npm run test:coverage` | Coverage for both workspaces |
 
 ---
 
 ## Configuration
 
-Copy `backend/.env.example` to `backend/.env` and edit. **Never commit a real
-`.env`.**
+Settings live in `backend/.env`, copied from `backend/.env.example`. Nothing in
+the example is a real secret. **Never commit a real `.env`.**
 
 | Variable | Default | Notes |
 |---|---|---|
 | `NODE_ENV` | `development` | `development` \| `test` \| `production` |
 | `PORT` | `4000` | HTTP port |
 | `DATABASE_URL` | — | **Required.** PostgreSQL connection string |
-| `TEST_DATABASE_URL` | — | Required to run integration tests. **Must end in `_test`** |
+| `TEST_DATABASE_URL` | — | Required for integration tests. **Must end in `_test`** |
 | `JWT_SECRET` | — | **Required, ≥ 32 characters.** Startup fails otherwise |
 | `JWT_ACCESS_TTL` | `15m` | Access-token lifetime |
 | `JWT_REFRESH_TTL_DAYS` | `30` | Refresh-token family lifetime |
@@ -237,33 +241,7 @@ Frontend variables live in `frontend/.env.example`: `VITE_API_URL` (default
 
 ---
 
-## Everyday commands
-
-Run all of these from the repository root.
-
-| Command | What it does |
-|---|---|
-| `npm run dev` | Backend (`:4000`) and frontend (`:5173`) together |
-| `npm run dev:backend` / `npm run dev:frontend` | One at a time |
-| `npm start` | Backend in production mode |
-| `npm run build` | Production frontend bundle into `frontend/dist` |
-| `npm run db:up` / `npm run db:down` | PostgreSQL in Docker |
-| `npm run db:local` / `:status` / `:stop` | PostgreSQL without Docker |
-| `npm run migrate` | Apply migrations to `DATABASE_URL` |
-| `npm run migrate:test` | Apply migrations to `TEST_DATABASE_URL` |
-| `npm run seed` | Load development fixtures (**destructive**) |
-| `npm run routes` | Print every mounted route with its middleware chain |
-| `npm run lint` / `npm run lint:fix` | ESLint across both workspaces |
-| `npm test` | Backend + frontend unit and integration suites |
-| `npm run test:e2e` | 14 Playwright browser scenarios |
-| `npm run test:all` | Everything |
-| `npm run test:coverage` | Coverage for both workspaces |
-
----
-
 ## Testing
-
-Three layers, each proving something the others cannot.
 
 ```bash
 npm run db:local        # or npm run db:up
@@ -272,23 +250,27 @@ npm test                # 615 backend + 43 frontend
 npm run test:e2e        # 14 browser scenarios
 ```
 
+There are three layers, and each proves something the others cannot.
+
 | Layer | Count | Runs against |
 |---|--:|---|
-| Backend unit | 368 | Pure functions — state machine, money, orderability |
+| Backend unit | 368 | Pure functions: state machine, money, orderability |
 | Backend integration | 247 | **Real PostgreSQL**, through the HTTP layer |
 | Frontend unit + component | 43 | jsdom, Vue Test Utils |
 | End-to-end | 14 scenarios | A real browser against the running stack |
 
-The exhaustive state-machine sweep alone is 281 cases: every one of the 245
-(status, target, actor) combinations, of which 229 are refusals.
+The exhaustive state-machine sweep alone is 281 cases. It covers every one of
+the 245 (status, target, actor) combinations, and 229 of them are refusals.
 
 ### End-to-end tests
 
 The first `npm run test:e2e` downloads a Chromium build. The suite then starts
 its own backend (`:4100`) and frontend (`:5174`) against a **separate
-`foodflow_e2e` database**, so it never touches your development data. It runs
-serially on purpose: driver dispatch is a global background process, so a
-parallel worker's driver would claim the offer another test is waiting for.
+`foodflow_e2e` database**, so it never touches your development data.
+
+It runs serially on purpose. Driver dispatch is a global background process,
+so in a parallel run one worker's driver would claim the offer another test is
+waiting for.
 
 ```bash
 npm run test:e2e                      # all 14
@@ -299,57 +281,29 @@ npm run test:e2e -w frontend -- --ui  # Playwright's UI mode
 
 ### Your data is protected
 
-Two independent rails:
+Two independent safeguards:
 
 1. [`backend/tests/setup.js`](backend/tests/setup.js) aborts the whole run
    unless `NODE_ENV=test` **and** the resolved database name ends in `_test`.
 2. Tests never read `DATABASE_URL`; they read `TEST_DATABASE_URL` only.
 
-Full strategy, the 424-row traceability matrix and every test case are in
+The full strategy, the 424-row traceability matrix and every test case are in
 [`docs/testing/`](docs/testing/README.md).
 
 ---
 
-## Development accounts
+## Troubleshooting
 
-Created by `npm run seed`. These are **development placeholders**, resolved
-from `SEED_ADMIN_PASSWORD` / `SEED_USER_PASSWORD`. The domains `@example.com`
-and `.test` are reserved by RFC 2606 and cannot receive mail. They are not real
-credentials and must never be used outside a local database.
-
-| Role | Email | Password |
+| What you see | Why | Fix |
 |---|---|---|
-| Admin | `admin@foodflow.test` | `Admin123!seed` |
-| Customer | `customer@example.com` | `Passw0rd!seed` |
-| Customer (no orders yet) | `customer.new@example.com` | `Passw0rd!seed` |
-| Restaurant owner | `owner@example.com` | `Passw0rd!seed` |
-| Owner awaiting approval | `owner.pending@example.com` | `Passw0rd!seed` |
-| Driver | `driver@example.com` | `Passw0rd!seed` |
-| Driver awaiting approval | `driver.pending@example.com` | `Passw0rd!seed` |
-
-The seed also creates 6 restaurants across a range of states (active, pending,
-suspended, closed-today, paused), menus for the orderable ones, and 7 orders
-spanning the lifecycle — including a delivered order that has been reviewed and
-one that has not, so every screen has something to show.
-
-On top of those it adds **96 showcase restaurants** (nine cuisines, each with a
-six-dish menu and its own owner account, `owner.<slug>@example.com`), so the
-listing holds **100 restaurants across 9 pages** and browsing, filtering and
-pagination have real work to do. They are unrated on purpose: a rating comes
-from reviews of delivered orders, and the seed does not invent those. The data
-is generated from `backend/seeds/data/showcase-restaurants.js`.
-
-### A tour in five minutes
-
-1. Sign in as `customer@example.com`, add items from **Olive Grill**, and
-   check out.
-2. Sign in as `owner@example.com` in a private window — the order is in the
-   incoming queue. Accept it, start preparing, mark it ready.
-3. Sign in as `admin@foodflow.test`, go to **Drivers**, and approve
-   `driver.pending@example.com`.
-4. Sign in as a driver, go online, accept the offer, pick up, deliver.
-5. Back as the customer: the tracking view reaches **Delivered** and invites a
-   review.
+| **Request failed** on the sign-in page | The backend is not running, almost always because the database is down | Run `npm run db:local`, then stop and re-run `npm run dev` |
+| `Cannot reach the database` | The database stopped, or `DATABASE_URL` uses the wrong port | Run `npm run db:local:status`. The bundled server uses **5433**, Docker uses **5432** |
+| `JWT_SECRET must be at least 32 characters` | `backend/.env` is missing or the secret was shortened | Copy `backend/.env.example` again |
+| `npm run dev` starts the frontend but not the backend | The backend printed an error and is waiting for a file change | Scroll up to read it. It is almost always the database |
+| `Port 5173 is in use` or `EADDRINUSE :4000` | `npm run dev` is already running in another terminal | Close the other terminal, or change `PORT` in `backend/.env` |
+| Accounts do not work or data looks wrong | The data was changed while experimenting | `npm run seed` truncates every table and reloads the sample data |
+| Integration tests refuse to run | By design: they need `NODE_ENV=test` and a `TEST_DATABASE_URL` ending in `_test` | Set both, then run `npm run migrate:test` |
+| `npm run test:e2e` fails on the first run | The Chromium download was blocked | Run `npx playwright install chromium` from `frontend/` |
 
 ---
 
@@ -392,10 +346,10 @@ is generated from `backend/seeds/data/showcase-restaurants.js`.
 `auth` · `users` · `restaurants` · `menu` · `discovery` · `cart` · `orders` ·
 `delivery` · `reviews` · `admin`
 
-A module may only reach another through that module's `index.js`, enforced by
-an ESLint boundary rule — a shortcut import fails the lint build rather than
-quietly eroding the architecture. Inside a module the flow is strictly
-one-directional: **route → controller → service → repository**.
+A module may only reach another module through that module's `index.js`. An
+ESLint boundary rule enforces this, so a shortcut import fails the lint build
+instead of slowly eroding the architecture. Inside a module the flow is
+strictly one-directional: **route → controller → service → repository**.
 
 ---
 
@@ -404,23 +358,32 @@ one-directional: **route → controller → service → repository**.
 The decisions most likely to surprise a first-time reader. Each is argued in
 full in [`docs/sdd/architecture/`](docs/sdd/architecture/).
 
+* **PostgreSQL is required, not a preference.** Core business rules are
+  enforced *by the database*. Partial unique indexes allow one active cart per
+  customer, one active delivery per driver, one default address per customer
+  and one review per order. Check constraints enforce rules such as "an order
+  cannot be cancelled without recording who cancelled it". SQLite, MySQL and
+  in-memory fakes cannot express these, so the tests also run against real
+  PostgreSQL: a fake would pass while the real rule was broken.
+* **The database arbitrates concurrency.** Partial unique indexes plus
+  `SELECT … FOR UPDATE` row locks, never check-then-act. Concurrent requests
+  queue up instead of interleaving.
 * **Orders are immutable snapshots.** `order_items` copies the name,
   description and unit price as they were at checkout. A later menu edit or
-  deletion cannot rewrite what a customer was charged.
+  deletion cannot change what a customer was charged.
 * **Carts hold live prices.** A cart stores item id and quantity only. The one
   exception, `price_seen_at_add`, exists solely so checkout can raise
   `PRICE_CHANGED` instead of silently charging more.
-* **The database arbitrates concurrency.** Partial unique indexes plus
-  `SELECT … FOR UPDATE`, never check-then-act.
 * **Money is `NUMERIC(10,2)` in PostgreSQL and BigInt minor units in
-  JavaScript** ([`shared/money.js`](backend/src/shared/money.js)).
+  JavaScript** ([`shared/money.js`](backend/src/shared/money.js)). No float
+  ever touches a price.
 * **Order status is a table, not a set of `if`s.**
   [`orderStateMachine.js`](backend/src/modules/orders/orderStateMachine.js) is
   pure and dependency-free: 7 statuses, 10 legal edges, 16 actor-qualified
   transitions.
-* **404 over 403 for other people's rows.** Wrong *role* gives 403; a
-  correctly-roled caller asking for someone else's resource gets 404, so the
-  API never confirms that an id exists.
+* **404 over 403 for other people's rows.** The wrong *role* gets 403. A caller
+  with the right role who asks for someone else's resource gets 404, so the API
+  never confirms that an id exists.
 * **Background jobs are in-process** and wrapped in `pg_try_advisory_lock`, so
   running several instances is safe without a queue.
 
@@ -443,9 +406,10 @@ Implemented, not merely tested.
 | Rate limiting | A global bucket plus tighter per-route buckets on auth, refresh, checkout and reviews |
 | PII | A driver sees a district and distance on an offer; the full address only after accepting |
 
-Passing tests show these controls behave as specified. They are **not** a claim
-that the application is comprehensively secure: no penetration test has been
-performed, and an independent review is recommended before any real deployment.
+Passing tests show that these controls behave as specified. They do **not**
+show that the application is fully secure. No penetration test has been
+performed, and an independent review is recommended before any real
+deployment.
 
 ---
 
@@ -453,30 +417,25 @@ performed, and an independent review is recommended before any real deployment.
 
 The project was delivered in four stages, each documented.
 
-### 1. Design (`docs/sdd/`, 33 files)
+1. **Design** (`docs/sdd/`, 33 files). 10 specs and 10 stories, numbered
+   independently (`spec-01` is not `story-01`), plus 7 architecture documents
+   with ADRs, an implementation plan, a dependency map, assumptions and risks.
+2. **Test design** (`docs/testing/`, 25 files). 424 test cases traced through a
+   424-row matrix: **Spec → Story → Acceptance Criterion → Test Case**.
+   Test-case IDs are numbered independently of specs and stories, so the
+   matrix is the only reliable way to trace between them. Six documentation
+   discrepancies were found and recorded rather than silently fixed. All six
+   are now resolved in the SDD.
+3. **Implementation.** 91 REST endpoints, 17 domain tables and 32 route-level
+   views, all wired to a real database. 615 backend and 43 frontend tests.
+4. **End-to-end verification.** All 14 browser scenarios are implemented and
+   passed in three consecutive runs.
 
-10 specs and 10 stories — numbered independently, so `spec-01` is not
-`story-01` — plus 7 architecture documents with ADRs, an implementation plan, a
-dependency map, assumptions and risks.
+### Defects found by the end-to-end tests
 
-### 2. Test design (`docs/testing/`, 25 files)
-
-424 test cases traced through a 424-row matrix:
-**Spec → Story → Acceptance Criterion → Test Case**. Test-case IDs are
-independent of spec and story numbering, so the matrix is the only correct way
-to trace between them. Six documentation discrepancies were found and recorded
-rather than silently fixed; all six are now resolved in the SDD.
-
-### 3. Implementation
-
-91 REST endpoints, 17 domain tables, 32 route-level views, all wired to a real
-database. 615 backend and 43 frontend tests.
-
-### 4. End-to-end verification
-
-All 14 browser scenarios implemented and passing across three consecutive runs.
-Writing them surfaced nine real defects that the 610 existing tests had missed,
-because every fixture created data in states the product itself could not reach:
+Writing the browser scenarios surfaced nine real defects that the 610 earlier
+tests had missed. Those tests' fixtures created data in states the product
+itself could never reach.
 
 | # | Defect | Why it mattered |
 |--:|---|---|
@@ -490,12 +449,36 @@ because every fixture created data in states the product itself could not reach:
 | 8 | **Neither modal trapped focus** | Keyboard users tabbed out of an open dialog onto the obscured page behind it. |
 | 9 | **Unavailable item cards dimmed their own explanation** | `opacity-70` pushed the sentence explaining the problem below the contrast floor. |
 
-A unit test asserting that 10,000 random order numbers are all distinct was
-also **false about 4.5% of the time** by the birthday bound. It was replaced
-with an entropy assertion plus a real collision-retry test.
+A unit test also asserted that 10,000 random order numbers are all distinct.
+By the birthday bound, that assertion was false about 4.5% of the time. It was
+replaced with an entropy assertion plus a real collision-retry test.
 
 Full detail: [`docs/VERIFICATION.md`](docs/VERIFICATION.md) and
 [`docs/AS-BUILT.md`](docs/AS-BUILT.md).
+
+---
+
+## Known limitations
+
+Deliberate scope boundaries, documented rather than hidden.
+
+* **No payment gateway.** `payment_method` is recorded, and `CASH_ON_DELIVERY`
+  is the only payment path that settles.
+* **Order updates are polled, not pushed.** Polling backs off and pauses when
+  the tab is hidden. WebSockets are the obvious next step.
+* **Driver dispatch uses straight-line distance** over stored coordinates.
+  There is no routing engine and no live GPS tracking.
+* **Background jobs run in-process.** That is correct for one deployment and
+  safe across several thanks to advisory locks, but a dedicated queue would
+  scale better.
+* **Notifications are persisted rows only.** No email or push transport.
+* **Images are URLs.** No upload pipeline or object storage.
+* **Rate limiting uses an in-memory store**, so limits are per replica.
+* **End-to-end tests run on Chromium only.** Firefox and WebKit have not been
+  run. The accessibility bar is "no serious or critical axe violations".
+  Moderate and minor findings are not checked, and the README does not claim
+  there are none.
+* **No load, soak or penetration testing** has been performed.
 
 ---
 
@@ -513,57 +496,3 @@ Full detail: [`docs/VERIFICATION.md`](docs/VERIFICATION.md) and
 | [`docs/testing/e2e-scenarios.md`](docs/testing/e2e-scenarios.md) | The 14 browser scenarios, in prose |
 | [`docs/AS-BUILT.md`](docs/AS-BUILT.md) | Where the build diverged from the plan, and why |
 | [`docs/VERIFICATION.md`](docs/VERIFICATION.md) | Final verification report |
-
----
-
-## Troubleshooting
-
-**`Cannot reach the database. Check DATABASE_URL and that PostgreSQL is running.`**
-The database is down or `.env` points at the wrong port. Run
-`npm run db:local:status`. Docker uses **5432**, the bundled server uses
-**5433** — `DATABASE_URL` must match.
-
-**`JWT_SECRET must be at least 32 characters`**
-You have no `backend/.env`, or you shortened the secret. Copy
-`backend/.env.example` again.
-
-**`npm run dev` starts the frontend but not the backend**
-Scroll up: the backend prints why and then waits for a file change. It is
-almost always the database.
-
-**Port 4000 or 5173 already in use**
-A previous run is still going. Close it, or change `PORT` in `backend/.env`.
-
-**Integration tests refuse to run**
-By design. They need `NODE_ENV=test` and a `TEST_DATABASE_URL` whose database
-name ends in `_test`. Run `npm run migrate:test` first.
-
-**`npm run test:e2e` fails on the first run**
-It downloads Chromium the first time. If that was blocked, run
-`npx playwright install chromium` from `frontend/`.
-
-**Seeded data looks wrong after experimenting**
-`npm run seed` resets it. It truncates every table first.
-
----
-
-## Known limitations
-
-Deliberate scope boundaries, documented rather than hidden.
-
-* **No payment gateway.** `payment_method` is recorded and `CASH_ON_DELIVERY`
-  is the only settled path.
-* **Order updates are polled, not pushed.** Polling backs off and pauses when
-  the tab is hidden. WebSockets are the obvious next step.
-* **Driver dispatch uses straight-line distance** over stored coordinates.
-  There is no routing engine and no live GPS tracking.
-* **Background jobs run in-process.** Correct for one deployment and safe
-  across several thanks to advisory locks, but a dedicated queue would scale
-  better.
-* **Notifications are persisted rows only.** No email or push transport.
-* **Images are URLs.** No upload pipeline or object storage.
-* **Rate limiting uses an in-memory store**, so limits are per-replica.
-* **End-to-end tests run on Chromium only.** Firefox and WebKit are unrun, and
-  the accessibility bar is "no serious or critical" axe violations — moderate
-  and minor findings are neither asserted nor claimed absent.
-* **No load, soak or penetration testing** has been performed.
