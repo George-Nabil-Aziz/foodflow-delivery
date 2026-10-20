@@ -18,16 +18,16 @@ const variants = {
   danger: 'bg-danger text-white shadow-sm hover:bg-danger-hover disabled:opacity-50',
   ghost: 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:text-slate-400',
 };
-// Below md every size is at least 44px tall, so a thumb can hit it; the
-// desktop sizes are unchanged.
+// The sizes are for wider screens; on a phone every button is the one compact
+// control (.ui-control in main.css), the same as tabs and row actions.
 const sizes = {
-  sm: 'min-h-11 px-3 py-1.5 text-sm md:min-h-0',
-  md: 'min-h-11 px-4 py-2 text-sm md:min-h-0',
-  lg: 'min-h-12 px-5 py-2.5 text-base md:min-h-0',
+  sm: 'px-3 py-1.5 text-sm',
+  md: 'px-4 py-2 text-sm',
+  lg: 'px-5 py-2.5 text-base',
 };
 
 const classes = computed(
-  () => `inline-flex items-center justify-center gap-2 rounded-lg font-medium transition
+  () => `ui-control inline-flex items-center justify-center gap-2 rounded-lg font-medium transition
          duration-150 active:translate-y-px disabled:cursor-not-allowed disabled:active:translate-y-0 btn-${props.variant} ${variants[props.variant]} ${sizes[props.size]}`,
 );
 </script>

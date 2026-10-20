@@ -187,13 +187,38 @@
 .dark .tile-4 { background: #451a03; color: #fcd34d; }
 .dark .tile-5 { background: #052e16; color: #86efac; }
 
-/* A hairline of the brand under the header. Light theme only. */
+/* A hairline of the brand under the header. */
 .app-accent-bar {
   height: 3px;
   background: linear-gradient(90deg, #c2410c, #f59e0b 50%, #0d9488);
 }
+/* Lighter stops so the line still reads against the dark header. */
 .dark .app-accent-bar {
-  display: none;
+  background: linear-gradient(90deg, #f97316, #fbbf24 50%, #2dd4bf);
+}
+
+/*
+ * The landing page's closing call to action is a dark band in the light theme.
+ * The dark theme inverts the slate scale, which would turn it into a pale
+ * block, so here it keeps fixed colours: a raised panel with a brand glow.
+ */
+.dark .landing-cta {
+  border: 1px solid rgb(255 255 255 / 0.08);
+  background:
+    radial-gradient(640px 260px at 50% 0%, rgb(234 88 12 / 0.28), transparent 70%),
+    linear-gradient(180deg, #1a2235, #111827);
+  color: #f8fafc;
+  box-shadow: 0 20px 40px -24px rgb(0 0 0 / 0.8);
+}
+.dark .landing-cta-text {
+  color: #cbd5e1;
+}
+.dark .landing-cta-ghost {
+  border-color: rgb(255 255 255 / 0.22);
+  color: #f8fafc;
+}
+.dark .landing-cta-ghost:hover {
+  background-color: rgb(255 255 255 / 0.08);
 }
 
 /*
@@ -363,6 +388,11 @@ html[lang='ar'] * {
  * The rows stay real <tr> elements, so nothing that finds a row by its text
  * has to know which layout it is looking at.
  */
+/* Headings line up with their column: browsers centre <th> by default. */
+.table-cards th {
+  text-align: start;
+}
+
 @media (max-width: 1023.98px) {
   .table-wrap {
     overflow: visible !important;
@@ -403,6 +433,8 @@ html[lang='ar'] * {
     display: grid;
     grid-template-columns: minmax(6rem, 38%) minmax(0, 1fr);
     align-items: center;
+    /* Badges and buttons keep their own width instead of filling the column. */
+    justify-items: start;
     gap: 0.75rem;
     padding: 0.5rem 1rem !important;
     overflow-wrap: anywhere;
@@ -425,15 +457,52 @@ html[lang='ar'] * {
     display: none;
   }
 
-  /* Row actions become proper buttons for a thumb. */
+  /* Row actions become proper buttons for a thumb, sized to their label
+     rather than stretched across the value column. */
+  .table-cards td:last-child {
+    padding-block: 0.375rem !important;
+  }
   .table-cards td:last-child button {
-    min-height: 2.75rem;
-    padding-inline: 0.75rem;
+    justify-self: start;
+    min-width: 0;
+    /* The same compact size as .ui-control below. */
+    min-height: 1.875rem;
+    padding: 0.3125rem 0.75rem;
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
     border: 1px solid currentColor;
     border-radius: 0.5rem;
     font-weight: 500;
     text-decoration: none !important;
   }
+}
+
+/*
+ * One control size on a phone. Buttons, tabs and button-like links all take
+ * the row actions' compact size above, so nothing on a narrow screen reads
+ * as a bigger, more important slab than the rest.
+ */
+@media (max-width: 767.98px) {
+  .ui-control {
+    height: auto !important;
+    min-height: 1.875rem !important;
+    padding: 0.3125rem 0.75rem !important;
+    font-size: 0.8125rem !important;
+    line-height: 1.25rem !important;
+  }
+}
+
+/* Menu links keep the compact height but read at a size meant for scanning a list. */
+@media (max-width: 767.98px) {
+  .ui-control.ui-control-nav {
+    font-size: 0.875rem !important;
+    line-height: 1.25rem !important;
+  }
+}
+
+/* A control with a leading icon (the filter search) keeps room for it. */
+.ui-control-icon {
+  padding-inline-start: 2rem !important;
 }
 
 @media (max-width: 1023.98px) {

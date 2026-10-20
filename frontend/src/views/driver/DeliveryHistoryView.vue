@@ -14,12 +14,13 @@ const ui = useUiStore();
 const deliveries = ref([]);
 const reviews = ref([]);
 const pagination = ref({ page: 1, totalPages: 1, total: 0 });
+const pageSize = ref(20);
 const loading = ref(true);
 
 async function load(page = 1) {
   loading.value = true;
   try {
-    const res = await driverApi.deliveries({ scope: 'history', page, limit: 20 });
+    const res = await driverApi.deliveries({ scope: 'history', page, limit: pageSize.value });
     deliveries.value = res.data;
     pagination.value = res.meta.pagination ?? { page: 1, totalPages: 1, total: res.data.length };
     reviews.value = (await driverApi.reviews().catch(() => ({ data: [] }))).data;
@@ -61,7 +62,8 @@ onMounted(() => load());
           </div>
         </li>
       </ul>
-      <AppPagination :pagination="pagination" @change="load" />
+      <AppPagination :pagination="pagination" :limit="pageSize" @change="load"
+          @update:limit="(n) => { pageSize = n; load(1); }" />
     </template>
 
     <section v-if="reviews.length" class="mt-8">

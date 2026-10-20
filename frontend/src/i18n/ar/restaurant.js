@@ -96,7 +96,7 @@ export default {
   // Menu items
   'Add item': 'إضافة صنف',
   'Create a category first: every item belongs to one.': 'أنشئ تصنيفًا أولًا: كل صنف يجب أن ينتمي إلى تصنيف.',
-  'Item name': 'اسم الصنف',
+  'Search by item name': 'ابحث باسم الصنف',
   Category: 'التصنيف',
   'All categories': 'كل التصنيفات',
   Availability: 'التوفر',

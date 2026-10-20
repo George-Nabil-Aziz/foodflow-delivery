@@ -71,7 +71,7 @@ async function remove(item) {
                 title="Your cart is empty"
                 message="Find something you like and add it here.">
       <RouterLink to="/restaurants"
-                  class="inline-flex min-h-11 items-center justify-center md:min-h-0 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">
+                  class="ui-control inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">
         {{ t('Browse restaurants') }}
       </RouterLink>
     </EmptyState>

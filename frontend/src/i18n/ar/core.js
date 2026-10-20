@@ -5,6 +5,7 @@
 export default {
   // Layout and navigation
   'Skip to content': 'انتقل إلى المحتوى',
+  'Back to top': 'العودة إلى الأعلى',
   Main: 'القائمة الرئيسية',
   Section: 'أقسام الصفحة',
   Restaurants: 'المطاعم',
@@ -65,6 +66,8 @@ export default {
   'Page {n}': 'صفحة {n}',
   Next: 'التالي',
   'Page {page} of {pages} · {total} results': 'صفحة {page} من {pages} · {total} نتيجة',
+  'Rows per page': 'عدد الصفوف في الصفحة',
+  '{total} results': '{total} نتيجة',
   Cancel: 'إلغاء',
   Confirm: 'تأكيد',
 

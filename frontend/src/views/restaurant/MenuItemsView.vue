@@ -10,6 +10,9 @@ import AppSpinner from '../../components/shared/AppSpinner.vue';
 import EmptyState from '../../components/shared/EmptyState.vue';
 import AppButton from '../../components/shared/AppButton.vue';
 import AppInput from '../../components/shared/AppInput.vue';
+import FilterBar from '../../components/shared/FilterBar.vue';
+import FilterSearch from '../../components/shared/FilterSearch.vue';
+import FilterSelect from '../../components/shared/FilterSelect.vue';
 
 const ui = useUiStore();
 const { capture, clear, fieldError } = useFormErrors();
@@ -152,28 +155,20 @@ async function remove(item) {
       {{ t('Create a category first: every item belongs to one.') }}
     </p>
 
-    <div class="card mt-4 grid gap-3 p-4 sm:grid-cols-3">
-      <div>
-        <label for="menu-search" class="field-label">{{ t('Search') }}</label>
-        <input id="menu-search" v-model="search" type="search" class="field-input"
-               :placeholder="t('Item name')" @input="load">
-      </div>
-      <div>
-        <label for="menu-category" class="field-label">{{ t('Category') }}</label>
-        <select id="menu-category" v-model="filterCategory" class="field-input" @change="load">
-          <option value="">{{ t('All categories') }}</option>
-          <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
-        </select>
-      </div>
-      <div>
-        <label for="menu-availability" class="field-label">{{ t('Availability') }}</label>
-        <select id="menu-availability" v-model="filterAvailability" class="field-input" @change="load">
-          <option value="">{{ t('All') }}</option>
-          <option value="true">{{ t('Available') }}</option>
-          <option value="false">{{ t('Unavailable') }}</option>
-        </select>
-      </div>
-    </div>
+    <FilterBar>
+      <FilterSearch id="menu-search" v-model="search" :placeholder="t('Search by item name')"
+                    @update:model-value="load" />
+      <FilterSelect id="menu-category" v-model="filterCategory" :label="t('Category')" @update:model-value="load">
+        <option value="">{{ t('All categories') }}</option>
+        <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
+      </FilterSelect>
+      <FilterSelect id="menu-availability" v-model="filterAvailability" :label="t('Availability')"
+                    @update:model-value="load">
+        <option value="">{{ t('All') }}</option>
+        <option value="true">{{ t('Available') }}</option>
+        <option value="false">{{ t('Unavailable') }}</option>
+      </FilterSelect>
+    </FilterBar>
 
     <form v-if="showForm" class="card mt-4 space-y-4 p-4" novalidate @submit.prevent="save">
       <h2 class="font-semibold text-slate-900">{{ editingId ? t('Edit item') : t('New item') }}</h2>

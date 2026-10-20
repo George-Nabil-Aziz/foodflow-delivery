@@ -158,7 +158,6 @@ export default {
 
   // Restaurant list
   Filters: 'عوامل التصفية',
-  'Restaurant or dish': 'مطعم أو طبق',
   Cuisine: 'المطبخ',
   'All cuisines': 'كل المطابخ',
   'Minimum rating': 'أدنى تقييم',

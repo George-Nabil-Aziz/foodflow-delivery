@@ -1,5 +1,6 @@
 <script setup>
 import ToastHost from './components/shared/ToastHost.vue';
+import BackToTop from './components/shared/BackToTop.vue';
 import { t } from './i18n/index.js';
 </script>
 
@@ -10,6 +11,7 @@ import { t } from './i18n/index.js';
       {{ t('Skip to content') }}
     </a>
     <RouterView />
+    <BackToTop />
     <ToastHost />
   </div>
 </template>

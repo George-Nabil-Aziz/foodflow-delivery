@@ -1,9 +1,10 @@
 <script setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { driverApi } from '../../services/api.js';
 import { useAuthStore } from '../../stores/auth.store.js';
 import { useUiStore } from '../../stores/ui.store.js';
 import { t } from '../../i18n/index.js';
+import { enumText } from '../../utils/labels.js';
 import AppSpinner from '../../components/shared/AppSpinner.vue';
 import AppInput from '../../components/shared/AppInput.vue';
 import AppButton from '../../components/shared/AppButton.vue';
@@ -17,9 +18,8 @@ const form = ref({ vehicleType: 'MOTORCYCLE', vehiclePlate: '' });
 const loading = ref(true);
 const saving = ref(false);
 const locating = ref(false);
+const isBicycle = computed(() => form.value.vehicleType === 'BICYCLE');
 
-/** An enum as it has always read ("pending approval"), translated in Arabic. */
-const enumText = (value) => t(value.replaceAll('_', ' ').toLowerCase());
 
 async function load() {
   loading.value = true;
@@ -41,7 +41,9 @@ onMounted(load);
 async function save() {
   saving.value = true;
   try {
-    profile.value = (await driverApi.updateProfile(form.value)).data;
+    // A bicycle has no plate, so none is sent for one.
+    const body = isBicycle.value ? { vehicleType: form.value.vehicleType } : form.value;
+    profile.value = (await driverApi.updateProfile(body)).data;
     auth.setSession({ driverProfile: profile.value });
     ui.toastSuccess('Profile saved');
   } catch (err) {
@@ -110,7 +112,7 @@ function shareLocation() {
             <option v-for="v in VEHICLES" :key="v" :value="v">{{ enumText(v) }}</option>
           </select>
         </div>
-        <AppInput id="vehicle-plate" v-model="form.vehiclePlate" label="Plate number" required />
+        <AppInput v-if="!isBicycle" id="vehicle-plate" v-model="form.vehiclePlate" label="Plate number" required />
         <AppButton type="submit" :loading="saving">{{ t('Save') }}</AppButton>
       </form>
 

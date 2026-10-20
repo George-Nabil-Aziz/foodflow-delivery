@@ -7,6 +7,9 @@ import EmptyState from '../../components/shared/EmptyState.vue';
 import ErrorState from '../../components/shared/ErrorState.vue';
 import AppPagination from '../../components/shared/AppPagination.vue';
 import AppButton from '../../components/shared/AppButton.vue';
+import FilterBar from '../../components/shared/FilterBar.vue';
+import FilterSearch from '../../components/shared/FilterSearch.vue';
+import FilterSelect from '../../components/shared/FilterSelect.vue';
 import RestaurantCard from '../../components/customer/RestaurantCard.vue';
 import { cuisineStyle } from '../../utils/cuisine.js';
 import { t } from '../../i18n/index.js';
@@ -51,14 +54,12 @@ function setFilter(patch) {
 
 const clearFilters = () => router.push({ name: 'restaurants', query: {} });
 
-// Debounced search: 300 ms, and only fires from two characters.
+// Debounced search: 300 ms, from the first character. Blank clears the filter.
 let searchTimer = null;
-function onSearchInput(event) {
-  const value = event.target.value;
+function onSearchInput(input) {
+  const value = input.trim();
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => {
-    if (value.length === 0 || value.length >= 2) setFilter({ q: value });
-  }, 300);
+  searchTimer = setTimeout(() => setFilter({ q: value }), 300);
 }
 
 async function load() {
@@ -89,62 +90,43 @@ watch(() => route.query, load);
 </script>
 
 <template>
-  <div class="flex flex-col gap-6 lg:flex-row">
-    <aside class="lg:w-64 lg:shrink-0">
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">{{ t('Filters') }}</h2>
+  <div>
+    <section class="min-w-0">
+      <h1 class="text-xl font-semibold text-slate-900">{{ t('Restaurants') }}</h1>
 
-      <div class="mt-3 space-y-4">
-        <div>
-          <label for="filter-search" class="field-label">{{ t('Search') }}</label>
-          <input id="filter-search" type="search" class="field-input"
-                 :value="filters.q" :placeholder="t('Restaurant or dish')" @input="onSearchInput">
-        </div>
-
-        <div>
-          <label for="filter-cuisine" class="field-label">{{ t('Cuisine') }}</label>
-          <select id="filter-cuisine" class="field-input" :value="filters.cuisine"
-                  @change="setFilter({ cuisine: $event.target.value })">
-            <option value="">{{ t('All cuisines') }}</option>
-            <option v-for="c in cuisines" :key="c.cuisineType" :value="c.cuisineType">
-              {{ t(cuisineStyle(c.cuisineType).label) }} ({{ c.restaurantCount }})
-            </option>
-          </select>
-        </div>
-
-        <div>
-          <label for="filter-rating" class="field-label">{{ t('Minimum rating') }}</label>
-          <select id="filter-rating" class="field-input" :value="filters.minRating"
-                  @change="setFilter({ minRating: $event.target.value })">
-            <option value="">{{ t('Any rating') }}</option>
-            <option v-for="n in [4, 3, 2]" :key="n" :value="n">{{ t('{n} stars and up', { n }) }}</option>
-          </select>
-        </div>
-
-        <label class="flex items-center gap-2 text-sm text-slate-700">
-          <input type="checkbox" :checked="filters.openNow"
-                 @change="setFilter({ openNow: $event.target.checked })">
+      <FilterBar>
+        <FilterSearch id="filter-search" :model-value="filters.q" :placeholder="t('Search restaurants or dishes')"
+                      @update:model-value="onSearchInput" />
+        <FilterSelect id="filter-cuisine" :model-value="filters.cuisine" :label="t('Cuisine')"
+                      @update:model-value="(v) => setFilter({ cuisine: v })">
+          <option value="">{{ t('All cuisines') }}</option>
+          <option v-for="c in cuisines" :key="c.cuisineType" :value="c.cuisineType">
+            {{ t(cuisineStyle(c.cuisineType).label) }} ({{ c.restaurantCount }})
+          </option>
+        </FilterSelect>
+        <FilterSelect id="filter-rating" :model-value="filters.minRating" :label="t('Minimum rating')"
+                      @update:model-value="(v) => setFilter({ minRating: v })">
+          <option value="">{{ t('Any rating') }}</option>
+          <option v-for="n in [4, 3, 2]" :key="n" :value="n">{{ t('{n} stars and up', { n }) }}</option>
+        </FilterSelect>
+        <FilterSelect id="filter-sort" :model-value="filters.sort" :label="t('Sort by')"
+                      @update:model-value="(v) => setFilter({ sort: v })">
+          <option value="rating">{{ t('Rating') }}</option>
+          <option value="deliveryFee">{{ t('Delivery fee') }}</option>
+          <option value="name">{{ t('Name') }}</option>
+          <option value="newest">{{ t('Newest') }}</option>
+        </FilterSelect>
+        <!-- A toggle, so it sits in the row at the same size as the selects. -->
+        <button type="button" :aria-pressed="filters.openNow"
+                class="ui-control inline-flex items-center rounded-lg px-3 py-2 text-sm"
+                :class="filters.openNow ? 'bg-primary text-white' : 'border border-slate-300 bg-surface text-slate-700'"
+                @click="setFilter({ openNow: !filters.openNow })">
           {{ t('Open now') }}
-        </label>
-
-        <div>
-          <label for="filter-sort" class="field-label">{{ t('Sort by') }}</label>
-          <select id="filter-sort" class="field-input" :value="filters.sort"
-                  @change="setFilter({ sort: $event.target.value })">
-            <option value="rating">{{ t('Rating') }}</option>
-            <option value="deliveryFee">{{ t('Delivery fee') }}</option>
-            <option value="name">{{ t('Name') }}</option>
-            <option value="newest">{{ t('Newest') }}</option>
-          </select>
-        </div>
-
-        <AppButton v-if="hasFilters" variant="secondary" size="sm" class="w-full" @click="clearFilters">
+        </button>
+        <AppButton v-if="hasFilters" variant="ghost" size="sm" @click="clearFilters">
           {{ t('Clear filters') }}
         </AppButton>
-      </div>
-    </aside>
-
-    <section class="min-w-0 flex-1">
-      <h1 class="text-xl font-semibold text-slate-900">{{ t('Restaurants') }}</h1>
+      </FilterBar>
 
       <AppSpinner v-if="loading" label="Loading restaurants" />
       <ErrorState v-else-if="error" :message="error.message" @retry="load" />
@@ -157,7 +139,7 @@ watch(() => route.query, load);
       </EmptyState>
 
       <template v-else>
-        <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <RestaurantCard v-for="r in restaurants" :key="r.id" :restaurant="r" />
         </div>
         <AppPagination :pagination="pagination" @change="(page) => setFilter({ page })" />

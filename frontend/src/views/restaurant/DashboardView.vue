@@ -127,15 +127,15 @@ async function toggleAccepting() {
 
       <div class="mt-6 flex flex-wrap gap-3">
         <RouterLink v-if="profile.status === 'ACTIVE'" :to="{ name: 'restaurant-orders' }"
-                    class="inline-flex min-h-11 items-center justify-center md:min-h-0 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">
+                    class="ui-control inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">
           {{ t('View orders') }}
         </RouterLink>
         <RouterLink v-if="profile.status === 'ACTIVE'" :to="{ name: 'restaurant-menu' }"
-                    class="inline-flex min-h-11 items-center justify-center md:min-h-0 rounded-lg border border-slate-300 bg-surface px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                    class="ui-control inline-flex items-center justify-center rounded-lg border border-slate-300 bg-surface px-4 py-2 text-sm font-medium hover:bg-slate-50">
           {{ t('Manage menu') }}
         </RouterLink>
         <RouterLink :to="{ name: 'restaurant-profile' }"
-                    class="inline-flex min-h-11 items-center justify-center md:min-h-0 rounded-lg border border-slate-300 bg-surface px-4 py-2 text-sm font-medium hover:bg-slate-50">
+                    class="ui-control inline-flex items-center justify-center rounded-lg border border-slate-300 bg-surface px-4 py-2 text-sm font-medium hover:bg-slate-50">
           {{ t('Edit profile') }}
         </RouterLink>
       </div>

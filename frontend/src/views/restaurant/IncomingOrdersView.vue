@@ -129,7 +129,7 @@ async function confirmReason({ reason, reasonCode }) {
       <div class="flex gap-2">
         <button v-for="tab in [{ key: 'active', label: 'Active' }, { key: 'history', label: 'History' }]"
                 :key="tab.key" type="button"
-                class="inline-flex min-h-11 items-center justify-center md:min-h-0 rounded-lg px-3 py-2 text-sm"
+                class="ui-control inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm"
                 :class="scope === tab.key
                   ? 'bg-primary text-white'
                   : 'border border-slate-300 bg-surface text-slate-700'"

@@ -59,7 +59,7 @@ const firstName = () => auth.user?.fullName?.split(' ')[0] ?? '';
         <div class="mt-4 flex flex-wrap gap-2">
           <RouterLink v-for="c in cuisines" :key="c.cuisineType"
                       :to="{ name: 'restaurants', query: { cuisine: c.cuisineType } }"
-                      class="inline-flex min-h-11 items-center gap-2 rounded-full border border-slate-200 bg-surface px-4 py-2 md:min-h-0 text-sm font-medium text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-400 hover:text-brand-800">
+                      class="ui-control inline-flex items-center gap-2 rounded-full border border-slate-200 bg-surface px-4 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-400 hover:text-brand-800">
             <span aria-hidden="true">{{ cuisineStyle(c.cuisineType).icon }}</span>
             {{ t(cuisineStyle(c.cuisineType).label) }}
             <span class="rounded-full bg-slate-100 px-1.5 text-xs text-slate-600">{{ c.restaurantCount }}</span>

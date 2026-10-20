@@ -46,7 +46,7 @@ onMounted(() => load());
     <div class="mt-4 flex gap-2" role="tablist" :aria-label="t('Order scope')">
       <button v-for="tab in [{ key: 'active', label: 'Active' }, { key: 'past', label: 'Past' }]"
               :key="tab.key" type="button" role="tab" :aria-selected="scope === tab.key"
-              class="inline-flex min-h-11 items-center justify-center md:min-h-0 rounded-lg px-4 py-2 text-sm"
+              class="ui-control inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm"
               :class="scope === tab.key
                 ? 'bg-primary text-white'
                 : 'border border-slate-300 bg-surface text-slate-700'"

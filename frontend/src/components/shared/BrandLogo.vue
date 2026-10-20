@@ -1,7 +1,12 @@
 <script setup>
 import { RouterLink } from 'vue-router';
 
-defineProps({ size: { type: String, default: 'md' } });
+defineProps({
+  size: { type: String, default: 'md' },
+  // In a crowded bar the wordmark gives way on a very narrow phone, leaving
+  // the mark; the name is still read out, and the menu drawer shows it in full.
+  collapsible: { type: Boolean, default: false },
+});
 </script>
 
 <template>
@@ -17,6 +22,6 @@ defineProps({ size: { type: String, default: 'md' } });
         <path d="M12 3v4M8 5v2M16 5v2" />
       </svg>
     </span>
-    <span>Food<span class="text-brand-700">Flow</span></span>
+    <span :class="{ 'max-[379px]:sr-only': collapsible }">Food<span class="text-brand-700">Flow</span></span>
   </RouterLink>
 </template>

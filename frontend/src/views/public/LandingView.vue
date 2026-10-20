@@ -204,16 +204,16 @@ const AUDIENCES = [
     </section>
 
     <!-- Closing call to action -->
-    <section class="rounded-2xl bg-slate-900 px-5 py-10 text-center text-slate-50 sm:rounded-3xl sm:py-14">
+    <section class="landing-cta rounded-2xl bg-slate-900 px-5 py-10 text-center text-slate-50 sm:rounded-3xl sm:py-14">
       <h2 class="text-2xl font-bold sm:text-3xl">{{ t('Hungry already?') }}</h2>
-      <p class="mt-2 text-slate-300">{{ t('Create an account in under a minute and place your first order.') }}</p>
+      <p class="landing-cta-text mt-2 text-slate-300">{{ t('Create an account in under a minute and place your first order.') }}</p>
       <div class="mt-6 flex flex-wrap justify-center gap-3">
         <RouterLink :to="{ name: 'register' }"
                     class="btn-primary rounded-xl bg-primary px-6 py-3 font-semibold text-white transition-colors hover:bg-primary-hover">
           {{ t('Get started') }}
         </RouterLink>
         <RouterLink :to="{ name: 'restaurants' }"
-                    class="rounded-xl border border-slate-600 px-6 py-3 font-semibold text-slate-50 transition-colors hover:bg-slate-800">
+                    class="landing-cta-ghost rounded-xl border border-slate-600 px-6 py-3 font-semibold text-slate-50 transition-colors hover:bg-slate-800">
           {{ t('Browse restaurants') }}
         </RouterLink>
       </div>

@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/auth.store.js';
 import { useUiStore } from '../../stores/ui.store.js';
 import { formatMoney } from '../../utils/money.js';
 import { t } from '../../i18n/index.js';
+import { enumText } from '../../utils/labels.js';
 import AppSpinner from '../../components/shared/AppSpinner.vue';
 import AppButton from '../../components/shared/AppButton.vue';
 import EmptyState from '../../components/shared/EmptyState.vue';
@@ -19,8 +20,6 @@ const active = ref([]);
 const loading = ref(true);
 const toggling = ref(false);
 
-/** An enum as it has always read ("pending approval"), translated in Arabic. */
-const enumText = (value) => t(value.replaceAll('_', ' ').toLowerCase());
 
 async function load() {
   loading.value = true;
@@ -74,7 +73,7 @@ async function toggleAvailability() {
           <div>
             <p class="font-medium text-slate-900">
               <template v-if="profile.status !== 'ACTIVE'">
-                {{ t('Account {status}', { status: enumText(profile.status) }) }}
+                {{ t('Account {status}', { status: t(profile.status.replaceAll('_', ' ').toLowerCase()) }) }}
               </template>
               <template v-else-if="onDelivery">{{ t('On a delivery') }}</template>
               <template v-else-if="isOnline">{{ t('Online and available') }}</template>

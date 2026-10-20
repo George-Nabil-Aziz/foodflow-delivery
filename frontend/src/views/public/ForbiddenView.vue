@@ -21,7 +21,7 @@ const auth = useAuthStore();
       <template v-else>{{ t('You are not signed in.') }}</template>
     </p>
     <RouterLink :to="auth.isAuthenticated ? homeFor(auth.role) : { name: 'login' }"
-                class="inline-flex min-h-11 items-center justify-center md:min-h-0 mt-6 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">
+                class="ui-control inline-flex items-center justify-center mt-6 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-hover">
       {{ auth.isAuthenticated ? t('Go to my dashboard') : t('Sign in') }}
     </RouterLink>
   </div>

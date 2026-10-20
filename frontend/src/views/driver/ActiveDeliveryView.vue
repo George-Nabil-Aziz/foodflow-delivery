@@ -5,6 +5,7 @@ import { driverApi } from '../../services/api.js';
 import { useUiStore } from '../../stores/ui.store.js';
 import { formatMoney } from '../../utils/money.js';
 import { t } from '../../i18n/index.js';
+import { enumText } from '../../utils/labels.js';
 import AppSpinner from '../../components/shared/AppSpinner.vue';
 import ErrorState from '../../components/shared/ErrorState.vue';
 import AppButton from '../../components/shared/AppButton.vue';
@@ -18,8 +19,6 @@ const loading = ref(true);
 const error = ref(null);
 const busy = ref(false);
 
-/** An enum as it has always read ("out of stock"), translated in Arabic. */
-const enumText = (value) => t(value.replaceAll('_', ' ').toLowerCase());
 
 async function load() {
   loading.value = true;

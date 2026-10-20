@@ -15,7 +15,7 @@ defineEmits(['retry']);
     <button
       v-if="retryable"
       type="button"
-      class="inline-flex min-h-11 items-center justify-center md:min-h-0 mt-4 rounded-lg border border-red-300 bg-surface px-4 py-2 text-sm font-medium text-red-800 hover:bg-red-100"
+      class="ui-control inline-flex items-center justify-center mt-4 rounded-lg border border-red-300 bg-surface px-4 py-2 text-sm font-medium text-red-800 hover:bg-red-100"
       @click="$emit('retry')"
     >
       {{ t('Try again') }}
