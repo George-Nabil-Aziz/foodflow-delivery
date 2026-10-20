@@ -18,6 +18,18 @@ import {
  * screen has something to render on a fresh clone and the E2E scenarios have
  * the states they need.
  */
+/** [district, city, street, latitude, longitude] for the filler customers' homes. */
+const SEED_DISTRICTS = [
+  ['Maadi', 'Cairo', 'Road 9', 29.9602, 31.2569],
+  ['Nasr City', 'Cairo', 'Abbas El Akkad Street', 30.0561, 31.3301],
+  ['Mohandessin', 'Giza', 'Gameat El Dowal Street', 30.0571, 31.2003],
+  ['Heliopolis', 'Cairo', 'El Merghany Street', 30.0911, 31.3225],
+  ['Zamalek', 'Cairo', '26th of July Street', 30.0626, 31.2197],
+  ['Dokki', 'Giza', 'Mesaha Street', 30.0385, 31.2108],
+  ['Garden City', 'Cairo', 'Kasr El Aini Street', 30.0354, 31.2317],
+  ['New Cairo', 'Cairo', 'South 90th Street', 30.0074, 31.4913],
+];
+
 export async function seed(knex) {
   // Order matters: children before parents.
   await knex('order_status_events').del();
@@ -137,6 +149,19 @@ export async function seed(knex) {
       label: 'Home', line1: '8 Baghdad Street', city: 'Cairo', district: 'Heliopolis',
       latitude: 30.0890, longitude: 31.3260, is_default: true,
     },
+    // Every other customer has a home address too, so an admin can place an
+    // order for any of them. Nora stays without one: she is the empty-state
+    // fixture (docs/testing/test-data.md).
+    ...users
+      .filter((u) => u.role === 'CUSTOMER'
+        && !['sara.idris@gmail.com', 'omar.haddad@gmail.com', 'nora.fresh@gmail.com'].includes(u.email))
+      .map((u, i) => {
+        const [district, city, street, latitude, longitude] = SEED_DISTRICTS[i % SEED_DISTRICTS.length];
+        return {
+          user_id: u.id, label: 'Home', line1: `${10 + i} ${street}`, city, district,
+          latitude, longitude, is_default: true,
+        };
+      }),
   ]);
 
   /* ------------------------------------------------------- restaurants */
