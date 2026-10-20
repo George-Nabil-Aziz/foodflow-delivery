@@ -9,7 +9,7 @@ import { t } from '../../i18n/index.js';
 /**
  * The hero search box, with live suggestions.
  *
- * Typing two characters or more asks the server for up to five restaurants
+ * Typing a character or more asks the server for up to five restaurants
  * and three dishes, and lists them under the box. It is an ARIA combobox: the
  * arrow keys move through the suggestions, Enter opens the highlighted one,
  * Escape closes the list, and a screen reader announces the active option.
@@ -30,7 +30,7 @@ const loading = ref(false);
 const active = ref(-1);
 const root = ref(null);
 
-const MIN_CHARS = 2;
+const MIN_CHARS = 1;
 const listId = `${props.id}-suggestions`;
 
 /** One flat list, so the arrow keys cross the two groups seamlessly. */

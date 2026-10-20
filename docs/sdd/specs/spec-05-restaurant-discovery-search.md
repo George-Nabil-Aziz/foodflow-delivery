@@ -46,7 +46,7 @@ a platform offers loses customers before they exist.
 |----|------|-------------|
 | BR-R2 | Only `ACTIVE` restaurants are discoverable | Repository predicate; non-active by direct ID → 404 |
 | BR-R3 | `isOrderable` comes from spec-03's single implementation | `restaurants/orderability.js` |
-| BR-D5.1 | Search matches on partial, case-insensitive substrings of names, minimum 2 characters | `pg_trgm` + `ILIKE` with bound parameters |
+| BR-D5.1 | Search matches on partial, case-insensitive substrings of names, from 1 character (blank input is refused) | `pg_trgm` + `ILIKE` with bound parameters |
 | BR-D5.2 | Food-item results are excluded when their restaurant is not `ACTIVE` | Join predicate |
 | BR-D5.3 | `openNow=true` filters on computed orderability, not merely on `status` | Filter applied over the same computation |
 | BR-D5.4 | Sorting is only ever by an allow-listed column | Enum-validated `sort`/`order`; never interpolated |
@@ -89,7 +89,7 @@ Payload shapes in
 - `customer/RestaurantDetailView` — cover image, profile summary, today's hours, a sticky category navigation, and the menu grouped by category.
 - `FoodItemCard` — unavailable items render greyed with a disabled add button whose `aria-disabled` and visible text both say "Unavailable", never just a color change (NFR-14).
 - Filter state lives in the URL query string, so a filtered list is shareable and survives a refresh and the back button.
-- Search is debounced at 300 ms, cancels in-flight requests, and requires 2 characters before firing.
+- Search is debounced at 300 ms, cancels in-flight requests, and fires from the first non-blank character.
 
 ## Backend Requirements
 
@@ -129,7 +129,7 @@ status detail are not in the public mapper.
 
 | Condition | Response |
 |-----------|----------|
-| `q` shorter than 2 chars | `422` with a clear message; the UI does not fire the request at all |
+| `q` empty or only whitespace | `422` with a clear message; the UI does not fire the request at all |
 | `limit=500` | `422` naming the 100 cap |
 | `sort=passwordHash` | `422 VALIDATION_ERROR` — the allow-list rejects it before any SQL is built |
 | Non-`ACTIVE` restaurant by ID | `404` |

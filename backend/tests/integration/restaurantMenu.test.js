@@ -386,19 +386,22 @@ describe('TC-115..TC-134: discovery', () => {
     const upper = await request(app).get('/api/search?q=GRILL');
     expect(upper.body.data.restaurants.length).toBeGreaterThan(0);
 
-    // A wildcard must be literal, not a match-everything pattern. Two
-    // characters, because a single one is below the documented minimum.
-    const wildcard = await request(app).get('/api/search?q=%25%25');
+    // A wildcard must be literal, not a match-everything pattern — even alone.
+    const wildcard = await request(app).get('/api/search?q=%25');
     expect(wildcard.status).toBe(200);
     expect(wildcard.body.data.restaurants).toEqual([]);
     expect(wildcard.body.data.foodItems).toEqual([]);
 
-    const underscores = await request(app).get('/api/search?q=__');
-    expect(underscores.status).toBe(200);
-    expect(underscores.body.data.restaurants).toEqual([]);
+    const underscore = await request(app).get('/api/search?q=_');
+    expect(underscore.status).toBe(200);
+    expect(underscore.body.data.restaurants).toEqual([]);
 
-    expect((await request(app).get('/api/search?q=a')).status).toBe(422);
+    // One character is enough to search; only blank input is refused.
+    const single = await request(app).get('/api/search?q=o');
+    expect(single.status).toBe(200);
+    expect(single.body.data.restaurants.map((r) => r.name)).toContain('Olive Grill');
     expect((await request(app).get('/api/search?q=%20%20')).status).toBe(422);
+    expect((await request(app).get('/api/restaurants?q=o')).status).toBe(200);
 
     const injection = await request(app).get(`/api/search?q=${encodeURIComponent("'; DROP TABLE users; --")}`);
     expect(injection.status).toBe(200);

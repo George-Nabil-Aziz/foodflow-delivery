@@ -148,7 +148,7 @@ sticky category navigation; `RestaurantCard`, `RestaurantFilters`,
 
 Filter state lives in the URL query string so a filtered list is shareable and
 survives refresh and the back button. Search is debounced at 300 ms, cancels
-in-flight requests and requires two characters.
+in-flight requests and fires from the first non-blank character.
 
 ## Backend Impact
 
@@ -171,7 +171,7 @@ entire table and turns the search box into a full-table-scan button.
 
 | Case | Expected |
 |------|----------|
-| `q` under 2 chars or only whitespace | `422`; the client does not fire the request at all |
+| `q` empty or only whitespace | `422`; the client does not fire the request at all |
 | `limit` over 100 | `422` naming the cap |
 | `sort` outside the allow-list | `422` before any SQL is built |
 | Non-`ACTIVE` restaurant by ID | `404` |

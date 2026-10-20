@@ -154,8 +154,8 @@ vector).
 **Spec** spec-05 · **Story** story-04 · **AC** AC-04-11 · **Rules** BR-D5.1, NFR-9
 **Type** Security · **Priority** Critical
 **Data** `MAL_WILDCARD`, `MAL_WILDCARD_2`, `MAL_SQL_1`, `MAL_SQL_2`
-**Steps** 1. `?q=%`. 2. `?q=_`. 3. `?q=' OR 1=1 --`. 4. `?q='; DROP TABLE users; --`. 5. `?q=a` (1 char). 6. `?q=   `.
-**Expected** Steps 1–2 → treated as literal text, **not** a match-everything pattern. Steps 3–4 → literal; `users` still exists; no extra rows. Steps 5–6 → 422 (minimum 2 characters, trimmed).
+**Steps** 1. `?q=%`. 2. `?q=_`. 3. `?q=' OR 1=1 --`. 4. `?q='; DROP TABLE users; --`. 5. `?q=o` (1 char). 6. `?q=   `.
+**Expected** Steps 1–2 → treated as literal text, **not** a match-everything pattern. Steps 3–4 → literal; `users` still exists; no extra rows. Step 5 → 200 with substring matches (one character is enough). Step 6 → 422 (blank after trimming).
 **Notes** Unescaped, a search for `%` returns the entire table and turns the search box into a full-table-scan button — a availability problem as well as a correctness one.
 
 ---
