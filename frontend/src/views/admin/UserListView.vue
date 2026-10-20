@@ -1,19 +1,22 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { adminApi } from '../../services/api.js';
 import { useAuthStore } from '../../stores/auth.store.js';
 import { useUiStore } from '../../stores/ui.store.js';
 import { formatDateTime } from '../../utils/datetime.js';
 import { t } from '../../i18n/index.js';
 import { rawEnumText } from '../../utils/labels.js';
+import { countEach } from '../../utils/countEach.js';
 import AppSpinner from '../../components/shared/AppSpinner.vue';
 import EmptyState from '../../components/shared/EmptyState.vue';
 import AppPagination from '../../components/shared/AppPagination.vue';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.vue';
 import DeletedBadge from '../../components/shared/DeletedBadge.vue';
 import FilterBar from '../../components/shared/FilterBar.vue';
+import PageTitle from '../../components/shared/PageTitle.vue';
 import FilterSearch from '../../components/shared/FilterSearch.vue';
 import FilterSelect from '../../components/shared/FilterSelect.vue';
+import DetailsDialog from '../../components/shared/DetailsDialog.vue';
 
 /**
  * One account list per role: Customers and Admins in the sidebar. Restaurant
@@ -39,17 +42,35 @@ const busy = ref(null);
 const filters = ref({ status: '', q: '' });
 const dialog = ref({ open: false, config: {}, user: null, action: null });
 
+const STATUSES = ['', 'ACTIVE', 'SUSPENDED', 'DELETED'];
+const counts = ref({});
+
+/** One choice's query, shared by the list and its count. */
+function paramsFor(status, page, limit) {
+  const params = { page, limit, role: props.role };
+  if (status === 'DELETED') params.deleted = 'only';
+  else if (status) params.status = status;
+  if (filters.value.q.trim().length >= 1) params.q = filters.value.q.trim();
+  return params;
+}
+
+const statusOptions = computed(() => [
+  { value: '', label: t('All statuses') },
+  { value: 'ACTIVE', label: t('Active', null, 'status') },
+  { value: 'SUSPENDED', label: t('Suspended') },
+  { value: 'DELETED', label: t('Deleted') },
+].map((o) => ({ ...o, count: counts.value[o.value] })));
+
 async function load(page = 1) {
   loading.value = true;
   try {
-    const params = { page, limit: pageSize.value, role: props.role };
-    if (filters.value.status === 'DELETED') params.deleted = 'only';
-    else if (filters.value.status) params.status = filters.value.status;
-    if (filters.value.q.trim().length >= 2) params.q = filters.value.q.trim();
-
-    const res = await adminApi.users(params);
+    const [res, totals] = await Promise.all([
+      adminApi.users(paramsFor(filters.value.status, page, pageSize.value)),
+      countEach(STATUSES, (status) => adminApi.users(paramsFor(status, 1, 1))),
+    ]);
     users.value = res.data;
     pagination.value = res.meta.pagination ?? { page: 1, totalPages: 1, total: res.data.length };
+    counts.value = totals;
   } catch (err) {
     ui.toastError(err.message);
   } finally {
@@ -112,6 +133,39 @@ async function confirmAction({ reason }) {
   }
 }
 
+const details = ref({ open: false, loading: false, user: null, orderCount: null });
+
+/** Everything about one account. A customer's order count needs one more call. */
+async function openDetails(user) {
+  const isCustomer = props.role === 'CUSTOMER';
+  details.value = { open: true, loading: isCustomer, user, orderCount: null };
+  if (!isCustomer) return;
+  try {
+    const res = await adminApi.user(user.id);
+    details.value.orderCount = res.data.activity?.orderCount ?? null;
+  } catch (err) {
+    ui.toastError(err.message);
+  } finally {
+    details.value.loading = false;
+  }
+}
+
+const detailFields = computed(() => {
+  const user = details.value.user;
+  if (!user) return [];
+  return [
+    { label: t('Name'), value: user.fullName },
+    { label: t('Email'), value: user.email },
+    { label: t('Phone'), value: user.phone },
+    { label: t('Role'), value: rawEnumText(user.role) },
+    { label: t('Status'), value: user.deletedAt ? t('Deleted') : rawEnumText(user.status) },
+    ...(props.role === 'CUSTOMER' ? [{ label: t('Orders'), value: details.value.orderCount }] : []),
+    { label: t('Joined'), value: formatDateTime(user.createdAt) },
+    { label: t('Last sign-in'), value: user.lastLoginAt ? formatDateTime(user.lastLoginAt) : t('Never') },
+    ...(user.deletedAt ? [{ label: t('Deleted on'), value: formatDateTime(user.deletedAt) }] : []),
+  ];
+});
+
 async function reactivate(user) {
   busy.value = user.id;
   try {
@@ -141,17 +195,13 @@ async function restore(user) {
 
 <template>
   <div>
-    <h1 class="text-xl font-semibold text-slate-900">{{ t(COPY[role].title) }}</h1>
+    <PageTitle :title="t(COPY[role].title)" :count="loading ? null : pagination.total" />
 
     <FilterBar :add-to="{ name: COPY[role].addRoute }" :add-label="t(COPY[role].add)">
       <FilterSearch id="u-search" v-model="filters.q" :placeholder="t('Search by name or email')"
                     @update:model-value="load(1)" />
-      <FilterSelect id="u-status" v-model="filters.status" :label="t('Status')" @update:model-value="load(1)">
-        <option value="">{{ t('All statuses') }}</option>
-        <option value="ACTIVE">{{ t('Active', null, 'status') }}</option>
-        <option value="SUSPENDED">{{ t('Suspended') }}</option>
-        <option value="DELETED">{{ t('Deleted') }}</option>
-      </FilterSelect>
+      <FilterSelect id="u-status" v-model="filters.status" :label="t('Status')" :options="statusOptions"
+                    @update:model-value="load(1)" />
     </FilterBar>
 
     <AppSpinner v-if="loading" :label="COPY[role].loading" />
@@ -171,10 +221,12 @@ async function restore(user) {
           </thead>
           <tbody>
             <tr v-for="user in users" :key="user.id" class="border-b border-slate-100 last:border-0">
-              <td :data-label="t('Name')" class="p-3 font-medium text-slate-900">{{ user.fullName }}</td>
+              <td :data-label="t('Name')" class="p-3">
+                <button type="button" class="details-link" @click="openDetails(user)">{{ user.fullName }}</button>
+              </td>
               <td :data-label="t('Email')" class="p-3 text-slate-700">{{ user.email }}</td>
               <td :data-label="t('Status')" class="p-3">
-                <DeletedBadge v-if="user.deletedAt" :at="user.deletedAt" />
+                <DeletedBadge v-if="user.deletedAt" />
                 <span v-else class="rounded-full border px-2 py-0.5 text-xs"
                       :class="user.status === 'ACTIVE'
                         ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
@@ -201,7 +253,7 @@ async function restore(user) {
                     {{ t('Reactivate') }}
                   </button>
                   <button type="button" :disabled="busy === user.id"
-                          class="action-link text-red-700 hover:underline" @click="askDelete(user)">
+                          class="action-link action-delete text-red-700 hover:underline" @click="askDelete(user)">
                     {{ t('Delete') }}
                   </button>
                 </span>
@@ -216,5 +268,7 @@ async function restore(user) {
 
     <ConfirmDialog :open="dialog.open" :config="dialog.config"
                    @accept="confirmAction" @cancel="dialog.open = false" />
+    <DetailsDialog :open="details.open" :loading="details.loading" :title="details.user?.fullName ?? ''"
+                   :fields="detailFields" @close="details.open = false" />
   </div>
 </template>

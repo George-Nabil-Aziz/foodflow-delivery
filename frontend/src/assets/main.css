@@ -125,6 +125,20 @@
            disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500;
   }
 
+  /* Selects draw their own chevron, set in from the edge rather than the
+     browser's arrow pressed against the border; it moves to the left in Arabic. */
+  select.field-input {
+    appearance: none;
+    padding-inline-end: 2.25rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-size: 1rem 1rem;
+    background-position: right 0.75rem center;
+  }
+  [dir='rtl'] select.field-input {
+    background-position: left 0.75rem center;
+  }
+
   .field-input[aria-invalid='true'] {
     @apply border-red-500 focus:ring-red-500/40;
   }
@@ -428,6 +442,8 @@ html[lang='ar'] * {
     border: 1px solid rgb(var(--slate-200)) !important;
     border-radius: 0.75rem;
     background-color: rgb(var(--surface));
+    /* Lets each cell react to the card's own width, not the screen's. */
+    container-type: inline-size;
   }
 
   .table-cards td {
@@ -439,6 +455,21 @@ html[lang='ar'] * {
     gap: 0.75rem;
     padding: 0.5rem 1rem !important;
     overflow-wrap: anywhere;
+  }
+
+  /* Badges (a status pill) never split a word across two lines. */
+  .table-cards td .rounded-full {
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+
+  /* A narrow card stacks each label above its value, instead of squeezing both
+     columns until words break mid-way ("Reacti vate"). */
+  @container (max-width: 22rem) {
+    .table-cards td {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.25rem;
+    }
   }
   .table-cards td::before {
     content: attr(data-label);
@@ -465,31 +496,55 @@ html[lang='ar'] * {
   }
   .table-cards td:last-child button {
     justify-self: start;
-    min-width: 0;
-    /* The same compact size as .ui-control below. */
-    min-height: 1.875rem;
-    padding: 0.3125rem 0.75rem;
-    font-size: 0.8125rem;
-    line-height: 1.25rem;
-    border: 1px solid currentColor;
-    border-radius: 0.5rem;
-    font-weight: 500;
-    text-decoration: none !important;
   }
 }
 
+/* Row actions are outlined buttons at every width, the same size as the page's
+   primary button (px-4 py-2 text-sm), shrinking with it on a phone below. */
+.table-cards td:last-child button {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  min-width: 0;
+  /* 6px shorter than the primary button (36px): 4 + 20 + 4 + the 1px border twice. */
+  min-height: 1.875rem;
+  padding: 4px calc(1rem - 1px);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  text-decoration: none !important;
+}
+
+/* Delete is the one destructive row action: a solid red button, white text. */
+.table-cards td:last-child button.action-delete {
+  border-color: rgb(185 28 28);
+  background-color: rgb(185 28 28);
+  color: #fff;
+}
+.table-cards td:last-child button.action-delete:not(:disabled):hover {
+  border-color: rgb(153 27 27);
+  background-color: rgb(153 27 27);
+}
+
 /*
- * One control size on a phone. Buttons, tabs and button-like links all take
- * the row actions' compact size above, so nothing on a narrow screen reads
+ * One control size on a phone. Buttons, tabs, button-like links and the card
+ * row actions all take one compact size, so nothing on a narrow screen reads
  * as a bigger, more important slab than the rest.
  */
 @media (max-width: 767.98px) {
-  .ui-control {
+  .ui-control,
+  .table-cards td:last-child button {
     height: auto !important;
     min-height: 1.875rem !important;
     padding: 0.3125rem 0.75rem !important;
     font-size: 0.8125rem !important;
     line-height: 1.25rem !important;
+  }
+  /* 6px shorter than the compact primary button (30px). */
+  .table-cards td:last-child button {
+    min-height: 1.5rem !important;
+    padding: 1px calc(0.75rem - 1px) !important;
   }
 }
 
@@ -498,6 +553,13 @@ html[lang='ar'] * {
   .ui-control.ui-control-nav {
     font-size: 0.875rem !important;
     line-height: 1.25rem !important;
+  }
+}
+
+/* The compact size keeps room for a select's chevron. */
+@media (max-width: 767.98px) {
+  select.ui-control {
+    padding-inline-end: 2rem !important;
   }
 }
 
@@ -545,4 +607,18 @@ html[lang='ar'] * {
   scrollbar-width: thin;
   scrollbar-color: rgb(var(--slate-300)) transparent;
   overscroll-behavior-x: contain;
+}
+
+/*
+ * The first column's name, as a button that opens the row's details popup.
+ * Only this cell opens it; the rest of the row stays plain text.
+ */
+.details-link {
+  font-weight: 500;
+  text-align: start;
+  color: rgb(var(--brand-700));
+  cursor: pointer;
+}
+.details-link:hover {
+  text-decoration: underline;
 }

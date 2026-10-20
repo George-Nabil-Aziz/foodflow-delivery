@@ -66,6 +66,8 @@ export default {
   'Page {n}': 'صفحة {n}',
   Next: 'التالي',
   'Page {page} of {pages} · {total} results': 'صفحة {page} من {pages} · {total} نتيجة',
+  '{count} results': '{count} نتيجة',
+  '{n} out of 5 stars': '{n} من 5 نجوم',
   'Rows per page': 'عدد الصفوف في الصفحة',
   '{total} results': '{total} نتيجة',
   Cancel: 'إلغاء',

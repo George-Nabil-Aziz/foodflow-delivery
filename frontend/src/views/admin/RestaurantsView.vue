@@ -11,10 +11,14 @@ import AppButton from '../../components/shared/AppButton.vue';
 import AppPagination from '../../components/shared/AppPagination.vue';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.vue';
 import FilterBar from '../../components/shared/FilterBar.vue';
+import PageTitle from '../../components/shared/PageTitle.vue';
 import FilterSearch from '../../components/shared/FilterSearch.vue';
 import FilterSelect from '../../components/shared/FilterSelect.vue';
 import { formatDateTime } from '../../utils/datetime.js';
 import DeletedBadge from '../../components/shared/DeletedBadge.vue';
+import AccountStatusBadge from '../../components/shared/AccountStatusBadge.vue';
+import { countEach } from '../../utils/countEach.js';
+import DetailsDialog from '../../components/shared/DetailsDialog.vue';
 
 const route = useRoute();
 const ui = useUiStore();
@@ -26,32 +30,38 @@ const loading = ref(true);
 const busy = ref(null);
 const statusFilter = ref(route.query.status ?? '');
 const search = ref('');
-const pendingCount = ref(0);
+const counts = ref({});
 const dialog = ref({ open: false, config: {}, restaurant: null, action: null });
 
 
+const STATUSES = ['', 'PENDING_APPROVAL', 'ACTIVE', 'SUSPENDED', 'REJECTED', 'DELETED'];
+
 const statusOptions = computed(() => [
-  { key: '', label: t('All restaurants') },
-  { key: 'PENDING_APPROVAL', label: t('Awaiting approval ({count})', { count: pendingCount.value }) },
-  ...['ACTIVE', 'SUSPENDED', 'REJECTED'].map((s) => ({ key: s, label: enumText(s) })),
-  { key: 'DELETED', label: t('Deleted') },
-]);
+  { value: '', label: t('All restaurants') },
+  { value: 'PENDING_APPROVAL', label: t('Awaiting approval') },
+  ...['ACTIVE', 'SUSPENDED', 'REJECTED'].map((s) => ({ value: s, label: enumText(s) })),
+  { value: 'DELETED', label: t('Deleted') },
+].map((o) => ({ ...o, count: counts.value[o.value] })));
+
+/** One choice's query, shared by the list and its count. */
+function paramsFor(status, page, limit) {
+  const params = { page, limit };
+  if (status === 'DELETED') params.deleted = 'only';
+  else if (status) params.status = status;
+  if (search.value.trim().length >= 1) params.q = search.value.trim();
+  return params;
+}
 
 async function load(page = 1) {
   loading.value = true;
   try {
-    const params = { page, limit: pageSize.value };
-    if (statusFilter.value === 'DELETED') params.deleted = 'only';
-    else if (statusFilter.value) params.status = statusFilter.value;
-    if (search.value.trim().length >= 2) params.q = search.value.trim();
-    // The queue's size is in its tab label, whichever tab is open.
-    const [res, queue] = await Promise.all([
-      adminApi.restaurants(params),
-      adminApi.restaurants({ status: 'PENDING_APPROVAL', limit: 1 }),
+    const [res, totals] = await Promise.all([
+      adminApi.restaurants(paramsFor(statusFilter.value, page, pageSize.value)),
+      countEach(STATUSES, (status) => adminApi.restaurants(paramsFor(status, 1, 1))),
     ]);
     restaurants.value = res.data;
     pagination.value = res.meta.pagination ?? { page: 1, totalPages: 1, total: res.data.length };
-    pendingCount.value = queue.meta.pagination?.total ?? queue.data.length;
+    counts.value = totals;
   } catch (err) {
     ui.toastError(err.message);
   } finally {
@@ -60,6 +70,32 @@ async function load(page = 1) {
 }
 
 onMounted(() => load());
+
+const details = ref({ open: false, restaurant: null });
+
+const ratingText = (r) => (r.ratingCount
+  ? `${Number(r.ratingAverage).toFixed(2)} (${r.ratingCount})`
+  : capitalize(t('unrated')));
+
+const detailFields = computed(() => {
+  const r = details.value.restaurant;
+  if (!r) return [];
+  return [
+    { label: t('Name'), value: r.name },
+    { label: t('Status'), value: r.deletedAt ? t('Deleted') : enumText(r.status) },
+    ...(r.rejectionReason ? [{ label: t('Rejection reason'), value: r.rejectionReason }] : []),
+    { label: t('Cuisine'), value: r.cuisineType && enumText(r.cuisineType) },
+    { label: t('City'), value: r.city },
+    { label: t('Accepting orders'), value: r.isAcceptingOrders ? t('Yes') : t('No') },
+    { label: t('Available items'), value: r.availableItemCount },
+    { label: t('Rating'), value: ratingText(r) },
+    { label: t('Owner'), value: r.owner?.fullName },
+    { label: t('Owner email'), value: r.owner?.email },
+    { label: t('Joined'), value: formatDateTime(r.owner?.createdAt) },
+    { label: t('Approved on'), value: formatDateTime(r.approvedAt) },
+    ...(r.deletedAt ? [{ label: t('Deleted on'), value: formatDateTime(r.deletedAt) }] : []),
+  ];
+});
 
 function setTab(next) {
   statusFilter.value = next;
@@ -130,13 +166,12 @@ async function restore(restaurant) {
 
 <template>
   <div>
-    <h1 class="text-xl font-semibold text-slate-900">{{ t('Restaurants') }}</h1>
+    <PageTitle :title="t('Restaurants')" :count="loading ? null : pagination.total" />
 
     <FilterBar :add-to="{ name: 'admin-restaurant-new' }" :add-label="t('Add a restaurant')">
       <FilterSearch id="r-search" v-model="search" :placeholder="t('Search by restaurant name')" @update:model-value="load(1)" />
-      <FilterSelect id="r-status" :model-value="statusFilter" :label="t('Status')" @update:model-value="setTab">
-        <option v-for="o in statusOptions" :key="o.key" :value="o.key">{{ o.label }}</option>
-      </FilterSelect>
+      <FilterSelect id="r-status" :model-value="statusFilter" :label="t('Status')" :options="statusOptions"
+                    @update:model-value="setTab" />
     </FilterBar>
 
     <AppSpinner v-if="loading" label="Loading restaurants" />
@@ -198,13 +233,13 @@ async function restore(restaurant) {
             <tbody>
               <tr v-for="r in restaurants" :key="r.id" class="border-b border-slate-100 last:border-0">
                 <td :data-label="t('Name')" class="p-3">
-                  <span class="font-medium text-slate-900">{{ r.name }}</span>
+                  <button type="button" class="details-link" @click="details = { open: true, restaurant: r }">{{ r.name }}</button>
                   <span class="block text-xs text-slate-500">{{ r.owner.email }}</span>
                 </td>
                 <td :data-label="t('Status')" class="p-3">
-                  <DeletedBadge v-if="r.deletedAt" :at="r.deletedAt" />
+                  <DeletedBadge v-if="r.deletedAt" />
                   <template v-else>
-                    {{ enumText(r.status) }}
+                    <AccountStatusBadge :status="r.status" />
                     <span v-if="r.rejectionReason" class="block text-xs text-slate-500">
                       {{ r.rejectionReason }}
                     </span>
@@ -212,10 +247,7 @@ async function restore(restaurant) {
                 </td>
                 <td :data-label="t('Items')" class="p-3">{{ r.availableItemCount }}</td>
                 <td :data-label="t('Rating')" class="p-3">
-                  <template v-if="r.ratingCount">
-                    {{ Number(r.ratingAverage).toFixed(2) }} ({{ r.ratingCount }})
-                  </template>
-                  <template v-else><span class="text-slate-500">{{ capitalize(t('unrated')) }}</span></template>
+                  <span :class="{ 'text-slate-500': !r.ratingCount }">{{ ratingText(r) }}</span>
                 </td>
                 <td :data-label="t('Joined')" class="p-3 text-slate-600">{{ formatDateTime(r.owner.createdAt) }}</td>
                 <td :data-label="t('Actions')" class="p-3">
@@ -245,7 +277,7 @@ async function restore(restaurant) {
                       {{ t('Reactivate') }}
                     </button>
                     <button type="button" :disabled="busy === r.id"
-                            class="action-link text-red-700 hover:underline"
+                            class="action-link action-delete text-red-700 hover:underline"
                             @click="ask(r, 'delete', {
                               title: t('Delete {name}?', { name: r.name }),
                               message: 'The restaurant disappears from customers, and the owner’s account is deleted with it. Past orders and reviews are kept, and both can be restored.',
@@ -268,5 +300,7 @@ async function restore(restaurant) {
 
     <ConfirmDialog :open="dialog.open" :config="dialog.config"
                    @accept="confirmAction" @cancel="dialog.open = false" />
+    <DetailsDialog :open="details.open" :title="details.restaurant?.name ?? ''"
+                   :fields="detailFields" @close="details.open = false" />
   </div>
 </template>

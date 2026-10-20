@@ -13,9 +13,10 @@ defineProps({
     The one way a list is searched and filtered: a single compact row under the
     page title, no card and no visible labels (each control names itself to
     assistive tech). Search, filters and the Add button share one line, the
-    search growing to fill it; they wrap only when they do not fit.
+    search growing to fill it; they wrap only when they do not fit, and on a
+    phone whatever wraps stretches to fill its line.
   -->
-  <div class="mt-4 flex flex-wrap items-center gap-2">
+  <div class="mt-4 flex flex-wrap items-center gap-2 max-md:[&>*]:grow">
     <slot />
     <RouterLink v-if="addTo" :to="addTo"
                 class="ui-control btn-primary ms-auto inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-primary-hover">

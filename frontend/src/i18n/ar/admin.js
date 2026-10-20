@@ -13,7 +13,6 @@ export default {
   Suspend: 'إيقاف',
   Reactivate: 'إعادة تفعيل',
   unrated: 'بلا تقييم',
-  'Awaiting approval ({count})': 'بانتظار الموافقة ({count})',
   'Suspend {name}?': 'إيقاف {name}؟',
 
   // Enums, as rendered lower-case (stuck reasons)
@@ -169,4 +168,57 @@ export default {
     'لن يتمكن من تسجيل الدخول حتى تتم استعادته. تبقى طلباته وتقييماته السابقة محفوظة.',
   'The restaurant disappears from customers, and the owner’s account is deleted with it. Past orders and reviews are kept, and both can be restored.':
     'يختفي المطعم عن العملاء ويُحذف حساب مالكه معه. تبقى الطلبات والتقييمات السابقة محفوظة، ويمكن استعادة الاثنين.',
+
+  // Row details popup
+  Close: 'إغلاق',
+  'Loading details': 'جارٍ تحميل التفاصيل',
+  'Last sign-in': 'آخر تسجيل دخول',
+  Never: 'أبدًا',
+  'Deleted on': 'تاريخ الحذف',
+  'Rejection reason': 'سبب الرفض',
+  'Accepting orders': 'يستقبل الطلبات',
+  Yes: 'نعم',
+  No: 'لا',
+  'Available items': 'الأصناف المتاحة',
+  Owner: 'المالك',
+  'Owner email': 'بريد المالك',
+  'Approved on': 'تاريخ الموافقة',
+  'Customer email': 'بريد العميل',
+  'Customer phone': 'هاتف العميل',
+  'Customer note': 'ملاحظة العميل',
+  'Cancellation reason': 'سبب الإلغاء',
+  'Order {orderNumber}': 'الطلب {orderNumber}',
+  'cash on delivery': 'الدفع عند الاستلام',
+
+  // Dashboard: live tiles, activity feed, leaderboards
+  'In progress now': 'قيد التنفيذ الآن',
+  'Delivered today': 'تم توصيلها اليوم',
+  'Cancelled today': 'أُلغيت اليوم',
+  'New customers today': 'عملاء جدد اليوم',
+  'Reviews today': 'تقييمات اليوم',
+  'Live activity': 'النشاط المباشر',
+  'Updated {time}': 'آخر تحديث {time}',
+  'New account': 'حساب جديد',
+  '{name} reviewed {restaurant}': '{name} قيّم {restaurant}',
+  'Nothing has happened yet.': 'لا يوجد نشاط بعد.',
+  Platform: 'المنصة',
+  'Active drivers': 'السائقون النشطون',
+  'GMV (30 days)': 'إجمالي المبيعات (30 يومًا)',
+  'Average rating (30 days)': 'متوسط التقييم (30 يومًا)',
+  'Top drivers (30 days)': 'أفضل السائقين (30 يومًا)',
+  '{count} deliveries': '{count} توصيلة',
+  'Top customers (30 days)': 'أفضل العملاء (30 يومًا)',
+  'Top rated restaurants': 'المطاعم الأعلى تقييمًا',
+  'Not enough reviews yet.': 'لا توجد تقييمات كافية بعد.',
+  'Top items (30 days)': 'الأصناف الأكثر طلبًا (30 يومًا)',
+
+  // Reviews table
+  Comment: 'التعليق',
+  Date: 'التاريخ',
+
+  // Review details popup
+  'Restaurant rating': 'تقييم المطعم',
+  'Driver rating': 'تقييم السائق',
+  'Hidden by': 'أخفاه',
+  Reason: 'السبب',
 };

@@ -6,6 +6,7 @@ import { formatMoney } from '../../utils/money.js';
 import { formatDateTime } from '../../utils/datetime.js';
 import { t } from '../../i18n/index.js';
 import AppSpinner from '../../components/shared/AppSpinner.vue';
+import RatingStars from '../../components/shared/RatingStars.vue';
 import EmptyState from '../../components/shared/EmptyState.vue';
 import AppPagination from '../../components/shared/AppPagination.vue';
 import StatusBadge from '../../components/shared/StatusBadge.vue';
@@ -71,7 +72,7 @@ onMounted(() => load());
       <ul class="mt-3 space-y-2">
         <li v-for="review in reviews" :key="review.id" class="card p-4 text-sm">
           <p class="font-medium text-slate-800">
-            <span aria-hidden="true">&starf;</span> {{ review.rating }}/5
+            <RatingStars :value="review.rating" />
             <span class="ms-2 font-normal text-slate-500">{{ review.customer.displayName }}</span>
           </p>
           <p v-if="review.comment" class="mt-1 text-slate-700">{{ review.comment }}</p>

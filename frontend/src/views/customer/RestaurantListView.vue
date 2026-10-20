@@ -37,6 +37,23 @@ const filters = computed(() => ({
   page: Number(route.query.page ?? 1),
 }));
 
+const cuisineOptions = computed(() => [
+  { value: '', label: t('All cuisines'), count: cuisines.value.reduce((sum, c) => sum + c.restaurantCount, 0) },
+  ...cuisines.value.map((c) => ({
+    value: c.cuisineType, label: t(cuisineStyle(c.cuisineType).label), count: c.restaurantCount,
+  })),
+]);
+const ratingOptions = computed(() => [
+  { value: '', label: t('Any rating') },
+  ...[4, 3, 2].map((n) => ({ value: n, label: t('{n} stars and up', { n }) })),
+]);
+const sortOptions = computed(() => [
+  { value: 'rating', label: t('Rating') },
+  { value: 'deliveryFee', label: t('Delivery fee') },
+  { value: 'name', label: t('Name') },
+  { value: 'newest', label: t('Newest') },
+]);
+
 const hasFilters = computed(
   () => Boolean(filters.value.q || filters.value.cuisine || filters.value.openNow || filters.value.minRating),
 );
@@ -98,24 +115,11 @@ watch(() => route.query, load);
         <FilterSearch id="filter-search" :model-value="filters.q" :placeholder="t('Search restaurants or dishes')"
                       @update:model-value="onSearchInput" />
         <FilterSelect id="filter-cuisine" :model-value="filters.cuisine" :label="t('Cuisine')"
-                      @update:model-value="(v) => setFilter({ cuisine: v })">
-          <option value="">{{ t('All cuisines') }}</option>
-          <option v-for="c in cuisines" :key="c.cuisineType" :value="c.cuisineType">
-            {{ t(cuisineStyle(c.cuisineType).label) }} ({{ c.restaurantCount }})
-          </option>
-        </FilterSelect>
+                      :options="cuisineOptions" @update:model-value="(v) => setFilter({ cuisine: v })" />
         <FilterSelect id="filter-rating" :model-value="filters.minRating" :label="t('Minimum rating')"
-                      @update:model-value="(v) => setFilter({ minRating: v })">
-          <option value="">{{ t('Any rating') }}</option>
-          <option v-for="n in [4, 3, 2]" :key="n" :value="n">{{ t('{n} stars and up', { n }) }}</option>
-        </FilterSelect>
+                      :options="ratingOptions" @update:model-value="(v) => setFilter({ minRating: v })" />
         <FilterSelect id="filter-sort" :model-value="filters.sort" :label="t('Sort by')"
-                      @update:model-value="(v) => setFilter({ sort: v })">
-          <option value="rating">{{ t('Rating') }}</option>
-          <option value="deliveryFee">{{ t('Delivery fee') }}</option>
-          <option value="name">{{ t('Name') }}</option>
-          <option value="newest">{{ t('Newest') }}</option>
-        </FilterSelect>
+                      :options="sortOptions" @update:model-value="(v) => setFilter({ sort: v })" />
         <!-- A toggle, so it sits in the row at the same size as the selects. -->
         <button type="button" :aria-pressed="filters.openNow"
                 class="ui-control inline-flex items-center rounded-lg px-3 py-2 text-sm"

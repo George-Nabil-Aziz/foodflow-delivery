@@ -207,8 +207,12 @@ export async function adminList(query) {
   const q = knex('reviews as rv')
     .join('users as cu', 'cu.id', 'rv.customer_user_id')
     .join('restaurants as r', 'r.id', 'rv.restaurant_id')
+    .join('orders as o', 'o.id', 'rv.order_id')
+    .leftJoin('users as dr', 'dr.id', 'rv.driver_user_id')
+    .leftJoin('users as hb', 'hb.id', 'rv.hidden_by_user_id')
     .select(
-      'rv.*', 'cu.full_name', 'r.name as restaurant_name',
+      'rv.*', 'cu.full_name', 'cu.email as customer_email', 'r.name as restaurant_name',
+      'o.order_number', 'dr.full_name as driver_name', 'hb.full_name as hidden_by_name',
       knex.raw('count(*) OVER() AS total_count'),
     )
     .orderBy('rv.created_at', 'desc')
@@ -229,13 +233,18 @@ export async function adminList(query) {
       id: r.id,
       orderId: r.order_id,
       restaurant: { id: r.restaurant_id, name: r.restaurant_name },
-      customer: { displayName: displayName(r.full_name) },
+      // The admin sees the whole name and email; the list still shows the short form.
+      customer: { displayName: displayName(r.full_name), fullName: r.full_name, email: r.customer_email },
+      orderNumber: r.order_number,
+      driver: r.driver_user_id ? { id: r.driver_user_id, fullName: r.driver_name } : null,
+      hiddenBy: r.hidden_by_name ?? null,
       restaurantRating: r.restaurant_rating,
       driverRating: r.driver_rating,
       comment: r.comment,
       status: r.status,
       moderationReason: r.moderation_reason,
       createdAt: r.created_at,
+      updatedAt: r.updated_at,
     })),
     meta: paginationMeta({ page, limit, total: rows[0]?.total_count ?? 0 }),
   };

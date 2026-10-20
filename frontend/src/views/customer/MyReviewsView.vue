@@ -4,6 +4,7 @@ import { reviewApi } from '../../services/api.js';
 import { useUiStore } from '../../stores/ui.store.js';
 import { formatDateTime } from '../../utils/datetime.js';
 import AppSpinner from '../../components/shared/AppSpinner.vue';
+import RatingStars from '../../components/shared/RatingStars.vue';
 import EmptyState from '../../components/shared/EmptyState.vue';
 import AppButton from '../../components/shared/AppButton.vue';
 import StarRating from '../../components/shared/StarRating.vue';
@@ -82,9 +83,9 @@ async function save(review) {
 
             <template v-else>
               <p class="mt-2 text-sm text-slate-800">
-                <span aria-hidden="true">&starf;</span> {{ review.restaurantRating }}/5
-                <span v-if="review.driverRating" class="ms-2 text-slate-600">
-                  {{ t('Driver {rating}/5', { rating: review.driverRating }) }}
+                <RatingStars :value="review.restaurantRating" />
+                <span v-if="review.driverRating" class="ms-3 inline-flex items-center gap-1 text-slate-600">
+                  {{ t('Driver') }} <RatingStars :value="review.driverRating" />
                 </span>
               </p>
               <p v-if="review.comment" class="mt-1 text-sm text-slate-700">{{ review.comment }}</p>

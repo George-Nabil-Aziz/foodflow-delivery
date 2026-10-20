@@ -46,7 +46,7 @@ adminRouter.get('/stats', asyncHandler(async (req, res) => {
 const usersQuery = paginationQuery.extend({
   role: z.enum(USER_ROLES).optional(),
   status: z.enum(USER_STATUSES).optional(),
-  q: z.string().trim().min(2).max(60).optional(),
+  q: z.string().trim().min(1).max(60).optional(),
   deleted: deletedFilter,
 });
 
@@ -116,7 +116,7 @@ adminRouter.post(
 const driversQuery = paginationQuery.extend({
   status: z.enum(DRIVER_STATUSES).optional(),
   availability: z.enum(DRIVER_AVAILABILITY).optional(),
-  q: z.string().trim().min(2).max(60).optional(),
+  q: z.string().trim().min(1).max(60).optional(),
   deleted: deletedFilter,
 });
 
@@ -181,7 +181,7 @@ adminRouter.post(
 
 const restaurantsQuery = paginationQuery.extend({
   status: z.enum(RESTAURANT_STATUSES).optional(),
-  q: z.string().trim().min(2).max(60).optional(),
+  q: z.string().trim().min(1).max(60).optional(),
   deleted: deletedFilter,
 });
 
@@ -245,7 +245,7 @@ const ordersQuery = paginationQuery.extend({
   restaurantId: uuid.optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
-  q: z.string().trim().min(2).max(60).optional(),
+  q: z.string().trim().min(1).max(60).optional(),
 }).refine((v) => !v.from || !v.to || v.from <= v.to, {
   message: 'from must be before or equal to to',
   path: ['from'],
@@ -282,7 +282,7 @@ adminRouter.post(
 const reviewsQuery = paginationQuery.extend({
   status: z.enum(REVIEW_STATUSES).optional(),
   restaurantId: uuid.optional(),
-  q: z.string().trim().min(2).max(60).optional(),
+  q: z.string().trim().min(1).max(60).optional(),
 });
 
 adminRouter.get('/reviews', validate({ query: reviewsQuery }), asyncHandler(async (req, res) => {

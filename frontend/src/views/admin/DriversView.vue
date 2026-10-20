@@ -10,10 +10,14 @@ import EmptyState from '../../components/shared/EmptyState.vue';
 import AppButton from '../../components/shared/AppButton.vue';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.vue';
 import FilterBar from '../../components/shared/FilterBar.vue';
+import PageTitle from '../../components/shared/PageTitle.vue';
+import AccountStatusBadge from '../../components/shared/AccountStatusBadge.vue';
+import { countEach } from '../../utils/countEach.js';
 import FilterSearch from '../../components/shared/FilterSearch.vue';
 import FilterSelect from '../../components/shared/FilterSelect.vue';
 import { formatDateTime } from '../../utils/datetime.js';
 import DeletedBadge from '../../components/shared/DeletedBadge.vue';
+import DetailsDialog from '../../components/shared/DetailsDialog.vue';
 
 const route = useRoute();
 const ui = useUiStore();
@@ -23,33 +27,41 @@ const ui = useUiStore();
 const tab = ref(route.query.status ?? '');
 const search = ref('');
 const drivers = ref([]);
-const pendingCount = ref(0);
+const total = ref(0);
+const counts = ref({});
 const loading = ref(true);
 const busy = ref(null);
 const dialog = ref({ open: false, config: {}, driver: null, action: null });
 
 
+const STATUSES = ['', 'PENDING_APPROVAL', 'ACTIVE', 'SUSPENDED', 'DELETED'];
+
 const statusOptions = computed(() => [
-  { key: '', label: t('All drivers') },
-  { key: 'PENDING_APPROVAL', label: t('Awaiting approval ({count})', { count: pendingCount.value }) },
-  ...['ACTIVE', 'SUSPENDED'].map((s) => ({ key: s, label: enumText(s) })),
-  { key: 'DELETED', label: t('Deleted') },
-]);
+  { value: '', label: t('All drivers') },
+  { value: 'PENDING_APPROVAL', label: t('Awaiting approval') },
+  ...['ACTIVE', 'SUSPENDED'].map((s) => ({ value: s, label: enumText(s) })),
+  { value: 'DELETED', label: t('Deleted') },
+].map((o) => ({ ...o, count: counts.value[o.value] })));
+
+/** One choice's query, shared by the list and its count. */
+function paramsFor(status, limit) {
+  const params = { limit };
+  if (status === 'DELETED') params.deleted = 'only';
+  else if (status) params.status = status;
+  if (search.value.trim().length >= 1) params.q = search.value.trim();
+  return params;
+}
 
 async function load() {
   loading.value = true;
   try {
-    const params = { limit: 50 };
-    if (tab.value === 'DELETED') params.deleted = 'only';
-    else if (tab.value) params.status = tab.value;
-    if (search.value.trim().length >= 2) params.q = search.value.trim();
-    // The queue's size is in its tab label, whichever tab is open.
-    const [list, queue] = await Promise.all([
-      adminApi.drivers(params),
-      adminApi.drivers({ status: 'PENDING_APPROVAL', limit: 1 }),
+    const [list, totals] = await Promise.all([
+      adminApi.drivers(paramsFor(tab.value, 50)),
+      countEach(STATUSES, (status) => adminApi.drivers(paramsFor(status, 1))),
     ]);
     drivers.value = list.data;
-    pendingCount.value = queue.meta.pagination?.total ?? queue.data.length;
+    total.value = list.meta.pagination?.total ?? list.data.length;
+    counts.value = totals;
   } catch (err) {
     ui.toastError(err.message);
   } finally {
@@ -122,6 +134,28 @@ async function confirmAction({ reason }) {
   }
 }
 
+const details = ref({ open: false, driver: null });
+
+const ratingText = (d) => (d.ratingCount
+  ? `${Number(d.ratingAverage).toFixed(2)} (${d.ratingCount})`
+  : capitalize(t('unrated')));
+
+const detailFields = computed(() => {
+  const d = details.value.driver;
+  if (!d) return [];
+  return [
+    { label: t('Name'), value: d.fullName },
+    { label: t('Email'), value: d.email },
+    { label: t('Phone'), value: d.phone },
+    { label: t('Status'), value: d.deletedAt ? t('Deleted') : enumText(d.status) },
+    { label: t('Availability'), value: d.availability && enumText(d.availability) },
+    { label: t('Vehicle'), value: [d.vehicleType && enumText(d.vehicleType), d.vehiclePlate].filter(Boolean).join(' · ') },
+    { label: t('Rating'), value: ratingText(d) },
+    { label: t('Joined'), value: formatDateTime(d.createdAt) },
+    ...(d.deletedAt ? [{ label: t('Deleted on'), value: formatDateTime(d.deletedAt) }] : []),
+  ];
+});
+
 async function restore(driver) {
   busy.value = driver.userId;
   try {
@@ -139,13 +173,12 @@ async function restore(driver) {
 <template>
   <div>
     <section class="min-w-0">
-      <h1 class="text-xl font-semibold text-slate-900">{{ t('Drivers') }}</h1>
+      <PageTitle :title="t('Drivers')" :count="loading ? null : total" />
 
       <FilterBar :add-to="{ name: 'admin-driver-new' }" :add-label="t('Add a driver')">
         <FilterSearch id="d-search" v-model="search" :placeholder="t('Search by name or email')" @update:model-value="load" />
-        <FilterSelect id="d-status" :model-value="tab" :label="t('Status')" @update:model-value="(v) => { tab = v; load(); }">
-          <option v-for="o in statusOptions" :key="o.key" :value="o.key">{{ o.label }}</option>
-        </FilterSelect>
+        <FilterSelect id="d-status" :model-value="tab" :label="t('Status')" :options="statusOptions"
+                      @update:model-value="(v) => { tab = v; load(); }" />
       </FilterBar>
 
       <AppSpinner v-if="loading" label="Loading drivers" />
@@ -168,17 +201,16 @@ async function restore(driver) {
             <tbody>
               <tr v-for="d in drivers" :key="d.id" class="border-b border-slate-100 last:border-0">
                 <td :data-label="t('Driver')" class="p-3">
-                  <span class="font-medium text-slate-900">{{ d.fullName }}</span>
+                  <button type="button" class="details-link" @click="details = { open: true, driver: d }">{{ d.fullName }}</button>
                   <span class="block text-xs text-slate-500">{{ d.email }}</span>
                 </td>
                 <td :data-label="t('Status')" class="p-3">
-                  <DeletedBadge v-if="d.deletedAt" :at="d.deletedAt" />
-                  <template v-else>{{ enumText(d.status) }}</template>
+                  <DeletedBadge v-if="d.deletedAt" />
+                  <AccountStatusBadge v-else :status="d.status" />
                 </td>
                 <td :data-label="t('Availability')" class="p-3">{{ enumText(d.availability) }}</td>
                 <td :data-label="t('Rating')" class="p-3">
-                  <template v-if="d.ratingCount">{{ Number(d.ratingAverage).toFixed(2) }} ({{ d.ratingCount }})</template>
-                  <template v-else><span class="text-slate-500">{{ capitalize(t('unrated')) }}</span></template>
+                  <span :class="{ 'text-slate-500': !d.ratingCount }">{{ ratingText(d) }}</span>
                 </td>
                 <td :data-label="t('Joined')" class="p-3 text-slate-600">{{ formatDateTime(d.createdAt) }}</td>
                 <td :data-label="t('Actions')" class="p-3">
@@ -197,7 +229,7 @@ async function restore(driver) {
                       {{ t('Approve') }}
                     </button>
                     <button type="button" :disabled="busy === d.userId"
-                            class="action-link text-red-700 hover:underline" @click="askDelete(d)">
+                            class="action-link action-delete text-red-700 hover:underline" @click="askDelete(d)">
                       {{ t('Delete') }}
                     </button>
                   </span>
@@ -224,5 +256,7 @@ async function restore(driver) {
 
     <ConfirmDialog :open="dialog.open" :config="dialog.config"
                    @accept="confirmAction" @cancel="dialog.open = false" />
+    <DetailsDialog :open="details.open" :title="details.driver?.fullName ?? ''"
+                   :fields="detailFields" @close="details.open = false" />
   </div>
 </template>

@@ -25,6 +25,8 @@ const saving = ref(false);
 const filterCategory = ref('');
 const filterAvailability = ref('');
 const search = ref('');
+// Every item matching the search alone, for the filter counts.
+const searched = ref([]);
 
 const showForm = ref(false);
 const editingId = ref(null);
@@ -40,12 +42,15 @@ async function load() {
     if (filterAvailability.value) params.isAvailable = filterAvailability.value;
     if (search.value.trim().length >= 1) params.q = search.value.trim();
 
-    const [itemRes, categoryRes] = await Promise.all([
+    // The menu is small and unpaged, so the counts come from one search-only fetch.
+    const [itemRes, categoryRes, allRes] = await Promise.all([
       restaurantApi.items(params),
       restaurantApi.categories(),
+      restaurantApi.items(params.q ? { q: params.q } : {}),
     ]);
     items.value = itemRes.data;
     categories.value = categoryRes.data;
+    searched.value = allRes.data;
   } catch (err) {
     ui.toastError(err.message);
   } finally {
@@ -54,6 +59,22 @@ async function load() {
 }
 
 onMounted(load);
+
+// Each choice's count is what it would show alongside the other filter.
+const countWhere = (pred) => searched.value.filter(pred).length;
+const byAvailability = (i) => !filterAvailability.value || String(i.isAvailable) === filterAvailability.value;
+const byCategory = (i) => !filterCategory.value || i.categoryId === filterCategory.value;
+const categoryOptions = computed(() => [
+  { value: '', label: t('All categories'), count: countWhere(byAvailability) },
+  ...categories.value.map((c) => ({
+    value: c.id, label: c.name, count: countWhere((i) => i.categoryId === c.id && byAvailability(i)),
+  })),
+]);
+const availabilityOptions = computed(() => [
+  { value: '', label: t('All'), count: countWhere(byCategory) },
+  { value: 'true', label: t('Available'), count: countWhere((i) => i.isAvailable && byCategory(i)) },
+  { value: 'false', label: t('Unavailable'), count: countWhere((i) => !i.isAvailable && byCategory(i)) },
+]);
 
 const categoryName = (id) => categories.value.find((c) => c.id === id)?.name ?? '';
 const canCreate = computed(() => categories.value.length > 0);
@@ -158,16 +179,10 @@ async function remove(item) {
     <FilterBar>
       <FilterSearch id="menu-search" v-model="search" :placeholder="t('Search by item name')"
                     @update:model-value="load" />
-      <FilterSelect id="menu-category" v-model="filterCategory" :label="t('Category')" @update:model-value="load">
-        <option value="">{{ t('All categories') }}</option>
-        <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
-      </FilterSelect>
+      <FilterSelect id="menu-category" v-model="filterCategory" :label="t('Category')" :options="categoryOptions"
+                    @update:model-value="load" />
       <FilterSelect id="menu-availability" v-model="filterAvailability" :label="t('Availability')"
-                    @update:model-value="load">
-        <option value="">{{ t('All') }}</option>
-        <option value="true">{{ t('Available') }}</option>
-        <option value="false">{{ t('Unavailable') }}</option>
-      </FilterSelect>
+                    :options="availabilityOptions" @update:model-value="load" />
     </FilterBar>
 
     <form v-if="showForm" class="card mt-4 space-y-4 p-4" novalidate @submit.prevent="save">

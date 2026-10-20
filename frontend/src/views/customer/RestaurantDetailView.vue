@@ -6,6 +6,7 @@ import { useAddToCart } from '../../composables/useAddToCart.js';
 import { formatMoney } from '../../utils/money.js';
 import { UNAVAILABLE_REASON_LABEL } from '../../utils/orderStatus.js';
 import AppSpinner from '../../components/shared/AppSpinner.vue';
+import RatingStars from '../../components/shared/RatingStars.vue';
 import EmptyState from '../../components/shared/EmptyState.vue';
 import ErrorState from '../../components/shared/ErrorState.vue';
 import { cuisineStyle } from '../../utils/cuisine.js';
@@ -139,7 +140,7 @@ onMounted(load);
             <ul v-else class="mt-3 space-y-3">
               <li v-for="review in reviews" :key="review.id" class="border-b border-slate-100 pb-3 last:border-0">
                 <p class="text-sm font-medium text-slate-800">
-                  <span aria-hidden="true">&starf;</span> {{ review.restaurantRating }}/5
+                  <RatingStars :value="review.restaurantRating" />
                   <span class="ms-1 font-normal text-slate-500">{{ review.customer.displayName }}</span>
                 </p>
                 <p v-if="review.comment" class="mt-1 text-sm text-slate-600">{{ review.comment }}</p>
