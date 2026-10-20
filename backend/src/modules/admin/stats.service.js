@@ -73,7 +73,81 @@ export async function platformStats() {
     )
     .then((r) => r.rows);
 
+  const rows = (sql) => knex.raw(sql).then((r) => r.rows);
+  const [today, topDrivers, topCustomers, topRated, topItems, activity] = await Promise.all([
+    rows(`
+      SELECT
+        (SELECT count(*) FROM users WHERE role = 'CUSTOMER' AND created_at >= date_trunc('day', now())) AS new_customers,
+        (SELECT count(*) FROM reviews WHERE created_at >= date_trunc('day', now()))                   AS reviews,
+        (SELECT count(*) FROM orders WHERE delivered_at >= date_trunc('day', now()))                  AS delivered,
+        (SELECT count(*) FROM orders WHERE cancelled_at >= date_trunc('day', now()))                  AS cancelled,
+        (SELECT count(*) FROM orders WHERE status IN ('PENDING','CONFIRMED','PREPARING','READY_FOR_PICKUP','OUT_FOR_DELIVERY')) AS in_progress,
+        (SELECT AVG(restaurant_rating) FROM reviews WHERE created_at >= now() - interval '30 days')   AS avg_rating_30d
+    `),
+    // The 30-day leaderboards, one per party.
+    rows(`
+      SELECT u.id, u.full_name AS name, count(o.id) AS deliveries, d.rating_average, d.rating_count
+      FROM orders o JOIN users u ON u.id = o.driver_user_id JOIN driver_profiles d ON d.user_id = u.id
+      WHERE o.status = 'DELIVERED' AND o.delivered_at >= now() - interval '30 days'
+      GROUP BY u.id, u.full_name, d.rating_average, d.rating_count ORDER BY deliveries DESC LIMIT 5
+    `),
+    rows(`
+      SELECT u.id, u.full_name AS name, count(o.id) AS orders, COALESCE(sum(o.total_amount), 0) AS spent
+      FROM orders o JOIN users u ON u.id = o.customer_user_id
+      WHERE o.status = 'DELIVERED' AND o.delivered_at >= now() - interval '30 days'
+      GROUP BY u.id, u.full_name ORDER BY spent DESC LIMIT 5
+    `),
+    // At least three reviews, so one 5-star review cannot top the chart.
+    rows(`
+      SELECT id, name, rating_average, rating_count FROM restaurants
+      WHERE deleted_at IS NULL AND status = 'ACTIVE' AND rating_count >= 3
+      ORDER BY rating_average DESC, rating_count DESC LIMIT 5
+    `),
+    rows(`
+      SELECT oi.item_name_snapshot AS name, r.name AS restaurant, sum(oi.quantity) AS quantity
+      FROM order_items oi JOIN orders o ON o.id = oi.order_id JOIN restaurants r ON r.id = o.restaurant_id
+      WHERE o.status = 'DELIVERED' AND o.delivered_at >= now() - interval '30 days'
+      GROUP BY oi.item_name_snapshot, r.name ORDER BY quantity DESC LIMIT 5
+    `),
+    // One feed of what just happened: order moves, sign-ups and reviews.
+    rows(`
+      (SELECT 'ORDER' AS kind, e.created_at AS at, o.id AS ref_id, o.order_number::text AS ref, e.to_status::text AS detail,
+              o.restaurant_name_snapshot AS subject, NULL::smallint AS rating
+         FROM order_status_events e JOIN orders o ON o.id = e.order_id
+         ORDER BY e.created_at DESC LIMIT 20)
+      UNION ALL
+      (SELECT 'SIGNUP', created_at, id, full_name, role::text, email, NULL
+         FROM users ORDER BY created_at DESC LIMIT 20)
+      UNION ALL
+      (SELECT 'REVIEW', v.created_at, v.id, u.full_name, v.comment, r.name, v.restaurant_rating
+         FROM reviews v JOIN users u ON u.id = v.customer_user_id JOIN restaurants r ON r.id = v.restaurant_id
+         ORDER BY v.created_at DESC LIMIT 20)
+      ORDER BY at DESC LIMIT 20
+    `),
+  ]);
+  const [day] = today;
+
   return {
+    today: {
+      newCustomers: Number(day.new_customers),
+      reviews: Number(day.reviews),
+      delivered: Number(day.delivered),
+      cancelled: Number(day.cancelled),
+      inProgress: Number(day.in_progress),
+    },
+    averageRating30d: day.avg_rating_30d == null ? null : Number(Number(day.avg_rating_30d).toFixed(2)),
+    topDrivers: topDrivers.map((d) => ({
+      id: d.id, name: d.name, deliveries: Number(d.deliveries),
+      ratingAverage: d.rating_average, ratingCount: Number(d.rating_count),
+    })),
+    topCustomers: topCustomers.map((c) => ({ id: c.id, name: c.name, orders: Number(c.orders), spent: c.spent })),
+    topRated: topRated.map((r) => ({
+      id: r.id, name: r.name, ratingAverage: r.rating_average, ratingCount: Number(r.rating_count),
+    })),
+    topItems: topItems.map((i) => ({ name: i.name, restaurant: i.restaurant, quantity: Number(i.quantity) })),
+    activity: activity.map((a) => ({
+      kind: a.kind, at: a.at, refId: a.ref_id, ref: a.ref, detail: a.detail, subject: a.subject, rating: a.rating,
+    })),
     orders: {
       today: Number(orderRows.today),
       byStatus: {
