@@ -28,13 +28,14 @@
     --violet-50: 245 243 255; --violet-100: 237 233 254; --violet-200: 221 214 254; --violet-300: 196 181 253; --violet-400: 167 139 250; --violet-500: 139 92 246; --violet-600: 124 58 237; --violet-700: 109 40 217; --violet-800: 91 33 182; --violet-900: 76 29 149; --violet-950: 46 16 101;
 
     --surface: 255 255 255;
-    --primary: 194 65 12;       /* brand 600: 5.2:1 against white text */
-    --primary-hover: 154 52 18;
+    /* Teal 700: 5.5:1 against white text, and clear of the red Delete button. */
+    --primary: 15 118 110;
+    --primary-hover: 17 94 89;
     --danger: 220 38 38;
     --danger-hover: 185 28 28;
     --success: 4 120 87;        /* emerald 700: 600 is only 3.8:1 with white */
 
-    /* Teal: the accent that complements the orange primary. */
+    /* Teal: the accent that complements the orange brand, and the primary buttons' colour. */
     --teal-50: 240 253 250; --teal-100: 204 251 241; --teal-200: 153 246 228; --teal-300: 94 234 212; --teal-400: 45 212 191; --teal-500: 20 184 166; --teal-600: 13 148 136; --teal-700: 15 118 110; --teal-800: 17 94 89; --teal-900: 19 78 74; --teal-950: 4 47 46;
   }
 
@@ -51,8 +52,8 @@
     --violet-50: 46 16 101; --violet-100: 76 29 149; --violet-200: 91 33 182; --violet-300: 109 40 217; --violet-400: 124 58 237; --violet-500: 139 92 246; --violet-600: 167 139 250; --violet-700: 196 181 253; --violet-800: 221 214 254; --violet-900: 237 233 254; --violet-950: 245 243 255;
 
     --surface: 17 24 39;
-    --primary: 194 65 12;
-    --primary-hover: 154 52 18;
+    --primary: 15 118 110;
+    --primary-hover: 17 94 89;
     --danger: 185 28 28;
     --danger-hover: 153 27 27;
     --success: 4 120 87;
@@ -268,12 +269,12 @@
 
 /* Buttons. White text stays on 4.5:1 or darker throughout the gradient. */
 :root:not(.dark) .btn-primary:not(:disabled) {
-  background-image: linear-gradient(180deg, #c2410c, #a8380b);
-  box-shadow: 0 1px 2px rgb(154 52 18 / 0.3), 0 4px 12px -4px rgb(194 65 12 / 0.45),
+  background-image: linear-gradient(180deg, #0f766e, #0d6660);
+  box-shadow: 0 1px 2px rgb(17 94 89 / 0.3), 0 4px 12px -4px rgb(15 118 110 / 0.45),
     inset 0 1px 0 rgb(255 255 255 / 0.14);
 }
 :root:not(.dark) .btn-primary:not(:disabled):hover {
-  background-image: linear-gradient(180deg, #a8380b, #8a2f0f);
+  background-image: linear-gradient(180deg, #0d6660, #115e59);
 }
 :root:not(.dark) .btn-secondary {
   border-color: rgb(var(--brand-200));
