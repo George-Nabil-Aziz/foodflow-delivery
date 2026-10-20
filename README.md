@@ -14,8 +14,8 @@ application. It is not a microservice system, and the reasoning is recorded in
 | Backend | Node.js 20+, Express 4, Knex, PostgreSQL 16+ |
 | Frontend | Vue 3 (`<script setup>`), Pinia, Vue Router, Tailwind CSS, Vite — light/dark theme, English/Arabic (RTL) |
 | Auth | JWT HS256 access tokens + rotating refresh tokens |
-| API | REST, 91 endpoints under `/api`, all documented |
-| Tests | 615 backend · 43 frontend · 14 end-to-end browser scenarios |
+| API | REST, 100 endpoints under `/api`, all documented |
+| Tests | 640 backend · 44 frontend · 14 end-to-end browser scenarios |
 
 ## Table of contents
 
@@ -137,14 +137,19 @@ Passwords come from `SEED_ADMIN_PASSWORD` / `SEED_USER_PASSWORD` in
 * menus for the restaurants that can take orders;
 * 7 orders across the lifecycle, including one delivered order with a review
   and one without, so every screen has something to show;
+* a year of order history (89 past orders, 75 of them delivered, 61 reviews
+  in all), so the admin dashboard, ratings and leaderboards have real numbers;
+* 30 customers and 5 admins, enough for the admin lists to page. Every
+  customer has a saved home address, so an admin can place an order for any
+  of them, except `nora.fresh@gmail.com`, who is kept empty (no addresses, no
+  orders) to show the empty states;
 * 96 showcase restaurants (nine cuisines, a six-dish menu each, owner
   named after the restaurant, e.g. `cedar.house@foodflow.com`).
 
 That makes **100 restaurants across 9 pages**, so browsing, filtering and
-pagination all have real data to work on. The showcase restaurants have no
-ratings on purpose: ratings come only from reviews of delivered orders, and
-the seed does not invent reviews. Source:
-`backend/seeds/data/showcase-restaurants.js`.
+pagination all have real data to work on. Ratings come only from reviews of
+delivered orders, so a restaurant with no delivered history stays unrated.
+Source: `backend/seeds/data/showcase-restaurants.js`.
 
 ### A five-minute tour
 
@@ -171,8 +176,31 @@ the seed does not invent reviews. Source:
 * **English and Arabic.** Use the language button in the header (it reads
   **العربية** in English and **English** in Arabic). Arabic switches the whole
   layout to right-to-left. Your choice is remembered.
-* **Phones and tablets.** Below 768px the header collapses into a menu drawer
-  (the cart stays in the bar). Below 1024px, admin tables turn into cards. On
+* **Navigation.** Every signed-in role (customer, restaurant, driver, admin)
+  moves around from a sidebar; the header keeps only the name, language,
+  theme and sign-out. A customer's sidebar holds Home, Restaurants, My orders,
+  Cart (with the item count), Profile, Addresses and My reviews, and the
+  restaurant pages open inside it too. A sidebar item stays highlighted on the
+  pages under it (an order, Add a restaurant, checkout). Visitors who are not
+  signed in get a plain header instead.
+* **Lists.** Admin lists share one filter row: a search that starts from the
+  first character, and a status dropdown showing how many rows each choice
+  holds, for example `Active (12)`. The page title shows the current total.
+  Statuses are coloured (active green, awaiting approval amber, suspended red,
+  rejected grey), ratings are shown as stars, and a row's name opens a details
+  popup.
+* **Forms on their own page.** Add a customer, admin, driver or restaurant,
+  New / Edit category and Add an address each open a page of their own and
+  return to the list when saved. Add an address returns to checkout when it
+  was opened from there.
+* **Make an order.** An admin can place an order for an existing customer from
+  **Orders → Make an order**: search the customer, pick one of their saved
+  addresses, search a restaurant that is taking orders, choose the dishes,
+  place it. It is cash on delivery, the customer's own cart is left alone, and
+  the server prices it exactly as at checkout. **Add a customer** can save a
+  first delivery address for this.
+* **Phones and tablets.** Below 768px the sidebar moves into a menu drawer.
+  Below 1024px, admin tables turn into cards. On
   a phone every control is at least 44px tall. The layout was checked from
   320px to 1920px wide, in both themes and both languages.
 
@@ -219,8 +247,8 @@ the example is a real secret. **Never commit a real `.env`.**
 | `JWT_ISSUER` / `JWT_AUDIENCE` | `foodflow` / `foodflow-app` | Both verified on every request |
 | `BCRYPT_ROUNDS` | `12` | Lowered to 10 in test environments for speed |
 | `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated allow-list. `*` is **rejected** when `NODE_ENV=production` |
-| `TAX_RATE` | `0.15` | Applied to the item subtotal |
-| `PLATFORM_TIMEZONE` | `Asia/Riyadh` | Opening hours are evaluated in this zone |
+| `TAX_RATE` | `0.14` | Applied to the item subtotal |
+| `PLATFORM_TIMEZONE` | `Africa/Cairo` | Opening hours are evaluated in this zone |
 | `ORDER_ACCEPT_TIMEOUT_MINUTES` | `10` | Auto-cancel window for unconfirmed orders |
 | `DELIVERY_OFFER_TTL_SECONDS` | `90` | How long a driver offer stays live |
 | `UNASSIGNED_ESCALATION_MINUTES` | `15` | When an undispatched order is escalated to admins |
@@ -246,7 +274,7 @@ Frontend variables live in `frontend/.env.example`: `VITE_API_URL` (default
 ```bash
 npm run db:local        # or npm run db:up
 npm run migrate:test
-npm test                # 615 backend + 43 frontend
+npm test                # 640 backend + 44 frontend
 npm run test:e2e        # 14 browser scenarios
 ```
 
@@ -255,8 +283,8 @@ There are three layers, and each proves something the others cannot.
 | Layer | Count | Runs against |
 |---|--:|---|
 | Backend unit | 368 | Pure functions: state machine, money, orderability |
-| Backend integration | 247 | **Real PostgreSQL**, through the HTTP layer |
-| Frontend unit + component | 43 | jsdom, Vue Test Utils |
+| Backend integration | 272 | **Real PostgreSQL**, through the HTTP layer |
+| Frontend unit + component | 44 | jsdom, Vue Test Utils |
 | End-to-end | 14 scenarios | A real browser against the running stack |
 
 The exhaustive state-machine sweep alone is 281 cases. It covers every one of
@@ -328,8 +356,8 @@ The full strategy, the 424-row traceability matrix and every test case are in
 ├── frontend/
 │   ├── e2e/                   14 Playwright scenarios + helpers
 │   └── src/
-│       ├── views/             32 route-level views, split by role
-│       ├── components/        15 shared and role-specific components
+│       ├── views/             40 route-level views, split by role
+│       ├── components/        33 shared and role-specific components
 │       ├── stores/            Pinia: auth, cart, ui
 │       ├── services/          axios client with single-flight refresh
 │       ├── composables/       polling, validation, add-to-cart, focus trap
@@ -426,8 +454,8 @@ The project was delivered in four stages, each documented.
    matrix is the only reliable way to trace between them. Six documentation
    discrepancies were found and recorded rather than silently fixed. All six
    are now resolved in the SDD.
-3. **Implementation.** 91 REST endpoints, 17 domain tables and 32 route-level
-   views, all wired to a real database. 615 backend and 43 frontend tests.
+3. **Implementation.** 100 REST endpoints, 17 domain tables and 40 route-level
+   views, all wired to a real database. 640 backend and 44 frontend tests.
 4. **End-to-end verification.** All 14 browser scenarios are implemented and
    passed in three consecutive runs.
 
