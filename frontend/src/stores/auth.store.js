@@ -89,11 +89,25 @@ export const useAuthStore = defineStore('auth', () => {
     return data.accessToken;
   }
 
+  /**
+   * The server no longer accepts this session (expired, revoked, suspended):
+   * forget it and go to sign-in, coming back here afterwards. The router is
+   * imported lazily because it imports this store for its guards.
+   */
+  async function sessionLost() {
+    clear();
+    const { router } = await import('../router/index.js');
+    const current = router.currentRoute.value;
+    // Already on sign-in (a failed login lands here too): stay and show the form's error.
+    if (current.name === 'login') return;
+    router.replace({ name: 'login', query: { redirect: current.fullPath } });
+  }
+
   function wireHttp() {
     configureHttp({
       getAccessToken: () => accessToken.value,
       refresh: performRefresh,
-      onUnauthenticated: clear,
+      onUnauthenticated: sessionLost,
     });
   }
 

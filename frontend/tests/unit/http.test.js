@@ -118,6 +118,24 @@ describe('TC-371: expired versus invalid tokens', () => {
     expect(err.code).toBe('INVALID_CREDENTIALS');
   });
 
+  it('ends the session when the account is suspended mid-session', async () => {
+    let loggedOut = false;
+    configureHttp({
+      getAccessToken: () => 'token',
+      refresh: () => Promise.resolve('x'),
+      onUnauthenticated: () => { loggedOut = true; },
+    });
+
+    const handler = http.interceptors.response.handlers.at(-1).rejected;
+    const err = await handler({
+      response: { status: 403, data: { error: { code: 'ACCOUNT_SUSPENDED' } } },
+      config: { url: '/orders' },
+    }).catch((e) => e);
+
+    expect(loggedOut).toBe(true);
+    expect(err.code).toBe('ACCOUNT_SUSPENDED');
+  });
+
   it('TC-372: a transport failure becomes a NetworkError', async () => {
     const handler = http.interceptors.response.handlers.at(-1).rejected;
     const err = await handler({ config: {} }).catch((e) => e);

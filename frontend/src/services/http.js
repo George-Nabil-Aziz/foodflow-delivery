@@ -95,7 +95,8 @@ http.interceptors.response.use(
       }
     }
 
-    if (response.status === 401 && code !== 'INVALID_CREDENTIALS') {
+    // Any other 401, or an account suspended mid-session, ends the session.
+    if ((response.status === 401 && code !== 'INVALID_CREDENTIALS') || code === 'ACCOUNT_SUSPENDED') {
       onAuthFailure?.();
     }
 

@@ -9,6 +9,9 @@ export const useUiStore = defineStore('ui', () => {
   const globalLoading = ref(false);
 
   function push(message, variant = 'info', timeout = 5000) {
+    // Several requests failing the same way (a lost session) say it once.
+    const showing = toasts.value.find((t) => t.message === message && t.variant === variant);
+    if (showing) return showing.id;
     const id = (nextId += 1);
     toasts.value.push({ id, message, variant });
     if (timeout) setTimeout(() => dismiss(id), timeout);
