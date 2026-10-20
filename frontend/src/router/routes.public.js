@@ -1,10 +1,10 @@
-const PublicLayout = () => import('../layouts/PublicLayout.vue');
+const SiteLayout = () => import('../layouts/SiteLayout.vue');
 const AuthLayout = () => import('../layouts/AuthLayout.vue');
 
 export const publicRoutes = [
   {
     path: '/',
-    component: PublicLayout,
+    component: SiteLayout,
     children: [
       { path: '', name: 'home', component: () => import('../views/public/HomeView.vue') },
       {

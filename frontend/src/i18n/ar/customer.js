@@ -120,6 +120,11 @@ export default {
 
   // My reviews
   'My reviews': 'تقييماتي',
+  // Sidebar
+  Home: 'الرئيسية',
+  Addresses: 'العناوين',
+  'Back to addresses': 'العودة إلى العناوين',
+  'Back to checkout': 'العودة إلى إتمام الطلب',
   'Loading reviews': 'جارٍ تحميل التقييمات',
   'After an order is delivered you can rate it.': 'يمكنك تقييم الطلب بعد توصيله.',
   'Your rating': 'تقييمك',

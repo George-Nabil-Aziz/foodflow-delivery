@@ -13,6 +13,7 @@ export const customerRoutes = [
       { path: 'orders/:id', name: 'order-detail', meta, component: () => import('../views/customer/OrderDetailView.vue') },
       { path: 'account/profile', name: 'profile', meta, component: () => import('../views/customer/ProfileView.vue') },
       { path: 'account/addresses', name: 'addresses', meta, component: () => import('../views/customer/AddressesView.vue') },
+      { path: 'account/addresses/new', name: 'address-new', meta, component: () => import('../views/customer/AddressCreateView.vue') },
       { path: 'account/reviews', name: 'my-reviews', meta, component: () => import('../views/customer/MyReviewsView.vue') },
     ],
   },

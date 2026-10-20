@@ -106,7 +106,7 @@ async function placeOrder() {
           <EmptyState v-if="addresses.length === 0" class="mt-3"
                       title="No saved addresses"
                       message="Add an address before you can place an order.">
-            <RouterLink to="/account/addresses" class="action-link text-brand-700 hover:underline">
+            <RouterLink :to="{ name: 'address-new', query: { from: 'checkout' } }" class="action-link text-brand-700 hover:underline">
               {{ t('Add an address') }}
             </RouterLink>
           </EmptyState>

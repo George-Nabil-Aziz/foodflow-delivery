@@ -1,9 +1,8 @@
 <script setup>
-// Cart hydration lives in PublicLayout, next to the badge it feeds, so that a
-// customer sees the same header on a public page as on a customer page.
-import PublicLayout from './PublicLayout.vue';
+// A customer's pages share the sidebar shell of every other signed-in role.
+import DashboardLayout from './DashboardLayout.vue';
 </script>
 
 <template>
-  <PublicLayout />
+  <DashboardLayout />
 </template>

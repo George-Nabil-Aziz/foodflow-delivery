@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
-import { RouterLink, RouterView, useRouter } from 'vue-router';
+import { ref, computed, onMounted, watch } from 'vue';
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth.store.js';
+import { useCartStore } from '../stores/cart.store.js';
 import BrandLogo from '../components/shared/BrandLogo.vue';
 import ThemeToggle from '../components/shared/ThemeToggle.vue';
 import LanguageToggle from '../components/shared/LanguageToggle.vue';
@@ -12,7 +13,9 @@ import { useIsDesktop } from '../composables/useMediaQuery.js';
 import { t } from '../i18n/index.js';
 
 const auth = useAuthStore();
+const cart = useCartStore();
 const router = useRouter();
+const route = useRoute();
 const isDesktop = useIsDesktop();
 const menuOpen = ref(false);
 // Growing past the breakpoint with the drawer open would strand it open.
@@ -23,6 +26,16 @@ watch(isDesktop, (desktop) => { if (desktop) menuOpen.value = false; });
  * rejects the calls regardless of what the menu shows.
  */
 const NAV = {
+  // A customer's restaurant pages are public routes; signed in, they render here too.
+  CUSTOMER: [
+    { to: { name: 'home' }, label: 'Home', always: true, exact: true },
+    { to: { name: 'restaurants' }, label: 'Restaurants', always: true },
+    { to: { name: 'orders' }, label: 'My orders', always: true },
+    { to: { name: 'cart' }, label: 'Cart', always: true, also: ['checkout'], showsCart: true },
+    { to: { name: 'profile' }, label: 'Profile', always: true },
+    { to: { name: 'addresses' }, label: 'Addresses', always: true },
+    { to: { name: 'my-reviews' }, label: 'My reviews', always: true },
+  ],
   RESTAURANT: [
     { to: { name: 'restaurant-dashboard' }, label: 'Dashboard', always: true, exact: true },
     { to: { name: 'restaurant-orders' }, label: 'Orders' },
@@ -38,7 +51,8 @@ const NAV = {
     { to: { name: 'driver-profile' }, label: 'Profile', always: true },
   ],
   ADMIN: [
-    { to: { name: 'admin-dashboard' }, label: 'Dashboard', always: true, exact: true },
+    // "Needs attention" opens from the dashboard, so it keeps the dashboard lit.
+    { to: { name: 'admin-dashboard' }, label: 'Dashboard', always: true, exact: true, also: ['admin-attention'] },
     { to: { name: 'admin-admins' }, label: 'Admins', always: true },
     { to: { name: 'admin-restaurants' }, label: 'Restaurants', always: true },
     { to: { name: 'admin-customers' }, label: 'Customers', always: true },
@@ -50,9 +64,27 @@ const NAV = {
 
 const items = computed(() => NAV[auth.role] ?? []);
 
-// The dashboard is the section root, so every route in the section would
-// match it as a prefix: it is highlighted only when it is the page itself.
+// The cart badge needs the cart, whichever customer page is opened first.
+function hydrateCart() {
+  if (auth.role === 'CUSTOMER' && !cart.loaded) cart.load().catch(() => {});
+}
+onMounted(hydrateCart);
+
 const ACTIVE_LINK = 'side-link-active !bg-surface font-medium !text-brand-700 shadow-card ring-1 ring-slate-200';
+
+/**
+ * An item stays highlighted on every page under it (Restaurants on "Add a
+ * restaurant", Orders on an order's detail). Those routes are siblings, not
+ * children, so RouterLink's own active class would miss them; the path is
+ * compared instead. The dashboard is the section root, so every route would
+ * match it as a prefix: it is highlighted only when it is the page itself, or
+ * one of the pages named in its `also`.
+ */
+function isActive(item) {
+  if (item.also?.includes(route.name)) return true;
+  const path = router.resolve(item.to).path;
+  return route.path === path || (!item.exact && route.path.startsWith(`${path}/`));
+}
 
 const ROLE_LABEL = { RESTAURANT: 'Restaurant', DRIVER: 'Driver', ADMIN: 'Admin', CUSTOMER: 'Customer' };
 const STATUS_WORD = {
@@ -146,9 +178,12 @@ async function signOut() {
             </span>
             <RouterLink v-else :to="item.to"
                         class="ui-control ui-control-nav side-link flex items-center rounded-lg px-3 text-base text-slate-800 transition-colors hover:bg-slate-100"
-                        :active-class="item.exact ? '' : ACTIVE_LINK"
-                        :exact-active-class="ACTIVE_LINK">
+                        active-class="" exact-active-class="" :class="{ [ACTIVE_LINK]: isActive(item) }">
               {{ t(item.label) }}
+              <span v-if="item.showsCart && cart.itemCount"
+                    class="ms-auto rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-white">
+                {{ cart.itemCount }}
+              </span>
             </RouterLink>
           </li>
         </ul>
@@ -169,10 +204,13 @@ async function signOut() {
               <span class="sr-only">({{ t('unavailable') }}: {{ gateMessage }})</span>
             </span>
             <RouterLink v-else :to="item.to"
-                        class="side-link block whitespace-nowrap rounded-lg px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                        :active-class="item.exact ? '' : ACTIVE_LINK"
-                        :exact-active-class="ACTIVE_LINK">
+                        class="side-link flex items-center whitespace-nowrap rounded-lg px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                        active-class="" exact-active-class="" :class="{ [ACTIVE_LINK]: isActive(item) }">
               {{ t(item.label) }}
+              <span v-if="item.showsCart && cart.itemCount"
+                    class="ms-auto rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-white">
+                {{ cart.itemCount }}
+              </span>
             </RouterLink>
           </li>
         </ul>
