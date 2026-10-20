@@ -12,6 +12,8 @@ export const restaurantRoutes = [
       { path: 'orders/:id', name: 'restaurant-order-detail', meta, component: () => import('../views/restaurant/OrderDetailView.vue') },
       { path: 'menu', name: 'restaurant-menu', meta, component: () => import('../views/restaurant/MenuItemsView.vue') },
       { path: 'categories', name: 'restaurant-categories', meta, component: () => import('../views/restaurant/CategoriesView.vue') },
+      { path: 'categories/new', name: 'restaurant-category-new', meta, component: () => import('../views/restaurant/CategoryFormView.vue') },
+      { path: 'categories/:id/edit', name: 'restaurant-category-edit', meta, props: true, component: () => import('../views/restaurant/CategoryFormView.vue') },
       { path: 'profile', name: 'restaurant-profile', meta, component: () => import('../views/restaurant/ProfileView.vue') },
       { path: 'hours', name: 'restaurant-hours', meta, component: () => import('../views/restaurant/HoursView.vue') },
     ],

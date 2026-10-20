@@ -1,23 +1,18 @@
 <script setup>
 import { onMounted, ref } from 'vue';
+import { RouterLink } from 'vue-router';
 import { restaurantApi } from '../../services/api.js';
 import { useUiStore } from '../../stores/ui.store.js';
-import { rules, validate } from '../../composables/useValidation.js';
 import { t } from '../../i18n/index.js';
 import AppSpinner from '../../components/shared/AppSpinner.vue';
 import EmptyState from '../../components/shared/EmptyState.vue';
-import AppButton from '../../components/shared/AppButton.vue';
-import AppInput from '../../components/shared/AppInput.vue';
+import FilterBar from '../../components/shared/FilterBar.vue';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.vue';
 
 const ui = useUiStore();
 const categories = ref([]);
 const loading = ref(true);
-const saving = ref(false);
 const busy = ref(null);
-const localErrors = ref({});
-const editingId = ref(null);
-const form = ref({ name: '', description: '', displayOrder: 0 });
 const deleteDialog = ref({ open: false, config: {}, category: null });
 
 async function load() {
@@ -32,49 +27,6 @@ async function load() {
 }
 
 onMounted(load);
-
-function startEdit(category) {
-  editingId.value = category.id;
-  form.value = {
-    name: category.name,
-    description: category.description ?? '',
-    displayOrder: category.displayOrder,
-  };
-}
-
-function reset() {
-  editingId.value = null;
-  form.value = { name: '', description: '', displayOrder: categories.value.length };
-  localErrors.value = {};
-}
-
-async function save() {
-  localErrors.value = validate(form.value, {
-    name: [rules.required('Name'), rules.minLength(2, 'Name'), rules.maxLength(60, 'Name')],
-  });
-  if (Object.keys(localErrors.value).length) return;
-
-  saving.value = true;
-  try {
-    const payload = { name: form.value.name, displayOrder: Number(form.value.displayOrder) };
-    if (form.value.description) payload.description = form.value.description;
-
-    if (editingId.value) await restaurantApi.updateCategory(editingId.value, payload);
-    else await restaurantApi.createCategory(payload);
-
-    ui.toastSuccess(editingId.value ? 'Category updated' : 'Category created');
-    reset();
-    await load();
-  } catch (err) {
-    if (err.status === 409) {
-      localErrors.value = { name: 'You already have a category with this name.' };
-    } else {
-      ui.toastError(err.details?.[0]?.issue ?? err.message);
-    }
-  } finally {
-    saving.value = false;
-  }
-}
 
 async function toggleActive(category) {
   const previous = category.isActive;
@@ -124,9 +76,10 @@ async function confirmDelete() {
 </script>
 
 <template>
-  <div class="grid gap-6 lg:grid-cols-2">
+  <div>
     <section>
       <h1 class="text-xl font-semibold text-slate-900">{{ t('Menu categories') }}</h1>
+      <FilterBar :add-to="{ name: 'restaurant-category-new' }" :add-label="t('New category')" />
 
       <AppSpinner v-if="loading" label="Loading categories" />
 
@@ -157,9 +110,10 @@ async function confirmDelete() {
                        @change="toggleActive(category)">
                 {{ category.isActive ? t('Visible') : t('Hidden') }}
               </label>
-              <button type="button" class="action-link text-sm text-brand-700 hover:underline" @click="startEdit(category)">
+              <RouterLink :to="{ name: 'restaurant-category-edit', params: { id: category.id } }"
+                          class="action-link text-sm text-brand-700 hover:underline">
                 {{ t('Edit') }}
-              </button>
+              </RouterLink>
               <button type="button" class="action-link text-sm text-red-700 hover:underline" @click="askDelete(category)">
                 {{ t('Delete') }}
               </button>
@@ -167,28 +121,6 @@ async function confirmDelete() {
           </div>
         </li>
       </ul>
-    </section>
-
-    <section>
-      <h2 class="text-lg font-semibold text-slate-900">
-        {{ editingId ? t('Edit category') : t('New category') }}
-      </h2>
-      <form class="card mt-4 space-y-4 p-4" novalidate @submit.prevent="save">
-        <AppInput id="cat-name" v-model="form.name" label="Name" required :error="localErrors.name" />
-        <div>
-          <label for="cat-description" class="field-label">{{ t('Description') }}</label>
-          <textarea id="cat-description" v-model="form.description" rows="2" maxlength="500"
-                    class="field-input" />
-        </div>
-        <AppInput id="cat-order" v-model="form.displayOrder" label="Display order" type="number"
-                  hint="Lower numbers appear first." />
-        <div class="flex gap-2">
-          <AppButton type="submit" :loading="saving">
-            {{ editingId ? t('Save changes') : t('Create category') }}
-          </AppButton>
-          <AppButton v-if="editingId" variant="secondary" @click="reset">{{ t('Cancel') }}</AppButton>
-        </div>
-      </form>
     </section>
 
     <ConfirmDialog :open="deleteDialog.open" :config="deleteDialog.config"

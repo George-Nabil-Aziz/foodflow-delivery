@@ -135,6 +135,8 @@ export default {
   Hidden: 'مخفي',
   'Edit category': 'تعديل التصنيف',
   'New category': 'تصنيف جديد',
+  'Back to categories': 'العودة إلى التصنيفات',
+  'This category no longer exists': 'هذا التصنيف لم يعد موجودًا',
   'Display order': 'ترتيب العرض',
   'Lower numbers appear first.': 'تظهر الأرقام الأصغر أولًا.',
   'Create category': 'إنشاء تصنيف',

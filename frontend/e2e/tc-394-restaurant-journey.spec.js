@@ -72,6 +72,8 @@ test('TC-394: restaurant onboarding through fulfilment', async ({ browser }) => 
   /* 3. Two categories and three items, while still pending. */
   await owner.goto('/restaurant/categories');
   for (const name of ['Starters', 'Mains']) {
+    // The form is its own page; saving returns to the list.
+    await owner.getByRole('link', { name: 'New category' }).click();
     await owner.getByRole('textbox', { name: 'Name', exact: true }).fill(name);
     await owner.getByRole('button', { name: 'Create category' }).click();
     await expect(owner.getByText(name, { exact: true }).first()).toBeVisible();
