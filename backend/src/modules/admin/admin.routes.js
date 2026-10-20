@@ -12,6 +12,7 @@ import {
 } from '../../shared/constants.js';
 import { asyncHandler } from '../../shared/http/asyncHandler.js';
 import * as service from './admin.service.js';
+import { createAddressSchema } from '../users/index.js';
 import { platformStats } from './stats.service.js';
 
 /** Reason is mandatory on every destructive action (BR-AD5, FR-9.4). */
@@ -62,9 +63,14 @@ const createAccountSchema = z.object({
   fullName: trimmedString(2, 100),
   phone,
   restaurantName: trimmedString(2, 100).optional(),
+  // A customer may start with a delivery address, which becomes their default.
+  address: createAddressSchema.optional(),
 }).superRefine((v, ctx) => {
   if (v.role === 'RESTAURANT' && !v.restaurantName) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['restaurantName'], message: 'is required for a restaurant owner' });
+  }
+  if (v.address && v.role !== 'CUSTOMER') {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['address'], message: 'is only for a customer' });
   }
 });
 
@@ -75,6 +81,10 @@ adminRouter.post('/users', validate({ body: createAccountSchema }), asyncHandler
 
 adminRouter.get('/users/:id', validate({ params: idParam }), asyncHandler(async (req, res) => {
   res.json(ok(await service.getUser(req.validated.params.id), { requestId: req.id }));
+}));
+
+adminRouter.get('/users/:id/addresses', validate({ params: idParam }), asyncHandler(async (req, res) => {
+  res.json(ok(await service.listCustomerAddresses(req.validated.params.id), { requestId: req.id }));
 }));
 
 adminRouter.post(
@@ -258,6 +268,23 @@ adminRouter.get('/orders/unassigned', asyncHandler(async (req, res) => {
 
 adminRouter.get('/orders/stuck', asyncHandler(async (req, res) => {
   res.json(ok(await service.listStuck(), { requestId: req.id }));
+}));
+
+const placeOrderSchema = z.object({
+  customerUserId: uuid,
+  restaurantId: uuid,
+  addressId: uuid,
+  items: z.array(z.object({
+    foodItemId: uuid,
+    quantity: z.number().int().min(1).max(20),
+    notes: z.string().trim().max(200).optional().nullable(),
+  })).min(1).max(50)
+    .refine((items) => new Set(items.map((i) => i.foodItemId)).size === items.length, 'lists an item twice'),
+  customerNote: z.string().trim().max(500).optional().nullable(),
+});
+
+adminRouter.post('/orders', validate({ body: placeOrderSchema }), asyncHandler(async (req, res) => {
+  res.status(201).json(ok(await service.placeOrder(req.user.id, req.validated.body), { requestId: req.id }));
 }));
 
 adminRouter.get('/orders', validate({ query: ordersQuery }), asyncHandler(async (req, res) => {

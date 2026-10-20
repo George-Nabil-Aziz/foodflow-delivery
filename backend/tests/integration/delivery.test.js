@@ -103,6 +103,32 @@ describe('TC-229..TC-237: driver provisioning and profile', () => {
     expect(await knex('admin_audit_logs').where({ action: 'USER_CREATED' })).toHaveLength(3);
   });
 
+  it('a customer can be created with a first address, which becomes their default', async () => {
+    const admin = await makeUser({ role: 'ADMIN' });
+    const create = (body) => request(app).post('/api/admin/users').set(authHeader(admin)).send(body);
+    const address = { label: 'Home', line1: '12 Road 9', city: 'Cairo', district: 'Maadi' };
+
+    const res = await create({ role: 'CUSTOMER', email: 'with.address@example.com', fullName: 'With Address', phone: '+201001110020', address });
+    expect(res.status).toBe(201);
+    const rows = await knex('customer_addresses').where({ user_id: res.body.data.user.id });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ line1: '12 Road 9', city: 'Cairo', district: 'Maadi', is_default: true });
+
+    // Only a customer has an address book; a bad address creates no account.
+    expect((await create({ role: 'ADMIN', email: 'adm.address@example.com', fullName: 'Adm', phone: '+201001110021', address })).status).toBe(422);
+    expect((await create({ role: 'CUSTOMER', email: 'bad.address@example.com', fullName: 'Bad', phone: '+201001110022', address: { line1: 'x', city: 'Cairo' } })).status).toBe(422);
+    expect(await knex('users').whereIn('email', ['adm.address@example.com', 'bad.address@example.com'])).toHaveLength(0);
+  });
+
+  it('the admin order list searches by order number', async () => {
+    const admin = await makeUser({ role: 'ADMIN' });
+    const { order } = await confirmedOrder();
+    await confirmedOrder();
+    const res = await request(app).get('/api/admin/orders').query({ q: order.order_number }).set(authHeader(admin));
+    expect(res.status).toBe(200);
+    expect(res.body.data.map((o) => o.orderNumber)).toEqual([order.order_number]);
+  });
+
   it('TC-230: a driver cannot be self-registered', async () => {
     const res = await request(app).post('/api/auth/register').send({
       email: 'selfdriver@example.com', password: 'Str0ngPass',

@@ -20,6 +20,7 @@ export const adminRoutes = [
       { path: 'drivers', name: 'admin-drivers', meta, component: () => import('../views/admin/DriversView.vue') },
       { path: 'drivers/new', name: 'admin-driver-new', meta, component: () => import('../views/admin/DriverCreateView.vue') },
       { path: 'orders', name: 'admin-orders', meta, component: () => import('../views/admin/OrdersView.vue') },
+      { path: 'orders/new', name: 'admin-order-new', meta, component: () => import('../views/admin/OrderCreateView.vue') },
       { path: 'reviews', name: 'admin-reviews', meta, component: () => import('../views/admin/ReviewsView.vue') },
     ],
   },

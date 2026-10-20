@@ -24,6 +24,7 @@ import {
 } from './orders.mapper.js';
 import * as cart from '../cart/index.js';
 import * as restaurants from '../restaurants/index.js';
+import * as menu from '../menu/index.js';
 import * as users from '../users/index.js';
 import * as delivery from '../delivery/index.js';
 import { notify } from '../../shared/notifications.js';
@@ -62,80 +63,55 @@ export async function checkout(customerUserId, { addressId, customerNote, paymen
       });
     }
 
-    const totals = computeTotals({
-      lines: liveItems.map((l) => ({
-        foodItemId: l.foodItemId,
-        name: l.name,
-        description: l.description,
-        unitPrice: l.unitPrice,
-        quantity: l.quantity,
-        notes: l.notes,
-      })),
-      deliveryFee: restaurant.delivery_fee,
-      taxRate: config.taxRate,
-    });
-
-    if (!meetsMinimum(totals.subtotal, restaurant.minimum_order_amount)) {
-      throw new ValidationError('BELOW_MINIMUM_ORDER', {
-        details: [{
-          field: 'subtotal',
-          issue: `This restaurant has a minimum order of ${restaurant.minimum_order_amount}.`,
-          required: restaurant.minimum_order_amount,
-          actual: totals.subtotal,
-          shortfall: shortfall(totals.subtotal, restaurant.minimum_order_amount),
-        }],
-      });
-    }
-
-    const address = await users.getAddressForOrder(customerUserId, addressId, trx);
-
-    const created = await repo.insertOrderWithUniqueNumber(
-      {
-        order_number: generateOrderNumber(),
-        customer_user_id: customerUserId,
-        restaurant_id: restaurant.id,
-        delivery_address_id: address.id,
-        // The snapshot is the truth; the FK above is a convenience that may go
-        // null when the address is deleted (BR-O6).
-        delivery_address_snapshot: JSON.stringify(address.snapshot),
-        restaurant_name_snapshot: restaurant.name,
-        status: 'PENDING',
-        dispatch_state: 'NOT_REQUIRED',
-        subtotal: totals.subtotal,
-        delivery_fee: totals.deliveryFee,
-        tax_amount: totals.taxAmount,
-        total_amount: totals.totalAmount,
-        payment_method: paymentMethod ?? 'CASH_ON_DELIVERY',
-        customer_note: customerNote ?? null,
-      },
-      generateOrderNumber,
+    const created = await insertOrder(
+      { customerUserId, restaurant, lines: liveItems, addressId, customerNote, paymentMethod },
+      { id: customerUserId, role: 'CUSTOMER' },
       trx,
     );
-
-    // Snapshot columns: nothing reads food_items for this order again (BR-O1).
-    await repo.insertItems(
-      created.id,
-      totals.lines.map((l) => ({
-        food_item_id: l.foodItemId,
-        item_name_snapshot: l.name,
-        item_description_snapshot: l.description ?? null,
-        unit_price: l.unitPrice,
-        quantity: l.quantity,
-        line_total: l.lineTotal,
-        notes: l.notes ?? null,
-      })),
-      trx,
-    );
-
-    await repo.appendEvent(
-      { orderId: created.id, from: null, to: 'PENDING', actorUserId: customerUserId, actorRole: 'CUSTOMER' },
-      trx,
-    );
-
     await cart.markConverted(activeCart.id, trx);
     return created;
   });
 
+  await notifyNewOrder(order);
+  return getCustomerOrder(customerUserId, order.id);
+}
+
+/**
+ * An admin places an order for a customer, from items picked on the admin
+ * page rather than the customer's cart, which is left untouched. The same
+ * checks as checkout apply: an orderable restaurant, orderable items from that
+ * restaurant only, the minimum order, and an address of the customer's own.
+ * Prices are still computed here, never taken from the request.
+ *
+ * Runs in the caller's transaction when given one, so the admin audit row
+ * commits with the order; the caller then sends the notification.
+ */
+export async function adminPlaceOrder(adminUserId, input, trx) {
+  const run = async (t) => {
+    const { customerUserId, restaurantId, addressId, items, customerNote } = input;
+    const restaurant = await restaurants.assertOrderable(restaurantId, t);
+
+    const lines = [];
+    for (const { foodItemId, quantity, notes } of items) {
+      const item = await menu.assertItemOrderable(foodItemId, t);
+      // An item of another restaurant is as unknown here as a missing one.
+      if (item.restaurant_id !== restaurant.id) throw new NotFoundError('RESOURCE_NOT_FOUND');
+      lines.push({
+        foodItemId: item.id, name: item.name, description: item.description,
+        unitPrice: item.price, quantity, notes,
+      });
+    }
+
+    return insertOrder(
+      { customerUserId, restaurant, lines, addressId, customerNote, paymentMethod: 'CASH_ON_DELIVERY' },
+      { id: adminUserId, role: 'ADMIN' },
+      t,
+    );
+  };
+  return trx ? run(trx) : withTransaction(run);
+}
+
+export async function notifyNewOrder(order) {
   // Outside the transaction: a failing notification must not roll back a
   // placed order, and a transaction must not wait on I/O it does not control.
   await notify({
@@ -143,8 +119,81 @@ export async function checkout(customerUserId, { addressId, customerNote, paymen
     template: 'NEW_ORDER',
     payload: { orderId: order.id, orderNumber: order.order_number, restaurantId: order.restaurant_id },
   });
+}
 
-  return getCustomerOrder(customerUserId, order.id);
+/** Prices, checks the minimum and writes the order, its lines and first event. */
+async function insertOrder({ customerUserId, restaurant, lines, addressId, customerNote, paymentMethod }, actor, trx) {
+  const totals = computeTotals({
+    lines: lines.map((l) => ({
+      foodItemId: l.foodItemId,
+      name: l.name,
+      description: l.description,
+      unitPrice: l.unitPrice,
+      quantity: l.quantity,
+      notes: l.notes,
+    })),
+    deliveryFee: restaurant.delivery_fee,
+    taxRate: config.taxRate,
+  });
+
+  if (!meetsMinimum(totals.subtotal, restaurant.minimum_order_amount)) {
+    throw new ValidationError('BELOW_MINIMUM_ORDER', {
+      details: [{
+        field: 'subtotal',
+        issue: `This restaurant has a minimum order of ${restaurant.minimum_order_amount}.`,
+        required: restaurant.minimum_order_amount,
+        actual: totals.subtotal,
+        shortfall: shortfall(totals.subtotal, restaurant.minimum_order_amount),
+      }],
+    });
+  }
+
+  const address = await users.getAddressForOrder(customerUserId, addressId, trx);
+
+  const created = await repo.insertOrderWithUniqueNumber(
+    {
+      order_number: generateOrderNumber(),
+      customer_user_id: customerUserId,
+      restaurant_id: restaurant.id,
+      delivery_address_id: address.id,
+      // The snapshot is the truth; the FK above is a convenience that may go
+      // null when the address is deleted (BR-O6).
+      delivery_address_snapshot: JSON.stringify(address.snapshot),
+      restaurant_name_snapshot: restaurant.name,
+      status: 'PENDING',
+      dispatch_state: 'NOT_REQUIRED',
+      subtotal: totals.subtotal,
+      delivery_fee: totals.deliveryFee,
+      tax_amount: totals.taxAmount,
+      total_amount: totals.totalAmount,
+      payment_method: paymentMethod ?? 'CASH_ON_DELIVERY',
+      customer_note: customerNote ?? null,
+    },
+    generateOrderNumber,
+    trx,
+  );
+
+  // Snapshot columns: nothing reads food_items for this order again (BR-O1).
+  await repo.insertItems(
+    created.id,
+    totals.lines.map((l) => ({
+      food_item_id: l.foodItemId,
+      item_name_snapshot: l.name,
+      item_description_snapshot: l.description ?? null,
+      unit_price: l.unitPrice,
+      quantity: l.quantity,
+      line_total: l.lineTotal,
+      notes: l.notes ?? null,
+    })),
+    trx,
+  );
+
+  await repo.appendEvent(
+    { orderId: created.id, from: null, to: 'PENDING', actorUserId: actor.id, actorRole: actor.role },
+    trx,
+  );
+
+  return created;
 }
 
 /* --------------------------------------------------------------- transition */

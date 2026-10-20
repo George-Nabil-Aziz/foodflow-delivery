@@ -12,6 +12,8 @@ export {
   adminList,
   adminGetOrder,
   adminForceCancel,
+  adminPlaceOrder,
+  notifyNewOrder,
   listUnassigned,
   listStuck,
   systemCancelStale,

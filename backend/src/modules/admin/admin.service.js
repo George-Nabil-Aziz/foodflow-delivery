@@ -472,6 +472,23 @@ export async function createAccount(adminUserId, input) {
         .returning('*');
     }
 
+    // The first address is the default, as when a customer adds one (BR-A7).
+    if (input.address) {
+      const a = input.address;
+      await trx('customer_addresses').insert({
+        user_id: user.id,
+        label: a.label ?? null,
+        line1: a.line1,
+        line2: a.line2 ?? null,
+        city: a.city,
+        district: a.district ?? null,
+        postal_code: a.postalCode ?? null,
+        latitude: a.latitude ?? null,
+        longitude: a.longitude ?? null,
+        is_default: true,
+      });
+    }
+
     await audit(
       {
         adminUserId, action: 'USER_CREATED', entityType: 'user', entityId: user.id,
@@ -551,6 +568,40 @@ export async function forceCancelOrder(adminUserId, orderId, { reason, note }) {
     );
     return { id: updated.id, status: updated.status, cancellationReason: updated.cancellation_reason };
   });
+}
+
+/** Only an active customer can have an order placed for them. */
+async function assertOrderingCustomer(customerUserId, trx) {
+  const customer = await users.getUserById(customerUserId, trx);
+  if (!customer || customer.role !== 'CUSTOMER') throw new NotFoundError('RESOURCE_NOT_FOUND');
+  if (customer.status !== 'ACTIVE') {
+    throw new ValidationError('UNPROCESSABLE', {
+      details: [{ field: 'customerUserId', issue: 'Only an active customer can have an order placed for them.' }],
+    });
+  }
+  return customer;
+}
+
+/** A customer's saved addresses, for choosing where an admin-placed order goes. */
+export async function listCustomerAddresses(customerUserId) {
+  await assertOrderingCustomer(customerUserId);
+  return users.listAddresses(customerUserId);
+}
+
+/** Places an order on a customer's behalf; the audit row commits with it. */
+export async function placeOrder(adminUserId, input) {
+  const order = await withTransaction(async (trx) => {
+    await assertOrderingCustomer(input.customerUserId, trx);
+    const created = await orders.adminPlaceOrder(adminUserId, input, trx);
+    await audit(
+      { adminUserId, action: 'ORDER_PLACED', entityType: 'order', entityId: created.id,
+        metadata: { customerUserId: input.customerUserId, orderNumber: created.order_number } },
+      trx,
+    );
+    return created;
+  });
+  await orders.notifyNewOrder(order);
+  return orders.adminGetOrder(order.id);
 }
 
 /* ---------------------------------------------------------------- reviews */

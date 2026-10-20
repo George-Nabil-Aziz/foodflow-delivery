@@ -6,6 +6,8 @@ export {
   softDeleteUser,
   restoreUser,
   getAddressForOrder,
+  listAddresses,
   getMe,
 } from './users.service.js';
 export { meRouter, addressRouter } from './users.routes.js';
+export { createAddressSchema } from './users.schemas.js';

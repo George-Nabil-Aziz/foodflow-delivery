@@ -126,12 +126,33 @@ export default {
   Order: 'الطلب',
   Placed: 'وقت الطلب',
   'no driver yet': 'لا يوجد سائق بعد',
-  'Force-cancel': 'إلغاء إجباري',
-  'Force-cancel this order?': 'إلغاء هذا الطلب إجباريًا؟',
   'This will cancel order {orderNumber}, release any assigned driver, and notify the customer. It cannot be undone.':
     'سيؤدي هذا إلى إلغاء الطلب {orderNumber} وتحرير أي سائق معيّن وإشعار العميل. لا يمكن التراجع عن ذلك.',
-  'Force-cancel order': 'إلغاء الطلب إجباريًا',
   'Order cancelled': 'تم إلغاء الطلب',
+
+  // Make an order
+  'Make an order': 'إنشاء طلب',
+  "Place an order on a customer's behalf. It is paid cash on delivery and their cart is left as it is.":
+    'أنشئ طلبًا نيابةً عن عميل. يُدفع نقدًا عند الاستلام ولا تتغير سلة العميل.',
+  'Order {orderNumber} placed': 'تم إنشاء الطلب {orderNumber}',
+  'Searching…': 'جارٍ البحث…',
+  'No active customer matches.': 'لا يوجد عميل نشط مطابق.',
+  'This customer has no saved addresses, so an order cannot be placed for them yet.':
+    'لا توجد عناوين محفوظة لهذا العميل، لذا لا يمكن إنشاء طلب له بعد.',
+  'No restaurant taking orders matches.': 'لا يوجد مطعم يستقبل الطلبات مطابق.',
+  'Remove one {name}': 'إزالة واحد من {name}',
+  'Add one {name}': 'إضافة واحد من {name}',
+  'No dishes yet.': 'لم تتم إضافة أطباق بعد.',
+  '{count} items. Tax, delivery and the total are calculated when the order is placed.':
+    '{count} عنصر. تُحسب الضريبة والتوصيل والإجمالي عند إنشاء الطلب.',
+  'Choose a customer.': 'اختر عميلًا.',
+  'Choose a restaurant.': 'اختر مطعمًا.',
+  'Add at least one dish.': 'أضف طبقًا واحدًا على الأقل.',
+
+  // Add a customer: optional first address
+  'Delivery address (optional)': 'عنوان التوصيل (اختياري)',
+  'Fill in at least the street and city to save it as their default address.':
+    'أدخل الشارع والمدينة على الأقل ليُحفظ كعنوانه الافتراضي.',
 
   // Reviews
   'Review moderation': 'إدارة التقييمات',

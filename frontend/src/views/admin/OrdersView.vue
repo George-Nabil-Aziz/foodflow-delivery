@@ -128,7 +128,7 @@ async function confirmCancel({ reason, reasonCode }) {
     <PageTitle :title="t('Orders')" :count="loading ? null : pagination.total" />
 
     <!-- One filter for every view: the statuses, then the two dispatch queues. -->
-    <FilterBar>
+    <FilterBar :add-to="{ name: 'admin-order-new' }" :add-label="t('Make an order')">
       <!-- The two dispatch queues are short live lists with no search. -->
       <FilterSearch v-if="paged" id="o-search" v-model="search" :placeholder="t('Search by order, restaurant or customer')" @update:model-value="load(1)" />
       <FilterSelect id="o-status" :model-value="view" :label="t('Status')" :options="statusOptions"

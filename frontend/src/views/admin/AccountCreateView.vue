@@ -25,32 +25,55 @@ const COPY = {
 };
 const copy = computed(() => COPY[props.role]);
 const isRestaurant = computed(() => props.role === 'RESTAURANT');
+const isCustomer = computed(() => props.role === 'CUSTOMER');
 
 const ui = useUiStore();
 const creating = ref(false);
 const localErrors = ref({});
 const blank = () => ({ fullName: '', email: '', phone: '', restaurantName: '' });
 const form = ref(blank());
+/** A customer's optional first address; left blank, none is created. */
+const blankAddress = () => ({ label: '', line1: '', line2: '', city: '', district: '' });
+const address = ref(blankAddress());
+const hasAddress = computed(() => isCustomer.value && Object.values(address.value).some((v) => v.trim()));
 /** Shown exactly once, here: it is never retrievable again. */
 const issuedPassword = ref(null);
 
+/** Only the fields filled in; the server drops nothing it is not sent. */
+const addressPayload = () => Object.fromEntries(
+  Object.entries(address.value).map(([k, v]) => [k, v.trim()]).filter(([, v]) => v),
+);
+
 async function create() {
-  localErrors.value = validate(form.value, {
-    ...(isRestaurant.value ? { restaurantName: [rules.required('Restaurant name'), rules.minLength(2, 'Restaurant name')] } : {}),
-    fullName: [rules.required('Name'), rules.minLength(2, 'Name')],
-    email: [rules.required('Email'), rules.email],
-    phone: [rules.required('Phone'), rules.phone],
-  });
+  const addressErrors = hasAddress.value
+    ? validate(address.value, {
+      line1: [rules.required('Street address'), rules.minLength(5, 'Street address')],
+      city: [rules.required('City'), rules.minLength(2, 'City')],
+    })
+    : {};
+  localErrors.value = {
+    ...validate(form.value, {
+      ...(isRestaurant.value ? { restaurantName: [rules.required('Restaurant name'), rules.minLength(2, 'Restaurant name')] } : {}),
+      fullName: [rules.required('Name'), rules.minLength(2, 'Name')],
+      email: [rules.required('Email'), rules.email],
+      phone: [rules.required('Phone'), rules.phone],
+    }),
+    ...(addressErrors.line1 && { addressLine1: addressErrors.line1 }),
+    ...(addressErrors.city && { addressCity: addressErrors.city }),
+  };
   if (Object.keys(localErrors.value).length) return;
 
   creating.value = true;
   try {
     const { restaurantName, ...rest } = form.value;
     const { data } = await adminApi.createUser({
-      role: props.role, ...rest, ...(isRestaurant.value ? { restaurantName } : {}),
+      role: props.role, ...rest,
+      ...(isRestaurant.value ? { restaurantName } : {}),
+      ...(hasAddress.value ? { address: addressPayload() } : {}),
     });
     issuedPassword.value = { email: data.user.email, password: data.initialPassword };
     form.value = blank();
+    address.value = blankAddress();
     ui.toastSuccess('Account created');
   } catch (err) {
     if (err.code === 'EMAIL_ALREADY_REGISTERED') {
@@ -90,6 +113,21 @@ async function create() {
                 :error="localErrors.fullName" />
       <AppInput id="na-email" v-model="form.email" label="Email" type="email" required :error="localErrors.email" />
       <AppInput id="na-phone" v-model="form.phone" label="Phone" required :error="localErrors.phone" />
+
+      <fieldset v-if="isCustomer" class="space-y-4 border-t border-slate-200 pt-4">
+        <legend class="font-semibold text-slate-900">{{ t('Delivery address (optional)') }}</legend>
+        <p class="text-xs text-slate-500">
+          {{ t('Fill in at least the street and city to save it as their default address.') }}
+        </p>
+        <AppInput id="na-addr-label" v-model="address.label" label="Label" placeholder="Home, Work" />
+        <AppInput id="na-addr-line1" v-model="address.line1" label="Street address" :error="localErrors.addressLine1" />
+        <AppInput id="na-addr-line2" v-model="address.line2" label="Apartment, floor (optional)" />
+        <div class="grid grid-cols-2 gap-3">
+          <AppInput id="na-addr-city" v-model="address.city" label="City" :error="localErrors.addressCity" />
+          <AppInput id="na-addr-district" v-model="address.district" label="District" />
+        </div>
+      </fieldset>
+
       <AppButton type="submit" :loading="creating">{{ t(copy.submit) }}</AppButton>
     </form>
 
