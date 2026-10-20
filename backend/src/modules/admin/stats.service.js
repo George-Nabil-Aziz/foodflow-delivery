@@ -40,9 +40,12 @@ export async function platformStats() {
       (SELECT count(*) FROM users WHERE role = 'CUSTOMER' AND deleted_at IS NULL)         AS customers,
       (SELECT count(*) FROM restaurants WHERE status = 'ACTIVE' AND deleted_at IS NULL)   AS active_restaurants,
       (SELECT count(*) FROM restaurants WHERE status = 'PENDING_APPROVAL' AND deleted_at IS NULL) AS pending_restaurants,
-      (SELECT count(*) FROM driver_profiles WHERE status = 'ACTIVE')                      AS active_drivers,
-      (SELECT count(*) FROM driver_profiles WHERE availability = 'ON_DELIVERY')           AS drivers_on_delivery,
-      (SELECT count(*) FROM driver_profiles WHERE status = 'PENDING_APPROVAL')            AS pending_drivers
+      (SELECT count(*) FROM driver_profiles d JOIN users u ON u.id = d.user_id AND u.deleted_at IS NULL
+        WHERE d.status = 'ACTIVE')                                                        AS active_drivers,
+      (SELECT count(*) FROM driver_profiles d JOIN users u ON u.id = d.user_id AND u.deleted_at IS NULL
+        WHERE d.availability = 'ON_DELIVERY')                                             AS drivers_on_delivery,
+      (SELECT count(*) FROM driver_profiles d JOIN users u ON u.id = d.user_id AND u.deleted_at IS NULL
+        WHERE d.status = 'PENDING_APPROVAL')                                              AS pending_drivers
     `,
     )
     .then((r) => r.rows);

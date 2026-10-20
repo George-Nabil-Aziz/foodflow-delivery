@@ -430,19 +430,25 @@ transaction (FR-9.6).
 | Method | Route | Auth | Purpose |
 |--------|-------|------|---------|
 | GET | `/api/admin/stats` | A | Platform statistics |
-| GET | `/api/admin/users` | A | `?role=&status=&q=`, paginated |
+| GET | `/api/admin/users` | A | `?role=&status=&q=&deleted=` (`include` \| `only`), paginated |
 | GET | `/api/admin/users/:id` | A | User detail + activity summary |
 | POST | `/api/admin/users/:id/suspend` | A | `{ reason }`; revokes sessions |
 | POST | `/api/admin/users/:id/reactivate` | A | |
+| DELETE | `/api/admin/users/:id` | A | `{ reason }`; soft delete of a CUSTOMER or ADMIN; revokes sessions |
+| POST | `/api/admin/users/:id/restore` | A | Clears `deleted_at`; status unchanged |
 | POST | `/api/admin/drivers` | A | Create a driver account (BR-A4, ADR-006) |
-| GET | `/api/admin/drivers` | A | `?status=&availability=` |
+| GET | `/api/admin/drivers` | A | `?status=&availability=&deleted=` (`include` \| `only`) |
 | POST | `/api/admin/drivers/:id/approve` | A | `PENDING_APPROVAL → ACTIVE` |
 | POST | `/api/admin/drivers/:id/suspend` | A | `{ reason }` |
-| GET | `/api/admin/restaurants` | A | `?status=&q=` |
+| DELETE | `/api/admin/drivers/:id` | A | `{ reason }`; soft delete; sets OFFLINE; refused during an active delivery |
+| POST | `/api/admin/drivers/:id/restore` | A | Clears `deleted_at`; stays OFFLINE |
+| GET | `/api/admin/restaurants` | A | `?status=&q=&deleted=` (`include` \| `only`) |
 | POST | `/api/admin/restaurants/:id/approve` | A | `PENDING_APPROVAL → ACTIVE` |
 | POST | `/api/admin/restaurants/:id/reject` | A | `{ reason }` → `REJECTED` |
 | POST | `/api/admin/restaurants/:id/suspend` | A | `{ reason }` → `SUSPENDED` |
 | POST | `/api/admin/restaurants/:id/reactivate` | A | → `ACTIVE` |
+| DELETE | `/api/admin/restaurants/:id` | A | `{ reason }`; soft-deletes the restaurant and its owner; refused with orders in progress |
+| POST | `/api/admin/restaurants/:id/restore` | A | Restores the restaurant and its owner; status unchanged |
 | GET | `/api/admin/orders` | A | `?status=&restaurantId=&from=&to=` |
 | GET | `/api/admin/orders/:id` | A | Full detail incl. the event log |
 | POST | `/api/admin/orders/:id/force-cancel` | A | T2/T4/T6/T8/T10, reason mandatory |

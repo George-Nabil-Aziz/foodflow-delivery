@@ -394,6 +394,8 @@ export async function systemCancelStale(orderId) {
 }
 
 export const getOrderById = repo.findById;
+export const countActiveOrdersForCustomer = repo.countActiveForCustomer;
+export const countActiveOrdersForRestaurant = repo.countActiveForRestaurant;
 export const listEvents = repo.listEvents;
 
 export async function assignDriver(orderId, driverUserId, trx) {

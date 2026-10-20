@@ -566,6 +566,7 @@ non-validation context.
 | 409 | `REVIEW_ALREADY_EXISTS` | BR-V2 |
 | 409 | `REVIEW_EDIT_WINDOW_CLOSED` | BR-V6 |
 | 409 | `DRIVER_HAS_ACTIVE_DELIVERY` | BR-D5 / BR-D9 |
+| 409 | `HAS_ACTIVE_ORDERS` | BR-A6 — delete refused: customer or restaurant has orders in progress |
 | 409 | `OFFER_NO_LONGER_AVAILABLE` | Offer expired or taken |
 | 422 | `VALIDATION_ERROR` | Schema failure; `details[]` is field-by-field |
 | 422 | `CART_EMPTY` / `CART_HAS_ISSUES` / `BELOW_MINIMUM_ORDER` | BR-C11 / BR-C9 / BR-C10 |

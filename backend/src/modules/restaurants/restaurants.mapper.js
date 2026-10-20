@@ -48,7 +48,11 @@ export const toAdminRestaurantDto = (r) => ({
   approvedAt: r.approved_at,
   rejectionReason: r.rejection_reason,
   createdAt: r.created_at,
-  owner: { id: r.owner_user_id, fullName: r.owner_full_name, email: r.owner_email },
+  owner: {
+    id: r.owner_user_id, fullName: r.owner_full_name, email: r.owner_email,
+    createdAt: r.owner_created_at,
+  },
+  deletedAt: r.deleted_at ?? null,
   availableItemCount: Number(r.available_item_count ?? 0),
 });
 

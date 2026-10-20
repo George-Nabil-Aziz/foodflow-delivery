@@ -7,6 +7,7 @@ import ThemeToggle from '../components/shared/ThemeToggle.vue';
 import LanguageToggle from '../components/shared/LanguageToggle.vue';
 import MobileDrawer from '../components/shared/MobileDrawer.vue';
 import MenuButton from '../components/shared/MenuButton.vue';
+import SignOutButton from '../components/shared/SignOutButton.vue';
 import { useIsDesktop } from '../composables/useMediaQuery.js';
 import { t } from '../i18n/index.js';
 
@@ -38,8 +39,9 @@ const NAV = {
   ],
   ADMIN: [
     { to: { name: 'admin-dashboard' }, label: 'Dashboard', always: true, exact: true },
-    { to: { name: 'admin-users' }, label: 'Users', always: true },
+    { to: { name: 'admin-admins' }, label: 'Admins', always: true },
     { to: { name: 'admin-restaurants' }, label: 'Restaurants', always: true },
+    { to: { name: 'admin-customers' }, label: 'Customers', always: true },
     { to: { name: 'admin-drivers' }, label: 'Drivers', always: true },
     { to: { name: 'admin-orders' }, label: 'Orders', always: true },
     { to: { name: 'admin-reviews' }, label: 'Reviews', always: true },
@@ -94,51 +96,56 @@ async function signOut() {
 
 <template>
   <div class="app-shell flex min-h-screen flex-col bg-slate-50">
+    <!-- Header and sidebar stay put; only the content scrolls under them. -->
+    <div class="sticky top-0 z-30">
     <div class="app-accent-bar" aria-hidden="true" />
-    <header class="app-header border-b border-slate-200 bg-surface">
+    <header class="app-header border-b border-slate-200 bg-surface backdrop-blur">
       <div class="mx-auto flex max-w-[88rem] items-center justify-between gap-2 px-4 py-2 md:py-3 lg:px-6">
         <div class="flex min-w-0 items-center gap-1">
           <MenuButton v-if="!isDesktop" :expanded="menuOpen" @toggle="menuOpen = !menuOpen" />
-          <BrandLogo />
+          <BrandLogo :collapsible="!isDesktop" />
         </div>
 
-        <div v-if="isDesktop" class="flex items-center gap-1 text-sm lg:gap-2">
-          <span class="me-1 hidden text-slate-600 lg:inline">
+        <!-- Language, theme and sign-out are icons that stay in the bar at every
+             width, so the drawer holds only navigation. -->
+        <div class="flex min-w-0 items-center gap-1 text-sm lg:gap-2">
+          <span v-if="isDesktop" class="me-1 hidden text-slate-600 lg:inline">
             {{ auth.user?.fullName }}
             <span class="ms-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">{{ t(ROLE_LABEL[auth.role] ?? auth.role) }}</span>
           </span>
+          <!-- Phones: the current section names itself where the links used to be. -->
+          <span v-else class="me-1 truncate rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 max-[379px]:hidden">
+            {{ t(ROLE_LABEL[auth.role] ?? auth.role) }}
+          </span>
           <LanguageToggle />
           <ThemeToggle />
-          <button type="button" class="nav-link rounded-lg px-3 py-2 text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900" @click="signOut">
-            {{ t('Sign out') }}
-          </button>
+          <SignOutButton @sign-out="signOut" />
         </div>
-        <!-- Phones: the current section names itself where the links used to be. -->
-        <span v-else class="truncate rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
-          {{ t(ROLE_LABEL[auth.role] ?? auth.role) }}
-        </span>
       </div>
     </header>
+    </div>
 
     <MobileDrawer v-if="!isDesktop" :open="menuOpen" label="Menu" @close="menuOpen = false">
       <template #header>
-        <div class="min-w-0">
-          <p class="truncate font-semibold text-slate-900">{{ auth.user?.fullName }}</p>
-          <p class="text-xs text-slate-600">{{ t(ROLE_LABEL[auth.role] ?? auth.role) }}</p>
-        </div>
+        <BrandLogo />
       </template>
 
+      <div class="mb-4 min-w-0 border-b border-slate-200 px-3 pb-4">
+        <p class="truncate font-semibold text-slate-900">{{ auth.user?.fullName }}</p>
+        <p class="text-xs text-slate-600">{{ t(ROLE_LABEL[auth.role] ?? auth.role) }}</p>
+      </div>
+
       <nav :aria-label="t('Section')">
-        <ul class="space-y-1">
+        <ul class="space-y-2.5">
           <li v-for="item in items" :key="item.label">
             <span v-if="isDisabled(item)"
-                  class="flex min-h-12 cursor-not-allowed items-center rounded-lg px-3 text-base text-slate-500"
+                  class="ui-control ui-control-nav flex cursor-not-allowed items-center rounded-lg px-3 text-base text-slate-500"
                   aria-disabled="true">
               {{ t(item.label) }}
               <span class="sr-only">({{ t('unavailable') }}: {{ gateMessage }})</span>
             </span>
             <RouterLink v-else :to="item.to"
-                        class="side-link flex min-h-12 items-center rounded-lg px-3 text-base text-slate-800 transition-colors hover:bg-slate-100"
+                        class="ui-control ui-control-nav side-link flex items-center rounded-lg px-3 text-base text-slate-800 transition-colors hover:bg-slate-100"
                         :active-class="item.exact ? '' : ACTIVE_LINK"
                         :exact-active-class="ACTIVE_LINK">
               {{ t(item.label) }}
@@ -146,22 +153,13 @@ async function signOut() {
           </li>
         </ul>
       </nav>
-
-      <template #footer>
-        <div class="flex items-center justify-between gap-2">
-          <LanguageToggle />
-          <ThemeToggle />
-        </div>
-        <button type="button"
-                class="mt-3 flex min-h-12 w-full items-center justify-center rounded-lg border border-slate-300 text-base font-medium text-slate-800 transition-colors hover:bg-slate-100"
-                @click="signOut">
-          {{ t('Sign out') }}
-        </button>
-      </template>
-    </MobileDrawer>
+</MobileDrawer>
 
     <div class="mx-auto flex w-full max-w-[88rem] flex-1 flex-col gap-6 px-4 py-5 md:flex-row md:py-6 lg:px-6">
-      <nav v-if="isDesktop" class="w-48 shrink-0 lg:w-56" :aria-label="t('Section')">
+      <!-- top = header (4rem) + the 1.5rem gap above, so it pins where it starts. -->
+      <nav v-if="isDesktop"
+           class="sticky top-[5.5rem] max-h-[calc(100vh-7rem)] w-48 shrink-0 self-start overflow-y-auto lg:w-56"
+           :aria-label="t('Section')">
         <ul class="flex flex-col gap-2">
           <li v-for="item in items" :key="item.label">
             <span v-if="isDisabled(item)"

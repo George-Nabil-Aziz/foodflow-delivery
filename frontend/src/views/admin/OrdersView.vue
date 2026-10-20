@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { adminApi } from '../../services/api.js';
 import { useUiStore } from '../../stores/ui.store.js';
@@ -7,27 +7,32 @@ import { formatMoney } from '../../utils/money.js';
 import { formatDateTime } from '../../utils/datetime.js';
 import { CANCELLATION_REASONS } from '../../utils/orderStatus.js';
 import { t } from '../../i18n/index.js';
+import { capitalize, enumText } from '../../utils/labels.js';
 import AppSpinner from '../../components/shared/AppSpinner.vue';
 import EmptyState from '../../components/shared/EmptyState.vue';
 import AppPagination from '../../components/shared/AppPagination.vue';
 import StatusBadge from '../../components/shared/StatusBadge.vue';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.vue';
+import FilterBar from '../../components/shared/FilterBar.vue';
+import FilterSearch from '../../components/shared/FilterSearch.vue';
+import FilterSelect from '../../components/shared/FilterSelect.vue';
 
 const route = useRoute();
 const ui = useUiStore();
 
 const view = ref(route.query.view ?? 'all');
+const search = ref('');
 const orders = ref([]);
 const pagination = ref({ page: 1, totalPages: 1, total: 0 });
+const pageSize = ref(20);
 const loading = ref(true);
 const busy = ref(null);
-const statusFilter = ref('');
 const dialog = ref({ open: false, config: {}, order: null });
 
 const TERMINAL = ['DELIVERED', 'CANCELLED'];
+const STATUSES = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'];
 
-/** An enum as it has always read ("ready for pickup"), translated in Arabic. */
-const enumText = (value) => t(value.replaceAll('_', ' ').toLowerCase());
+const paged = computed(() => view.value !== 'unassigned' && view.value !== 'stuck');
 
 async function load(page = 1) {
   loading.value = true;
@@ -39,8 +44,9 @@ async function load(page = 1) {
       orders.value = (await adminApi.stuck()).data;
       pagination.value = { page: 1, totalPages: 1, total: orders.value.length };
     } else {
-      const params = { page, limit: 20 };
-      if (statusFilter.value) params.status = statusFilter.value;
+      const params = { page, limit: pageSize.value };
+      if (view.value !== 'all') params.status = view.value;
+      if (search.value.trim().length >= 2) params.q = search.value.trim();
       const res = await adminApi.orders(params);
       orders.value = res.data;
       pagination.value = res.meta.pagination ?? { page: 1, totalPages: 1, total: res.data.length };
@@ -95,29 +101,19 @@ async function confirmCancel({ reason, reasonCode }) {
   <div>
     <h1 class="text-xl font-semibold text-slate-900">{{ t('Orders') }}</h1>
 
-    <div class="mt-4 flex flex-wrap gap-2">
-      <button v-for="tab in [
-                { key: 'all', label: 'All orders' },
-                { key: 'unassigned', label: 'Waiting for a driver' },
-                { key: 'stuck', label: 'Stuck' },
-              ]" :key="tab.key" type="button"
-              class="inline-flex min-h-11 items-center justify-center md:min-h-0 rounded-lg px-3 py-2 text-sm"
-              :class="view === tab.key
-                ? 'bg-primary text-white'
-                : 'border border-slate-300 bg-surface text-slate-700'"
-              @click="setView(tab.key)">
-        {{ t(tab.label) }}
-      </button>
-
-      <select v-if="view === 'all'" v-model="statusFilter" class="field-input ms-auto w-48"
-              :aria-label="t('Filter by status')" @change="load(1)">
-        <option value="">{{ t('All statuses') }}</option>
-        <option v-for="s in ['PENDING','CONFIRMED','PREPARING','READY_FOR_PICKUP','OUT_FOR_DELIVERY','DELIVERED','CANCELLED']"
-                :key="s" :value="s">
-          {{ enumText(s) }}
-        </option>
-      </select>
-    </div>
+    <!-- One filter for every view: the statuses, then the two dispatch queues. -->
+    <FilterBar>
+      <!-- The two dispatch queues are short live lists with no search. -->
+      <FilterSearch v-if="paged" id="o-search" v-model="search" :placeholder="t('Search by order, restaurant or customer')" @update:model-value="load(1)" />
+      <FilterSelect id="o-status" :model-value="view" :label="t('Status')" @update:model-value="setView">
+        <option value="all">{{ t('All orders') }}</option>
+        <option v-for="s in STATUSES" :key="s" :value="s">{{ enumText(s) }}</option>
+        <optgroup :label="t('Queues')">
+          <option value="unassigned">{{ t('Waiting for a driver') }}</option>
+          <option value="stuck">{{ t('Stuck') }}</option>
+        </optgroup>
+      </FilterSelect>
+    </FilterBar>
 
     <AppSpinner v-if="loading" label="Loading orders" />
 
@@ -152,7 +148,7 @@ async function confirmCancel({ reason, reasonCode }) {
               <td :data-label="t('Status')" class="p-3">
                 <StatusBadge :status="order.status" />
                 <span v-if="order.dispatchState === 'UNASSIGNED'" class="mt-1 block text-xs text-slate-500">
-                  {{ t('no driver yet') }}
+                  {{ capitalize(t('no driver yet')) }}
                 </span>
               </td>
               <td :data-label="t('Total')" class="p-3">{{ formatMoney(order.totalAmount) }}</td>
@@ -168,7 +164,8 @@ async function confirmCancel({ reason, reasonCode }) {
           </tbody>
         </table>
       </div>
-      <AppPagination v-if="view === 'all'" :pagination="pagination" @change="load" />
+      <AppPagination v-if="paged" :pagination="pagination" :limit="pageSize" @change="load"
+          @update:limit="(n) => { pageSize = n; load(1); }" />
     </template>
 
     <ConfirmDialog :open="dialog.open" :config="dialog.config"

@@ -4,6 +4,7 @@ import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
+  ValidationError,
 } from '../../shared/errors/AppError.js';
 import { toLimitOffset, paginationMeta } from '../../shared/http/pagination.js';
 import { maskPhone, firstName, displayName } from '../../shared/mask.js';
@@ -44,9 +45,22 @@ export async function assertActiveDriver(userId) {
 }
 
 export async function updateProfile(userId, input) {
+  const current = await repo.findProfile(userId);
+  if (!current) throw new NotFoundError('RESOURCE_NOT_FOUND');
+
   const patch = {};
   if (input.vehicleType !== undefined) patch.vehicle_type = input.vehicleType;
   if (input.vehiclePlate !== undefined) patch.vehicle_plate = input.vehiclePlate;
+
+  // A bicycle has no plate, so none is kept for one; every motor vehicle needs one.
+  const vehicleType = patch.vehicle_type ?? current.vehicle_type;
+  if (vehicleType === 'BICYCLE') {
+    patch.vehicle_plate = null;
+  } else if (!(patch.vehicle_plate ?? current.vehicle_plate)) {
+    throw new ValidationError('VALIDATION_ERROR', {
+      details: [{ field: 'vehiclePlate', issue: 'A plate number is required for this vehicle.' }],
+    });
+  }
   const row = await repo.updateProfile(userId, patch);
   if (!row) throw new NotFoundError('RESOURCE_NOT_FOUND');
   return toProfileDto(row);

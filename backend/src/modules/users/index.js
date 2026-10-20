@@ -2,6 +2,9 @@
 export {
   getUserById,
   setUserStatus,
+  getUserByIdIncludingDeleted,
+  softDeleteUser,
+  restoreUser,
   getAddressForOrder,
   getMe,
 } from './users.service.js';

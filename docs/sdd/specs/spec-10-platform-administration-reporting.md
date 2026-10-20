@@ -112,7 +112,7 @@ typing a name.
 ## Frontend Requirements
 
 - `admin/DashboardView` — `StatTile` row (today's orders, GMV, active restaurants, active drivers, unassigned backlog), an orders-by-status breakdown, and an alert strip for pending approvals and stuck orders. Anything needing action links straight to it.
-- `admin/UsersView` — table with role/status filters and search, a detail drawer, and suspend/reactivate with a mandatory reason dialog.
+- `admin/UserListView` (the Customers and Admins pages) — table with status filter and search, a detail drawer, and suspend/reactivate with a mandatory reason dialog.
 - `admin/RestaurantsView` — a pending-approval queue first (that is the daily job), each card showing the profile, hours and menu item count with approve/reject inline; plus a full list with status filters.
 - `admin/DriversView` — create-driver form, pending approvals, and an active roster with live availability.
 - `admin/OrdersView` — filters by status, restaurant and date range; a stuck-orders tab; a detail view showing the full `order_status_events` timeline with actor names; force-cancel behind a reason dialog and a typed confirmation.
@@ -206,6 +206,49 @@ Frontend — the dashboard surfaces pending approvals and stuck orders; destruct
 dialogs require a reason before enabling the confirm button; the approval queue
 updates after an action without a full reload; an axe pass on the dashboard and
 the tables.
+
+## Deletion and restore
+
+Soft delete (`deleted_at`) and restore for customers, admins, drivers and
+restaurants, per BR-A6. Full detail, including the UI, is in the
+[admin restructure design](../../superpowers/specs/2026-10-20-admin-restructure-design.md)
+(§5 Delete, §5a Restore); this section summarises it.
+
+**Endpoints.** `DELETE /api/admin/users/:id` (CUSTOMER or ADMIN only),
+`DELETE /api/admin/drivers/:id` (sets the profile OFFLINE) and
+`DELETE /api/admin/restaurants/:id` (deletes the restaurant and its owner's
+user). Each needs a `{ reason }` of 5–300 characters and writes one audit row in
+the same transaction. Nothing is removed from the database; a deleted account
+cannot sign in and its sessions are revoked. Orders, reviews and audit rows
+survive on their name snapshots. Suspend is unchanged.
+
+**Rules.**
+
+| Case | Response | `details[0].issue` |
+|------|----------|--------------------|
+| Deleting yourself | 422 `UNPROCESSABLE` | You cannot delete your own account. |
+| Customer with an unfinished order | 409 `HAS_ACTIVE_ORDERS` | This customer has an order in progress. Wait for it to finish, or force-cancel it first. |
+| Restaurant with an unfinished order | 409 `HAS_ACTIVE_ORDERS` | This restaurant has orders in progress. Wait for them to finish, or force-cancel them first. |
+| Driver holding an ACCEPTED assignment | 409 `DRIVER_HAS_ACTIVE_DELIVERY` | This driver has an active delivery. |
+| Already deleted | 409 `CONFLICT` | This record is already deleted. |
+| RESTAURANT or DRIVER account sent to `DELETE /users/:id` | 422 `UNPROCESSABLE` | Delete this account from the Restaurants or Drivers page. |
+
+"Unfinished" means PENDING, CONFIRMED, PREPARING, READY_FOR_PICKUP or
+OUT_FOR_DELIVERY. `HAS_ACTIVE_ORDERS` is the only new error code.
+
+**The `deleted` list filter.** `GET /api/admin/users`, `/drivers` and
+`/restaurants` no longer hide deleted rows; each row gains `deletedAt`. The
+`deleted` parameter is `include` (default, every row) or `only` (deleted rows
+only). A status filter returns rows that are not deleted. Discovery, dispatch,
+sign-in and dashboard counts still exclude deleted rows.
+
+**Restore.** `POST /api/admin/users/:id/restore`, `/drivers/:id/restore` and
+`/restaurants/:id/restore` clear `deleted_at` and return the record exactly as it
+was: suspend and approval status are untouched (a suspended restaurant comes back
+suspended), a restaurant restore also restores its owner, and a restored driver
+stays OFFLINE. A record that is not deleted gets 409 `CONFLICT` ("This record is
+not deleted."); a RESTAURANT or DRIVER account sent to `/users/:id/restore` gets
+422 `UNPROCESSABLE`. Email and slug stay reserved while a record is deleted.
 
 ## Edge Cases
 

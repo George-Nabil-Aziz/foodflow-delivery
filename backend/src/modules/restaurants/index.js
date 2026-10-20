@@ -8,6 +8,9 @@ export {
   setStatus,
   countAvailableItems,
   adminList,
+  getRestaurantByIdIncludingDeleted,
+  softDeleteRestaurant,
+  restoreRestaurant,
   applyRatingAggregate,
 } from './restaurants.service.js';
 

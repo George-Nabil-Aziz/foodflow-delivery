@@ -14,6 +14,22 @@ export function findByOwner(ownerUserId, trx) {
   return db(trx)('restaurants').where({ owner_user_id: ownerUserId }).whereNull('deleted_at').first();
 }
 
+/** Admin only: deleted rows are invisible everywhere else. */
+export function findByIdIncludingDeleted(id, trx) {
+  const q = db(trx)('restaurants').where({ id });
+  return (trx ? q.forUpdate() : q).first();
+}
+
+export async function softDelete(id, trx) {
+  const [row] = await db(trx)('restaurants').where({ id }).update({ deleted_at: knex.fn.now() }).returning('*');
+  return row;
+}
+
+export async function restore(id, trx) {
+  const [row] = await db(trx)('restaurants').where({ id }).update({ deleted_at: null }).returning('*');
+  return row;
+}
+
 export async function update(id, patch, trx) {
   const [row] = await db(trx)('restaurants').where({ id }).update(patch).returning('*');
   return row;
@@ -77,15 +93,15 @@ export async function ownerStats(restaurantId, trx) {
 
 /* ------------------------------------------------------------------- admin */
 
-export async function adminList({ status, q, limit, offset }, trx) {
+export async function adminList({ status, q, deleted, limit, offset }, trx) {
   const conn = db(trx);
   const query = conn('restaurants as r')
     .leftJoin('users as u', 'u.id', 'r.owner_user_id')
-    .whereNull('r.deleted_at')
     .select(
       'r.*',
       'u.full_name as owner_full_name',
       'u.email as owner_email',
+      'u.created_at as owner_created_at',
       conn.raw(
         `(SELECT count(*) FROM food_items fi
           WHERE fi.restaurant_id = r.id AND fi.is_available AND fi.deleted_at IS NULL)
@@ -97,6 +113,8 @@ export async function adminList({ status, q, limit, offset }, trx) {
     .limit(limit)
     .offset(offset);
 
+  if (deleted === 'only') query.whereNotNull('r.deleted_at');
+  else if (status) query.whereNull('r.deleted_at');
   if (status) query.where('r.status', status);
   if (q) query.whereILike('r.name', `%${q}%`);
 

@@ -8,20 +8,26 @@ import AppSpinner from '../../components/shared/AppSpinner.vue';
 import EmptyState from '../../components/shared/EmptyState.vue';
 import AppPagination from '../../components/shared/AppPagination.vue';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.vue';
+import FilterBar from '../../components/shared/FilterBar.vue';
+import FilterSearch from '../../components/shared/FilterSearch.vue';
+import FilterSelect from '../../components/shared/FilterSelect.vue';
 
 const ui = useUiStore();
 const reviews = ref([]);
 const pagination = ref({ page: 1, totalPages: 1, total: 0 });
+const pageSize = ref(20);
 const loading = ref(true);
 const busy = ref(null);
 const statusFilter = ref('');
+const search = ref('');
 const dialog = ref({ open: false, config: {}, review: null });
 
 async function load(page = 1) {
   loading.value = true;
   try {
-    const params = { page, limit: 20 };
+    const params = { page, limit: pageSize.value };
     if (statusFilter.value) params.status = statusFilter.value;
+    if (search.value.trim().length >= 2) params.q = search.value.trim();
     const res = await adminApi.reviews(params);
     reviews.value = res.data;
     pagination.value = res.meta.pagination ?? { page: 1, totalPages: 1, total: res.data.length };
@@ -81,14 +87,14 @@ async function restore(review) {
   <div>
     <h1 class="text-xl font-semibold text-slate-900">{{ t('Review moderation') }}</h1>
 
-    <div class="card mt-4 p-4 sm:max-w-xs">
-      <label for="rv-status" class="field-label">{{ t('Status') }}</label>
-      <select id="rv-status" v-model="statusFilter" class="field-input" @change="load(1)">
+    <FilterBar>
+      <FilterSearch id="rv-search" v-model="search" :placeholder="t('Search by restaurant, customer or comment')" @update:model-value="load(1)" />
+      <FilterSelect id="rv-status" v-model="statusFilter" :label="t('Status')" @update:model-value="load(1)">
         <option value="">{{ t('All reviews') }}</option>
         <option value="PUBLISHED">{{ t('Published') }}</option>
         <option value="HIDDEN">{{ t('Hidden') }}</option>
-      </select>
-    </div>
+      </FilterSelect>
+    </FilterBar>
 
     <AppSpinner v-if="loading" label="Loading reviews" />
     <EmptyState v-else-if="reviews.length === 0" class="mt-4" title="No reviews match this filter" />
@@ -131,7 +137,8 @@ async function restore(review) {
           </div>
         </li>
       </ul>
-      <AppPagination :pagination="pagination" @change="load" />
+      <AppPagination :pagination="pagination" :limit="pageSize" @change="load"
+          @update:limit="(n) => { pageSize = n; load(1); }" />
     </template>
 
     <ConfirmDialog :open="dialog.open" :config="dialog.config"

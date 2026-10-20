@@ -29,6 +29,7 @@ export const CODES = {
   REVIEW_ALREADY_EXISTS: 409,
   REVIEW_EDIT_WINDOW_CLOSED: 409,
   DRIVER_HAS_ACTIVE_DELIVERY: 409,
+  HAS_ACTIVE_ORDERS: 409,
   OFFER_NO_LONGER_AVAILABLE: 409,
   CONFLICT: 409,
   // 422
@@ -70,6 +71,7 @@ export const PUBLIC_MESSAGES = {
   REVIEW_ALREADY_EXISTS: 'You have already reviewed this order.',
   REVIEW_EDIT_WINDOW_CLOSED: 'This review can no longer be edited.',
   DRIVER_HAS_ACTIVE_DELIVERY: 'This driver has an active delivery.',
+  HAS_ACTIVE_ORDERS: 'There are orders still in progress.',
   OFFER_NO_LONGER_AVAILABLE: 'This delivery offer is no longer available.',
   CONFLICT: 'The request conflicts with the current state.',
   VALIDATION_ERROR: 'Some of the submitted values are not valid.',

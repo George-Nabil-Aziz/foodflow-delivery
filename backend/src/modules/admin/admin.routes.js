@@ -19,6 +19,9 @@ const reasonSchema = z.object({
   reason: trimmedString(5, 300),
   note: z.string().trim().max(300).optional().nullable(),
 });
+/** Deleted rows are listed by default, so an admin can find and restore them. */
+const deletedFilter = z.enum(['include', 'only']).default('include');
+
 const optionalReasonSchema = z.object({
   reason: trimmedString(5, 300).optional(),
 });
@@ -44,11 +47,30 @@ const usersQuery = paginationQuery.extend({
   role: z.enum(USER_ROLES).optional(),
   status: z.enum(USER_STATUSES).optional(),
   q: z.string().trim().min(2).max(60).optional(),
+  deleted: deletedFilter,
 });
 
 adminRouter.get('/users', validate({ query: usersQuery }), asyncHandler(async (req, res) => {
   const { data, meta } = await service.listUsers(req.validated.query);
   res.json(ok(data, { requestId: req.id, ...meta }));
+}));
+
+/** Drivers have their own endpoint: they also need a vehicle. */
+const createAccountSchema = z.object({
+  role: z.enum(['CUSTOMER', 'ADMIN', 'RESTAURANT']),
+  email,
+  fullName: trimmedString(2, 100),
+  phone,
+  restaurantName: trimmedString(2, 100).optional(),
+}).superRefine((v, ctx) => {
+  if (v.role === 'RESTAURANT' && !v.restaurantName) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['restaurantName'], message: 'is required for a restaurant owner' });
+  }
+});
+
+adminRouter.post('/users', validate({ body: createAccountSchema }), asyncHandler(async (req, res) => {
+  const result = await service.createAccount(req.user.id, req.validated.body);
+  res.status(201).json(ok(result, { requestId: req.id }));
 }));
 
 adminRouter.get('/users/:id', validate({ params: idParam }), asyncHandler(async (req, res) => {
@@ -73,12 +95,29 @@ adminRouter.post(
   }),
 );
 
+adminRouter.delete(
+  '/users/:id',
+  validate({ params: idParam, body: reasonSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(ok(await service.deleteUser(req.user.id, req.validated.params.id, req.validated.body), { requestId: req.id }));
+  }),
+);
+
+adminRouter.post(
+  '/users/:id/restore',
+  validate({ params: idParam, body: optionalReasonSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(ok(await service.restoreUser(req.user.id, req.validated.params.id, req.validated.body), { requestId: req.id }));
+  }),
+);
+
 /* --------------------------------------------------------------- drivers */
 
 const driversQuery = paginationQuery.extend({
   status: z.enum(DRIVER_STATUSES).optional(),
   availability: z.enum(DRIVER_AVAILABILITY).optional(),
   q: z.string().trim().min(2).max(60).optional(),
+  deleted: deletedFilter,
 });
 
 const createDriverSchema = z.object({
@@ -86,8 +125,15 @@ const createDriverSchema = z.object({
   fullName: trimmedString(2, 100),
   phone,
   vehicleType: z.enum(VEHICLE_TYPES).default('MOTORCYCLE'),
-  vehiclePlate: trimmedString(2, 20),
-});
+  vehiclePlate: trimmedString(2, 20).optional(),
+})
+  // A bicycle has no plate, so none is stored for one; every motor vehicle needs one.
+  .superRefine((v, ctx) => {
+    if (v.vehicleType !== 'BICYCLE' && !v.vehiclePlate) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['vehiclePlate'], message: 'is required for this vehicle' });
+    }
+  })
+  .transform((v) => (v.vehicleType === 'BICYCLE' ? { ...v, vehiclePlate: null } : v));
 
 adminRouter.get('/drivers', validate({ query: driversQuery }), asyncHandler(async (req, res) => {
   const { data, meta } = await service.listDrivers(req.validated.query);
@@ -115,11 +161,28 @@ adminRouter.post(
   }),
 );
 
+adminRouter.delete(
+  '/drivers/:id',
+  validate({ params: idParam, body: reasonSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(ok(await service.deleteDriver(req.user.id, req.validated.params.id, req.validated.body), { requestId: req.id }));
+  }),
+);
+
+adminRouter.post(
+  '/drivers/:id/restore',
+  validate({ params: idParam, body: optionalReasonSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(ok(await service.restoreDriver(req.user.id, req.validated.params.id, req.validated.body), { requestId: req.id }));
+  }),
+);
+
 /* ----------------------------------------------------------- restaurants */
 
 const restaurantsQuery = paginationQuery.extend({
   status: z.enum(RESTAURANT_STATUSES).optional(),
   q: z.string().trim().min(2).max(60).optional(),
+  deleted: deletedFilter,
 });
 
 adminRouter.get('/restaurants', validate({ query: restaurantsQuery }), asyncHandler(async (req, res) => {
@@ -159,6 +222,22 @@ adminRouter.post(
   }),
 );
 
+adminRouter.delete(
+  '/restaurants/:id',
+  validate({ params: idParam, body: reasonSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(ok(await service.deleteRestaurant(req.user.id, req.validated.params.id, req.validated.body), { requestId: req.id }));
+  }),
+);
+
+adminRouter.post(
+  '/restaurants/:id/restore',
+  validate({ params: idParam, body: optionalReasonSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(ok(await service.restoreRestaurant(req.user.id, req.validated.params.id, req.validated.body), { requestId: req.id }));
+  }),
+);
+
 /* ---------------------------------------------------------------- orders */
 
 const ordersQuery = paginationQuery.extend({
@@ -166,6 +245,7 @@ const ordersQuery = paginationQuery.extend({
   restaurantId: uuid.optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
+  q: z.string().trim().min(2).max(60).optional(),
 }).refine((v) => !v.from || !v.to || v.from <= v.to, {
   message: 'from must be before or equal to to',
   path: ['from'],
@@ -202,6 +282,7 @@ adminRouter.post(
 const reviewsQuery = paginationQuery.extend({
   status: z.enum(REVIEW_STATUSES).optional(),
   restaurantId: uuid.optional(),
+  q: z.string().trim().min(2).max(60).optional(),
 });
 
 adminRouter.get('/reviews', validate({ query: reviewsQuery }), asyncHandler(async (req, res) => {

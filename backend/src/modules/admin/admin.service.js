@@ -33,13 +33,15 @@ import { toAdminRestaurantDto } from '../restaurants/index.js';
 export async function listUsers(query) {
   const { limit, offset, page } = toLimitOffset(query);
   const q = knex('users')
-    .whereNull('deleted_at')
     .select('*', knex.raw('count(*) OVER() AS total_count'))
     .orderBy('created_at', 'desc')
     .limit(limit)
     .offset(offset);
   if (query.role) q.where('role', query.role);
   if (query.status) q.where('status', query.status);
+  // A deleted account has no live status, so it only shows under "All" and "Deleted".
+  if (query.deleted === 'only') q.whereNotNull('deleted_at');
+  else if (query.status) q.whereNull('deleted_at');
   if (query.q) {
     q.where((b) => b.whereILike('full_name', `%${query.q}%`).orWhereILike('email', `%${query.q}%`));
   }
@@ -48,6 +50,7 @@ export async function listUsers(query) {
     data: rows.map((u) => ({
       id: u.id, email: u.email, fullName: u.full_name, phone: u.phone,
       role: u.role, status: u.status, createdAt: u.created_at, lastLoginAt: u.last_login_at,
+      deletedAt: u.deleted_at,
     })),
     meta: paginationMeta({ page, limit, total: rows[0]?.total_count ?? 0 }),
   };
@@ -111,6 +114,154 @@ export async function reactivateUser(adminUserId, userId, { reason } = {}) {
       trx,
     );
     return { id: userId, status: 'ACTIVE' };
+  });
+}
+
+/* --------------------------------------------------------------- deletion */
+// Soft delete (BR-A6): the row stays, so orders and reviews keep their history,
+// and `authenticate` rejects a deleted account on its very next request.
+
+const alreadyDeleted = () => new ConflictError('CONFLICT', {
+  details: [{ field: 'id', issue: 'This record is already deleted.' }],
+});
+
+export async function deleteUser(adminUserId, userId, { reason }) {
+  if (adminUserId === userId) {
+    throw new ValidationError('UNPROCESSABLE', {
+      details: [{ field: 'id', issue: 'You cannot delete your own account.' }],
+    });
+  }
+  return withTransaction(async (trx) => {
+    const user = await users.getUserByIdIncludingDeleted(userId, trx);
+    if (!user) throw new NotFoundError('RESOURCE_NOT_FOUND');
+    // A restaurant or driver account has its own rules (orders, deliveries).
+    if (user.role === 'RESTAURANT' || user.role === 'DRIVER') {
+      throw new ValidationError('UNPROCESSABLE', {
+        details: [{ field: 'id', issue: 'Delete this account from the Restaurants or Drivers page.' }],
+      });
+    }
+    if (user.deleted_at) throw alreadyDeleted();
+    if (await orders.countActiveOrdersForCustomer(userId, trx)) {
+      throw new ConflictError('HAS_ACTIVE_ORDERS', {
+        details: [{ field: 'id', issue: 'This customer has an order in progress. Wait for it to finish, or force-cancel it first.' }],
+      });
+    }
+
+    const row = await users.softDeleteUser(userId, trx);
+    await auth.revokeAllForUser(userId, trx);
+    await audit(
+      { adminUserId, action: 'USER_DELETED', entityType: 'user', entityId: userId, metadata: { reason } },
+      trx,
+    );
+    return { id: userId, deletedAt: row.deleted_at };
+  });
+}
+
+export async function deleteDriver(adminUserId, userId, { reason }) {
+  return withTransaction(async (trx) => {
+    const user = await users.getUserByIdIncludingDeleted(userId, trx);
+    if (!user || user.role !== 'DRIVER') throw new NotFoundError('RESOURCE_NOT_FOUND');
+    if (user.deleted_at) throw alreadyDeleted();
+    const active = await delivery.findActiveAssignment(userId, trx);
+    if (active) {
+      throw new ConflictError('DRIVER_HAS_ACTIVE_DELIVERY', {
+        details: [{ field: 'id', issue: 'This driver has an active delivery.', orderId: active.order_id }],
+      });
+    }
+
+    const row = await users.softDeleteUser(userId, trx);
+    // Dispatch already skips deleted users; OFFLINE makes the profile say so too.
+    await delivery.updateProfileRaw(userId, { availability: 'OFFLINE' }, trx);
+    await auth.revokeAllForUser(userId, trx);
+    await audit(
+      { adminUserId, action: 'DRIVER_DELETED', entityType: 'driver', entityId: userId, metadata: { reason } },
+      trx,
+    );
+    return { id: userId, deletedAt: row.deleted_at };
+  });
+}
+
+/** The owner's account exists only for this restaurant, so it goes with it. */
+export async function deleteRestaurant(adminUserId, restaurantId, { reason }) {
+  return withTransaction(async (trx) => {
+    const restaurant = await restaurants.getRestaurantByIdIncludingDeleted(restaurantId, trx);
+    if (!restaurant) throw new NotFoundError('RESOURCE_NOT_FOUND');
+    if (restaurant.deleted_at) throw alreadyDeleted();
+    if (await orders.countActiveOrdersForRestaurant(restaurantId, trx)) {
+      throw new ConflictError('HAS_ACTIVE_ORDERS', {
+        details: [{ field: 'id', issue: 'This restaurant has orders in progress. Wait for them to finish, or force-cancel them first.' }],
+      });
+    }
+
+    const row = await restaurants.softDeleteRestaurant(restaurantId, trx);
+    await users.softDeleteUser(restaurant.owner_user_id, trx);
+    await auth.revokeAllForUser(restaurant.owner_user_id, trx);
+    await audit(
+      {
+        adminUserId, action: 'RESTAURANT_DELETED', entityType: 'restaurant', entityId: restaurantId,
+        metadata: { reason, ownerUserId: restaurant.owner_user_id },
+      },
+      trx,
+    );
+    return { id: restaurantId, deletedAt: row.deleted_at };
+  });
+}
+
+/* ---------------------------------------------------------------- restore */
+// Restore only clears deleted_at: suspension and approval are left as they were.
+
+const notDeleted = () => new ConflictError('CONFLICT', {
+  details: [{ field: 'id', issue: 'This record is not deleted.' }],
+});
+
+export async function restoreUser(adminUserId, userId, { reason } = {}) {
+  return withTransaction(async (trx) => {
+    const user = await users.getUserByIdIncludingDeleted(userId, trx);
+    if (!user) throw new NotFoundError('RESOURCE_NOT_FOUND');
+    if (user.role === 'RESTAURANT' || user.role === 'DRIVER') {
+      throw new ValidationError('UNPROCESSABLE', {
+        details: [{ field: 'id', issue: 'Restore this account from the Restaurants or Drivers page.' }],
+      });
+    }
+    if (!user.deleted_at) throw notDeleted();
+    await users.restoreUser(userId, trx);
+    await audit(
+      { adminUserId, action: 'USER_RESTORED', entityType: 'user', entityId: userId, metadata: { reason } },
+      trx,
+    );
+    return { id: userId, deletedAt: null };
+  });
+}
+
+export async function restoreDriver(adminUserId, userId, { reason } = {}) {
+  return withTransaction(async (trx) => {
+    const user = await users.getUserByIdIncludingDeleted(userId, trx);
+    if (!user || user.role !== 'DRIVER') throw new NotFoundError('RESOURCE_NOT_FOUND');
+    if (!user.deleted_at) throw notDeleted();
+    await users.restoreUser(userId, trx);
+    await audit(
+      { adminUserId, action: 'DRIVER_RESTORED', entityType: 'driver', entityId: userId, metadata: { reason } },
+      trx,
+    );
+    return { id: userId, deletedAt: null };
+  });
+}
+
+export async function restoreRestaurant(adminUserId, restaurantId, { reason } = {}) {
+  return withTransaction(async (trx) => {
+    const restaurant = await restaurants.getRestaurantByIdIncludingDeleted(restaurantId, trx);
+    if (!restaurant) throw new NotFoundError('RESOURCE_NOT_FOUND');
+    if (!restaurant.deleted_at) throw notDeleted();
+    await restaurants.restoreRestaurant(restaurantId, trx);
+    await users.restoreUser(restaurant.owner_user_id, trx);
+    await audit(
+      {
+        adminUserId, action: 'RESTAURANT_RESTORED', entityType: 'restaurant', entityId: restaurantId,
+        metadata: { reason, ownerUserId: restaurant.owner_user_id },
+      },
+      trx,
+    );
+    return { id: restaurantId, deletedAt: null };
   });
 }
 
@@ -215,7 +366,9 @@ export async function listDrivers(query) {
       ratingAverage: d.rating_average,
       ratingCount: d.rating_count,
       userStatus: d.user_status,
-      createdAt: d.created_at,
+      // Joined is the account's creation date, not the profile row's.
+      createdAt: d.user_created_at,
+      deletedAt: d.user_deleted_at,
     })),
     meta: paginationMeta({ page, limit, total }),
   };
@@ -277,6 +430,66 @@ export async function createDriver(adminUserId, input) {
       id: result.profile.id, status: result.profile.status,
       availability: result.profile.availability, vehicleType: result.profile.vehicle_type,
     },
+    initialPassword,
+  };
+}
+
+/**
+ * An admin creates a customer, another admin, or a restaurant owner with their
+ * restaurant, the same way drivers are provisioned: a generated password shown
+ * exactly once (BR-AD8), and an audit entry. A restaurant created here still
+ * starts PENDING_APPROVAL, so going live stays its own audited decision.
+ */
+export async function createAccount(adminUserId, input) {
+  const existing = await knex('users').where({ email: input.email }).first('id');
+  if (existing) throw new ConflictError('EMAIL_ALREADY_REGISTERED');
+
+  const initialPassword = generateInitialPassword();
+  const passwordHash = await auth.hashPassword(initialPassword);
+
+  const result = await withTransaction(async (trx) => {
+    const [user] = await trx('users')
+      .insert({
+        email: input.email,
+        password_hash: passwordHash,
+        full_name: input.fullName,
+        phone: input.phone,
+        role: input.role,
+        status: 'ACTIVE',
+      })
+      .returning('*');
+
+    let restaurant = null;
+    if (input.role === 'RESTAURANT') {
+      [restaurant] = await trx('restaurants')
+        .insert({
+          owner_user_id: user.id,
+          name: input.restaurantName,
+          slug: await auth.allocateSlug(input.restaurantName, trx),
+          status: 'PENDING_APPROVAL',
+          is_accepting_orders: true,
+        })
+        .returning('*');
+    }
+
+    await audit(
+      {
+        adminUserId, action: 'USER_CREATED', entityType: 'user', entityId: user.id,
+        metadata: { email: input.email, role: input.role },
+      },
+      trx,
+    );
+    return { user, restaurant };
+  });
+
+  return {
+    user: {
+      id: result.user.id, email: result.user.email, fullName: result.user.full_name,
+      phone: result.user.phone, role: result.user.role, status: result.user.status,
+    },
+    restaurant: result.restaurant
+      ? { id: result.restaurant.id, name: result.restaurant.name, status: result.restaurant.status }
+      : null,
     initialPassword,
   };
 }

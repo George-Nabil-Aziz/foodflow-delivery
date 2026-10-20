@@ -26,6 +26,7 @@ export default {
   'You have already reviewed this order.': 'لقد قيّمت هذا الطلب من قبل.',
   'This review can no longer be edited.': 'لم يعد بالإمكان تعديل هذا التقييم.',
   'This driver has an active delivery.': 'لدى هذا السائق توصيل جارٍ.',
+  'There are orders still in progress.': 'لا تزال هناك طلبات قيد التنفيذ.',
   'This delivery offer is no longer available.': 'لم يعد عرض التوصيل هذا متاحًا.',
   'The request conflicts with the current state.': 'يتعارض الطلب مع الحالة الحالية.',
   'Some of the submitted values are not valid.': 'بعض القيم المُدخلة غير صالحة.',
@@ -44,6 +45,13 @@ export default {
 
   // details[].issue from services
   'You cannot suspend your own account.': 'لا يمكنك إيقاف حسابك.',
+  'You cannot delete your own account.': 'لا يمكنك حذف حسابك.',
+  'This customer has an order in progress. Wait for it to finish, or force-cancel it first.': 'لدى هذا العميل طلب قيد التنفيذ. انتظر حتى يكتمل أو ألغِه إلغاءً إجباريًا أولًا.',
+  'This restaurant has orders in progress. Wait for them to finish, or force-cancel them first.': 'لدى هذا المطعم طلبات قيد التنفيذ. انتظر حتى تكتمل أو ألغِها إلغاءً إجباريًا أولًا.',
+  'This record is already deleted.': 'تم حذف هذا السجل من قبل.',
+  'This record is not deleted.': 'هذا السجل غير محذوف.',
+  'Delete this account from the Restaurants or Drivers page.': 'احذف هذا الحساب من صفحة المطاعم أو السائقين.',
+  'Restore this account from the Restaurants or Drivers page.': 'استعد هذا الحساب من صفحة المطاعم أو السائقين.',
   'This restaurant is already active.': 'هذا المطعم نشط بالفعل.',
   'A restaurant needs at least one available food item before it can be approved.':
     'يجب أن يحتوي المطعم على صنف متاح واحد على الأقل قبل الموافقة عليه.',
@@ -75,6 +83,7 @@ export default {
   'must be at most 100': 'يجب ألا يزيد على 100',
   'must be at most 999.99': 'يجب ألا يزيد على 999.99',
   'must be at most 9999.99': 'يجب ألا يزيد على 9999.99',
+  'must not be blank': 'يجب ألا يكون فارغًا',
   'must be at least 2 characters': 'يجب أن يتكون من حرفين على الأقل',
   'must be at least 5 characters': 'يجب أن يتكون من 5 أحرف على الأقل',
   'must be at least 8 characters': 'يجب أن يتكون من 8 أحرف على الأقل',

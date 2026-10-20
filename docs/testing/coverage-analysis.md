@@ -1,6 +1,6 @@
 # FoodFlow — Coverage Analysis
 
-> Measured against [`../sdd/`](../sdd/) after writing all 424 test cases.
+> Measured against [`../sdd/`](../sdd/) after writing all 430 test cases.
 > Figures are derived from the case files, not estimated.
 
 ---
@@ -17,7 +17,7 @@
 | Order state transitions | 245 | 245 | **100%** |
 | Roles (+ anonymous) | 5 | 5 | **100%** |
 
-**424 test cases**, `TC-001` – `TC-424`, all IDs unique with no gaps.
+**430 test cases**, `TC-001` – `TC-430`, all IDs unique with no gaps.
 
 ---
 
@@ -36,7 +36,7 @@
 | spec-09 Reviews | 30 | | story-09 Reviews | 31 |
 | spec-10 Administration | 48 | | story-10 Administration | 43 |
 
-Counts exceed 424 in total because a case commonly traces to more than one spec
+Counts exceed 430 in total because a case commonly traces to more than one spec
 or story — which is the point of a vertical slice.
 
 **Distribution sanity check.** spec-07 (orders) and spec-06 (cart) carry the
@@ -123,7 +123,7 @@ hand-written cases.
 | `/orders` | 5 | TC-167 – TC-196 |
 | `/driver` | 11 | TC-229 – TC-254, TC-422 |
 | `/reviews` | 4 | TC-255 – TC-276, TC-420 |
-| `/admin` | 23 | TC-277 – TC-300, TC-418, TC-424 |
+| `/admin` | 23 | TC-277 – TC-300, TC-418, TC-424 – TC-430 |
 | `/health` | 1 | TC-408, TC-409 |
 
 Six read endpoints initially had no dedicated case — `/api/cuisines`,

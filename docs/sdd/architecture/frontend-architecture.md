@@ -30,7 +30,7 @@ frontend/
 │   │   │               MenuItemsView, IncomingOrdersView, OrderDetailView, OrderHistoryView }
 │   │   ├── driver/   { DashboardView, OffersView, ActiveDeliveryView,
 │   │   │               DeliveryHistoryView, ProfileView }
-│   │   └── admin/    { DashboardView, UsersView, RestaurantsView, DriversView,
+│   │   └── admin/    { DashboardView, UserListView, RestaurantsView, DriversView,
 │   │                   OrdersView, ReviewsView, StatisticsView }
 │   ├── components/
 │   │   ├── shared/   { AppButton, AppInput, AppSelect, AppModal, AppCard, AppBadge,

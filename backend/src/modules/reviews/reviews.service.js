@@ -216,6 +216,12 @@ export async function adminList(query) {
     .offset(offset);
   if (query.status) q.where('rv.status', query.status);
   if (query.restaurantId) q.where('rv.restaurant_id', query.restaurantId);
+  // Search by restaurant, customer or what the review says.
+  if (query.q) {
+    q.where((b) => b.whereILike('r.name', `%${query.q}%`)
+      .orWhereILike('cu.full_name', `%${query.q}%`)
+      .orWhereILike('rv.comment', `%${query.q}%`));
+  }
 
   const rows = await q;
   return {

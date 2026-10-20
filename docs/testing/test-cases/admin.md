@@ -1,4 +1,4 @@
-# Test Cases — Admin (TC-277 – TC-300, TC-418)
+# Test Cases — Admin (TC-277 – TC-300, TC-418, TC-425 – TC-430)
 
 > Covers [spec-10](../../sdd/specs/spec-10-platform-administration-reporting.md) ·
 > [story-10](../../sdd/stories/story-10-platform-administration-reporting.md) ·
@@ -110,7 +110,7 @@ real check on a role with unrestricted access. Statistics are Medium.
 ### TC-290 — Duplicate driver email is refused
 **Spec** spec-10 · **Story** story-10 · **AC** — · **Rules** BR-A1
 **Type** API · **Priority** Medium
-**Steps** 1. Create a driver with `customer@example.com`.
+**Steps** 1. Create a driver with `sara.idris@gmail.com`.
 **Expected** 409 `EMAIL_ALREADY_REGISTERED`; no user or profile created.
 
 ---
@@ -202,3 +202,47 @@ real check on a role with unrestricted access. Statistics are Medium.
 **Steps** 1. Open the confirmation dialog for suspend-user, reject-restaurant, suspend-driver, force-cancel-order and hide-review. 2. Attempt to confirm with an empty reason. 3. Enter a valid reason and confirm. 4. Dismiss a dialog without confirming.
 **Expected** Each dialog **names its specific consequence** (for example, "This will cancel order FF-20260922-4K9P2M and release the driver"); confirm stays disabled until a reason of 5–300 characters is entered; dismissing issues no request and changes nothing.
 **Notes** An admin acting on the wrong row is the realistic failure mode here, not an admin acting maliciously — which is why the dialog names the target rather than just asking "are you sure?".
+
+## Deletion and restore
+
+### TC-425 — users, drivers and restaurants include deleted rows unless a status is chosen
+**Spec** spec-10 · **Story** story-10 · **AC** — · **Rules** BR-A6
+**Type** API · **Priority** High
+**Steps** 1. Soft-delete a customer, a driver and a restaurant. 2. `GET /api/admin/users`, `/drivers` and `/restaurants` with no filter. 3. Repeat with `deleted=only`. 4. Repeat with a status filter (for example `status=ACTIVE`).
+**Expected** Unfiltered lists include the deleted rows, each with a `deletedAt` value; `deleted=only` returns only deleted rows; a status filter excludes deleted rows.
+**Status** Automated — `backend/tests/integration/adminDeletion.test.js`.
+
+### TC-426 — restaurant owners and drivers report their user created_at
+**Spec** spec-10 · **Story** story-10 · **AC** — · **Rules** BR-A6
+**Type** API · **Priority** Medium
+**Steps** 1. `GET /api/admin/restaurants` and `/api/admin/drivers`. 2. Read the owner's and the driver's `createdAt`.
+**Expected** Each row reports the `created_at` of the underlying user account.
+**Status** Automated — `backend/tests/integration/adminDeletion.test.js`.
+
+### TC-427 — soft-deletes, audits, ends sessions and blocks sign-in
+**Spec** spec-10 · **Story** story-10 · **AC** — · **Rules** BR-A6
+**Type** API / Security · **Priority** Critical
+**Steps** 1. As `ADMIN_A`, `DELETE /api/admin/users/{CUST_A}` with a valid reason. 2. Check the row and the audit log, call `GET /api/me` with `CUST_A`'s existing access token, and attempt a login as `CUST_A`. 3. Attempt to delete yourself, a customer with an order in progress, a RESTAURANT or DRIVER account via `/users/:id`, an already-deleted user, and any user with a missing reason.
+**Expected** Step 1 → 200; `deleted_at` set, one `USER_DELETED` audit row written, `GET /api/me` with the old token → 401, login → 401. Step 3 → 422 `UNPROCESSABLE` (self; role accounts), 409 `HAS_ACTIVE_ORDERS`, 409 `CONFLICT` (repeat), and a validation error for the missing reason, with the issue strings in the design spec §5.
+**Status** Automated — `backend/tests/integration/adminDeletion.test.js`.
+
+### TC-428 — deletes the restaurant and its owner, and hides it from customers
+**Spec** spec-10 · **Story** story-10 · **AC** — · **Rules** BR-A6
+**Type** API · **Priority** High
+**Steps** 1. `DELETE /api/admin/restaurants/{id}` with a reason. 2. Check the restaurant and its owner's user, and browse discovery as a customer, and attempt a login as the owner. 3. Attempt to delete a restaurant that has an order in progress. 4. Delete the same restaurant again.
+**Expected** Step 1 → 200; the restaurant and its owner both get `deleted_at`, and the restaurant disappears from discovery; the owner's login → 401. Step 3 → 409 `HAS_ACTIVE_ORDERS` ("This restaurant has orders in progress. Wait for them to finish, or force-cancel them first."). Step 4 → 409 ("This record is already deleted.").
+**Status** Automated — `backend/tests/integration/adminDeletion.test.js`.
+
+### TC-429 — deletes the account and takes the driver offline
+**Spec** spec-10 · **Story** story-10 · **AC** — · **Rules** BR-A6
+**Type** API · **Priority** High
+**Steps** 1. `DELETE /api/admin/drivers/{id}` for an available driver. 2. Check the user, the profile, the audit log and a login as the driver. 3. Delete the same driver again. 4. Attempt to delete a driver holding an ACCEPTED assignment. 5. Read `GET /api/admin/stats` before and after deleting a PENDING_APPROVAL driver.
+**Expected** Step 1 → 200; the user gets `deleted_at`, the profile becomes OFFLINE, a `DRIVER_DELETED` audit row is written and login → 401. Step 3 → 409 ("This record is already deleted."). Step 4 → 409 `DRIVER_HAS_ACTIVE_DELIVERY` ("This driver has an active delivery."). Step 5 → `accounts.pendingDrivers` drops by 1.
+**Status** Automated — `backend/tests/integration/adminDeletion.test.js`.
+
+### TC-430 — a restored customer can sign in again and keeps their status
+**Spec** spec-10 · **Story** story-10 · **AC** — · **Rules** BR-A6
+**Type** API · **Priority** High
+**Steps** 1. Restore two deleted customers via `POST /api/admin/users/{id}/restore` and sign in as the second. 2. Restore a deleted (and previously suspended) restaurant. 3. Restore a deleted driver. 4. Attempt to restore a customer, a driver and a restaurant that are not deleted, and a RESTAURANT or DRIVER account via `/users/:id/restore`.
+**Expected** Each restore → 200 and writes a `USER_RESTORED`, `RESTAURANT_RESTORED` or `DRIVER_RESTORED` audit row. The customer can sign in with their prior status. The restaurant returns with its owner and its old status. The driver stays OFFLINE. Step 4 → 409 `CONFLICT` ("This record is not deleted.") for the three non-deleted records, and 422 `UNPROCESSABLE` for the role accounts on `/users/:id/restore`.
+**Status** Automated — `backend/tests/integration/adminDeletion.test.js`.

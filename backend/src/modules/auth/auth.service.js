@@ -41,7 +41,7 @@ async function issueSession(user, { userAgent, ipAddress } = {}, trx) {
   };
 }
 
-async function allocateSlug(name, trx) {
+export async function allocateSlug(name, trx) {
   const base = slugify(name);
   for (let attempt = 0; attempt < 50; attempt += 1) {
     const candidate = nextSlugCandidate(base, attempt);

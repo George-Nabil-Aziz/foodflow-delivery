@@ -7,6 +7,22 @@ const CLOSED_STATUSES = ['DELIVERED', 'CANCELLED'];
 
 export { ACTIVE_STATUSES, CLOSED_STATUSES };
 
+export async function countActiveForCustomer(customerUserId, trx) {
+  const [row] = await db(trx)('orders')
+    .where({ customer_user_id: customerUserId })
+    .whereIn('status', ACTIVE_STATUSES)
+    .count();
+  return Number(row?.count ?? 0);
+}
+
+export async function countActiveForRestaurant(restaurantId, trx) {
+  const [row] = await db(trx)('orders')
+    .where({ restaurant_id: restaurantId })
+    .whereIn('status', ACTIVE_STATUSES)
+    .count();
+  return Number(row?.count ?? 0);
+}
+
 /**
  * Row-locking read used before every transition (BR-O9).
  *
@@ -190,7 +206,7 @@ export function findDriverUser(driverUserId, trx) {
 
 /* ------------------------------------------------------------- admin lists */
 
-export async function adminList({ status, restaurantId, from, to, limit, offset }, trx) {
+export async function adminList({ status, restaurantId, from, to, q: search, limit, offset }, trx) {
   const conn = db(trx);
   const q = conn('orders as o')
     .leftJoin('users as cu', 'cu.id', 'o.customer_user_id')
@@ -206,6 +222,12 @@ export async function adminList({ status, restaurantId, from, to, limit, offset 
   if (restaurantId) q.where('o.restaurant_id', restaurantId);
   if (from) q.where('o.created_at', '>=', from);
   if (to) q.where('o.created_at', '<=', to);
+  // Search by what an admin has in hand: the order number, the restaurant or the customer.
+  if (search) {
+    q.where((b) => b.whereILike('o.order_number', `%${search}%`)
+      .orWhereILike('o.restaurant_name_snapshot', `%${search}%`)
+      .orWhereILike('cu.full_name', `%${search}%`));
+  }
   const rows = await q;
   return { rows, total: rows[0]?.total_count ?? 0 };
 }

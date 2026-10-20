@@ -23,6 +23,7 @@ test('TC-396: an admin works the dashboard, the queues and the audit log', async
 
   /* Arrange the things the admin will act on. */
   const victim = await registerCustomer({ fullName: 'Suspendable Customer' });
+  const leaver = await registerCustomer({ fullName: 'Departing Customer' });
   const pendingOwner = await registerOwner({ restaurantName: `Approve Me ${Date.now().toString(36)}` });
   const rejectOwner = await registerOwner({ restaurantName: `Reject Me ${Date.now().toString(36)}` });
 
@@ -65,14 +66,16 @@ test('TC-396: an admin works the dashboard, the queues and the audit log', async
 
   await signIn(page, SEED.adminEmail, SEED.adminPassword);
 
-  /* 1. The dashboard shows its tiles and an alert strip. */
+  /* 1. The dashboard greets the admin and links to what needs attention. */
   await page.goto('/admin');
-  await expect(page.getByRole('heading', { name: 'Platform dashboard' })).toBeVisible();
-  await expect(page.getByRole('status').filter({ hasText: 'Needs attention' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^Welcome, / })).toBeVisible();
+  // What needs action lives on its own page, one click away.
+  await page.getByRole('link', { name: /Needs attention/ }).click();
+  await expect(page.getByRole('heading', { name: 'Needs attention' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: /awaiting approval/ })).toBeVisible();
 
   /* 2. Filter and search the user list, then suspend with a reason. */
-  await page.goto('/admin/users');
-  await page.getByLabel('Role').selectOption('CUSTOMER');
+  await page.goto('/admin/customers');
   await page.getByLabel('Search').fill(victim.user.email);
   const victimRow = page.locator('tr', { hasText: victim.user.email });
   await expect(victimRow).toBeVisible();
@@ -82,10 +85,23 @@ test('TC-396: an admin works the dashboard, the queues and the audit log', async
   // The confirm button stays disabled until a reason is given.
   await expect(suspendDialog.getByRole('button', { name: /Suspend/ })).toBeDisabled();
   await confirmDialog(page, { reason: 'Repeated fraudulent chargebacks', confirmLabel: /Suspend/ });
-  await expect(victimRow.getByText('SUSPENDED')).toBeVisible({ timeout: 20_000 });
+  await expect(victimRow.getByText('Suspended')).toBeVisible({ timeout: 20_000 });
+
+  /* 2b. Delete a customer, find them under Deleted, and restore them. */
+  await page.getByLabel('Search').fill(leaver.user.email);
+  const leaverRow = page.locator('tr', { hasText: leaver.user.email });
+  await leaverRow.getByRole('button', { name: 'Delete' }).click();
+  await confirmDialog(page, { reason: 'Customer asked to close the account', confirmLabel: 'Delete account' });
+  await expect(leaverRow.getByText('Deleted')).toBeVisible({ timeout: 20_000 });
+
+  await page.getByLabel('Status').selectOption('DELETED');
+  await expect(leaverRow).toBeVisible();
+  await leaverRow.getByRole('button', { name: 'Restore' }).click();
+  await expect(leaverRow).toBeHidden({ timeout: 20_000 });
 
   /* 3. Approve one restaurant and reject another, with a reason. */
   await page.goto('/admin/restaurants');
+  await page.getByLabel('Status').selectOption('PENDING_APPROVAL');
   const approveRow = page.locator('li', { hasText: pendingOwner.restaurant.name }).first();
   await approveRow.getByRole('button', { name: 'Approve' }).click();
 
@@ -98,7 +114,7 @@ test('TC-396: an admin works the dashboard, the queues and the audit log', async
 
   /* 4. Filter the order list and force-cancel, reason mandatory. */
   await page.goto('/admin/orders');
-  await page.getByLabel('Filter by status').selectOption('PREPARING');
+  await page.getByLabel('Status').selectOption('PREPARING');
   const orderRow = page.locator('tr', { hasText: order.orderNumber });
   await expect(orderRow).toBeVisible();
 

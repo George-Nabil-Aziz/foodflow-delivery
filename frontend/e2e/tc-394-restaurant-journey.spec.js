@@ -89,7 +89,8 @@ test('TC-394: restaurant onboarding through fulfilment', async ({ browser }) => 
 
   /* 4. Admin approves from the pending queue. */
   await signIn(adminPage, SEED.adminEmail, SEED.adminPassword);
-  await adminPage.goto('/admin/restaurants');
+  // The pending queue is its own tab; ?status= opens it directly.
+  await adminPage.goto('/admin/restaurants?status=PENDING_APPROVAL');
   const pendingRow = adminPage.locator('li', { hasText: restaurantName }).first();
   await expect(pendingRow).toBeVisible();
   await pendingRow.getByRole('button', { name: 'Approve' }).click();

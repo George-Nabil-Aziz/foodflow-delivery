@@ -22,22 +22,25 @@ export async function insertProfile(data, trx) {
   return row;
 }
 
-export async function adminListDrivers({ status, availability, q, limit, offset }, trx) {
+export async function adminListDrivers({ status, availability, q, deleted, limit, offset }, trx) {
   const conn = db(trx);
   const query = conn('driver_profiles as d')
     .join('users as u', 'u.id', 'd.user_id')
-    .whereNull('u.deleted_at')
     .select(
       'd.*',
       'u.full_name',
       'u.email',
       'u.phone',
       'u.status as user_status',
+      'u.created_at as user_created_at',
+      'u.deleted_at as user_deleted_at',
       conn.raw('count(*) OVER() AS total_count'),
     )
-    .orderBy('d.created_at', 'desc')
+    .orderBy('u.created_at', 'desc')
     .limit(limit)
     .offset(offset);
+  if (deleted === 'only') query.whereNotNull('u.deleted_at');
+  else if (status || availability) query.whereNull('u.deleted_at');
   if (status) query.where('d.status', status);
   if (availability) query.where('d.availability', availability);
   if (q) query.where((b) => b.whereILike('u.full_name', `%${q}%`).orWhereILike('u.email', `%${q}%`));

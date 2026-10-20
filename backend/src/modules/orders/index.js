@@ -5,6 +5,8 @@ export {
   assignDriver,
   setDispatchState,
   getOrderById,
+  countActiveOrdersForCustomer,
+  countActiveOrdersForRestaurant,
   getOrderForActor,
   listEvents,
   adminList,

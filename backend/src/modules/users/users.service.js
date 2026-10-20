@@ -114,3 +114,6 @@ export async function getAddressForOrder(userId, addressId, trx) {
 
 export const getUserById = repo.findById;
 export const setUserStatus = repo.setStatus;
+export const getUserByIdIncludingDeleted = repo.findByIdIncludingDeleted;
+export const softDeleteUser = repo.softDelete;
+export const restoreUser = repo.restore;

@@ -134,6 +134,9 @@ export async function setStatus(id, status, extra = {}, trx) {
 
 export const countAvailableItems = repo.countAvailableItems;
 export const adminList = repo.adminList;
+export const getRestaurantByIdIncludingDeleted = repo.findByIdIncludingDeleted;
+export const softDeleteRestaurant = repo.softDelete;
+export const restoreRestaurant = repo.restore;
 
 /** Recomputes the rating aggregate from source. Called only by the reviews
  *  module's aggregator, which is the single writer of these two columns. */

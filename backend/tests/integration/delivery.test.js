@@ -46,6 +46,63 @@ describe('TC-229..TC-237: driver provisioning and profile', () => {
     expect(audit).toHaveLength(1);
   });
 
+  it('TC-229: a bicycle driver needs no plate; a motor vehicle does', async () => {
+    const admin = await makeUser({ role: 'ADMIN' });
+    const bike = await request(app).post('/api/admin/drivers').set(authHeader(admin))
+      .send({ email: 'bike@example.com', fullName: 'Bike Rider', phone: '+201001110001', vehicleType: 'BICYCLE', vehiclePlate: 'IGNORED' });
+    expect(bike.status).toBe(201);
+    expect(bike.body.data.driverProfile.vehiclePlate ?? null).toBeNull();
+
+    const car = await request(app).post('/api/admin/drivers').set(authHeader(admin))
+      .send({ email: 'car@example.com', fullName: 'Car Driver', phone: '+201001110002', vehicleType: 'CAR' });
+    expect(car.status).toBe(422);
+  });
+
+  it('a driver switching to a bicycle drops the plate; back to a motor vehicle needs one', async () => {
+    const { user } = await makeDriver();
+    const bike = await request(app).patch('/api/driver/profile').set(authHeader(user))
+      .send({ vehicleType: 'BICYCLE' });
+    expect(bike.status).toBe(200);
+    expect(bike.body.data.vehiclePlate ?? null).toBeNull();
+
+    const car = await request(app).patch('/api/driver/profile').set(authHeader(user))
+      .send({ vehicleType: 'CAR' });
+    expect(car.status).toBe(422);
+
+    const carWithPlate = await request(app).patch('/api/driver/profile').set(authHeader(user))
+      .send({ vehicleType: 'CAR', vehiclePlate: 'RUH 2222' });
+    expect(carWithPlate.status).toBe(200);
+    expect(carWithPlate.body.data.vehiclePlate).toBe('RUH 2222');
+  });
+
+  it('an admin creates customers, admins and restaurant owners, each with a one-time password', async () => {
+    const admin = await makeUser({ role: 'ADMIN' });
+    const create = (body) => request(app).post('/api/admin/users').set(authHeader(admin)).send(body);
+
+    const customer = await create({ role: 'CUSTOMER', email: 'made.customer@example.com', fullName: 'Made Customer', phone: '+201001110010' });
+    expect(customer.status).toBe(201);
+    expect(customer.body.data.user.role).toBe('CUSTOMER');
+    expect(customer.body.data.initialPassword).toEqual(expect.any(String));
+    const login = await request(app).post('/api/auth/login')
+      .send({ email: 'made.customer@example.com', password: customer.body.data.initialPassword });
+    expect(login.status).toBe(200);
+
+    const otherAdmin = await create({ role: 'ADMIN', email: 'made.admin@example.com', fullName: 'Made Admin', phone: '+201001110011' });
+    expect(otherAdmin.status).toBe(201);
+    expect(otherAdmin.body.data.user.role).toBe('ADMIN');
+
+    // A restaurant created by an admin still waits for its own approval.
+    const owner = await create({ role: 'RESTAURANT', email: 'made.owner@example.com', fullName: 'Made Owner', phone: '+201001110012', restaurantName: 'Made Kitchen' });
+    expect(owner.status).toBe(201);
+    expect(owner.body.data.restaurant).toMatchObject({ name: 'Made Kitchen', status: 'PENDING_APPROVAL' });
+
+    expect((await create({ role: 'RESTAURANT', email: 'no.name@example.com', fullName: 'No Name', phone: '+201001110013' })).status).toBe(422);
+    expect((await create({ role: 'DRIVER', email: 'drv@example.com', fullName: 'Drv', phone: '+201001110014' })).status).toBe(422);
+    expect((await create({ role: 'CUSTOMER', email: 'made.customer@example.com', fullName: 'Again', phone: '+201001110015' })).status).toBe(409);
+
+    expect(await knex('admin_audit_logs').where({ action: 'USER_CREATED' })).toHaveLength(3);
+  });
+
   it('TC-230: a driver cannot be self-registered', async () => {
     const res = await request(app).post('/api/auth/register').send({
       email: 'selfdriver@example.com', password: 'Str0ngPass',

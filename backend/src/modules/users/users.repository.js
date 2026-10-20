@@ -10,6 +10,22 @@ export function findByEmail(email, trx) {
   return db(trx)('users').where({ email }).whereNull('deleted_at').first();
 }
 
+/** Admin only: deleted rows are invisible everywhere else. */
+export function findByIdIncludingDeleted(id, trx) {
+  const q = db(trx)('users').where({ id });
+  return (trx ? q.forUpdate() : q).first();
+}
+
+export async function softDelete(id, trx) {
+  const [row] = await db(trx)('users').where({ id }).update({ deleted_at: knex.fn.now() }).returning('*');
+  return row;
+}
+
+export async function restore(id, trx) {
+  const [row] = await db(trx)('users').where({ id }).update({ deleted_at: null }).returning('*');
+  return row;
+}
+
 export async function updateProfile(id, patch, trx) {
   const [row] = await db(trx)('users').where({ id }).update(patch).returning('*');
   return row;
