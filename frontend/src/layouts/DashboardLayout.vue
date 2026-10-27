@@ -58,6 +58,7 @@ const NAV = {
     { to: { name: 'admin-customers' }, label: 'Customers', always: true },
     { to: { name: 'admin-drivers' }, label: 'Drivers', always: true },
     { to: { name: 'admin-orders' }, label: 'Orders', always: true },
+    { to: { name: 'admin-discount-codes' }, label: 'Discount codes', always: true },
     { to: { name: 'admin-reviews' }, label: 'Reviews', always: true },
   ],
 };

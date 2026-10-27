@@ -300,7 +300,7 @@ describe('TC-154..TC-163: revalidation and pricing', () => {
 
     const res = await request(app).get('/api/cart').set(authHeader(customer));
     expect(res.body.data.totals).toEqual({
-      subtotal: '134.00', deliveryFee: '12.00', taxAmount: '18.76', total: '164.76',
+      subtotal: '134.00', discountAmount: '0.00', deliveryFee: '12.00', taxAmount: '18.76', total: '164.76',
     });
     expect(res.body.data.canCheckout).toBe(true);
   });

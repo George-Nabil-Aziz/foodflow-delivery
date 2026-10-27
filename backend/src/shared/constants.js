@@ -36,6 +36,7 @@ export const ASSIGNMENT_STATUSES = ['OFFERED', 'ACCEPTED', 'DECLINED', 'EXPIRED'
 export const PAYMENT_METHODS = ['CASH_ON_DELIVERY', 'CARD'];
 export const PAYMENT_STATUSES = ['INITIATED', 'PAID', 'FAILED', 'REFUNDING', 'REFUNDED', 'REFUND_FAILED'];
 export const PAYMENT_PROVIDERS = ['moyasar', 'fake'];
+export const DISCOUNT_TYPES = ['PERCENT', 'FIXED'];
 export const REVIEW_STATUSES = ['PUBLISHED', 'HIDDEN'];
 
 export const CUISINE_TYPES = [

@@ -102,6 +102,15 @@ export async function markConverted(cartId, trx) {
   return row;
 }
 
+/** Sets or clears (null) the discount code applied to the cart. */
+export async function setDiscount(cartId, discountCodeId, trx) {
+  const [row] = await db(trx)('carts')
+    .where({ id: cartId })
+    .update({ discount_code_id: discountCodeId })
+    .returning('*');
+  return row;
+}
+
 export async function countLines(cartId, trx) {
   const row = await db(trx)('cart_items').where({ cart_id: cartId }).count().first();
   return Number(row?.count ?? 0);

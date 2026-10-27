@@ -77,6 +77,12 @@ const fields = computed(() => {
       ...(o.payment.refundError ? [{ label: t('Refund error'), value: o.payment.refundError }] : []),
     ] : []),
     { label: t('Subtotal'), value: formatMoney(o.subtotal) },
+    ...(Number(o.discountAmount) > 0
+      ? [{
+        label: o.discountCode ? t('Discount ({code})', { code: o.discountCode }) : t('Discount'),
+        value: `−${formatMoney(o.discountAmount)}`,
+      }]
+      : []),
     { label: t('Delivery fee'), value: formatMoney(o.deliveryFee) },
     { label: t('Tax'), value: formatMoney(o.taxAmount) },
     { label: t('Total'), value: formatMoney(o.totalAmount) },

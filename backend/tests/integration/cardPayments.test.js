@@ -471,3 +471,45 @@ describe('payment configuration', () => {
     expect(res.body.data).toEqual({ cardEnabled: true, provider: 'fake', currency: 'EGP' });
   });
 });
+
+describe('with live updates and discount codes', () => {
+  it('pushes order.created to the restaurant when a card order becomes paid', async () => {
+    const { subscribe } = await import('../../src/shared/events/index.js');
+    const ctx = await setup();
+    const res = await checkoutCard(ctx.customer, ctx.address).expect(201);
+    const orderId = res.body.data.id;
+    const payment = await knex('payments').where({ order_id: orderId }).first();
+
+    const seen = [];
+    const unsubscribe = subscribe((event) => seen.push(event));
+    try {
+      await confirm(ctx.customer, orderId, payOnGateway(payment)).expect(200);
+      // The paid listener runs after the confirm commits; let it finish.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    } finally {
+      unsubscribe();
+    }
+
+    // Its screen does not poll while the stream is open, so this is how it learns.
+    const created = seen.find((e) => e.type === 'order.created' && e.data.orderId === orderId);
+    expect(created).toBeDefined();
+    expect(created.audience.restaurantIds).toContain(ctx.restaurant.id);
+  });
+
+  it('refuses card for an order a discount brings to zero, and leaves the cart as it was', async () => {
+    const ctx = await setup();
+    await knex('restaurants').where({ id: ctx.restaurant.id }).update({ delivery_fee: '0.00' });
+    await request(app).post('/api/admin/discount-codes').set(authHeader(ctx.admin))
+      .send({ code: 'ALLFREE', type: 'FIXED', value: '1000.00' }).expect(201);
+    await request(app).post('/api/cart/discount').set(authHeader(ctx.customer))
+      .send({ code: 'ALLFREE' }).expect(200);
+
+    const res = await checkoutCard(ctx.customer, ctx.address);
+
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('UNPROCESSABLE');
+    expect(await knex('orders')).toHaveLength(0);
+    expect(await knex('payments')).toHaveLength(0);
+    expect((await knex('carts').where({ customer_user_id: ctx.customer.id }).first()).status).toBe('ACTIVE');
+  });
+});

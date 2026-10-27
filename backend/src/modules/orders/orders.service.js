@@ -1,4 +1,5 @@
 import { config } from '../../config/index.js';
+import { money } from '../../shared/money.js';
 import { withTransaction } from '../../shared/db/transaction.js';
 import {
   ConflictError,
@@ -28,6 +29,7 @@ import * as menu from '../menu/index.js';
 import * as users from '../users/index.js';
 import * as delivery from '../delivery/index.js';
 import * as payments from '../payments/index.js';
+import * as discounts from '../discounts/index.js';
 import { notify } from '../../shared/notifications.js';
 import { publishAfterCommit, EVENT_TYPES } from '../../shared/events/index.js';
 
@@ -46,6 +48,11 @@ export function publishOrderEvent(trx, order, type = EVENT_TYPES.ORDER_STATUS) {
     },
     data: { orderId: order.id, status: order.status },
   });
+}
+
+/** The code printed on an order's detail views, from its redemption snapshot. */
+async function discountCodeOf(orderId) {
+  return (await discounts.getOrderDiscount(orderId))?.code ?? null;
 }
 
 /* ------------------------------------------------------------------ checkout */
@@ -86,12 +93,20 @@ export async function checkout(customerUserId, { addressId, customerNote, paymen
     }
 
     const created = await insertOrder(
-      { customerUserId, restaurant, lines: liveItems, addressId, customerNote, paymentMethod },
+      { customerUserId, restaurant, lines: liveItems, addressId, customerNote, paymentMethod,
+        discountCode: activeCart.discountCode },
       { id: customerUserId, role: 'CUSTOMER' },
       trx,
     );
     // The amount comes from the total just computed, never from the request.
     if (isCard) {
+      // A discount can bring the total to zero, and a gateway cannot take a
+      // zero payment: that order would only sit unpaid until it timed out.
+      if (money.isZero(created.total_amount)) {
+        throw new ValidationError('UNPROCESSABLE', {
+          details: [{ field: 'paymentMethod', issue: 'There is nothing to pay by card. Choose cash on delivery.' }],
+        });
+      }
       await payments.initiate(
         { orderId: created.id, customerUserId, amount: created.total_amount }, trx,
       );
@@ -183,7 +198,8 @@ export async function adminPlaceOrder(adminUserId, input, trx) {
     }
 
     return insertOrder(
-      { customerUserId, restaurant, lines, addressId, customerNote, paymentMethod: 'CASH_ON_DELIVERY' },
+      { customerUserId, restaurant, lines, addressId, customerNote, paymentMethod: 'CASH_ON_DELIVERY',
+        discountCode: input.discountCode },
       { id: adminUserId, role: 'ADMIN' },
       t,
     );
@@ -219,8 +235,12 @@ export async function notifyStatusChange(order, toStatus) {
 }
 
 /** Prices, checks the minimum and writes the order, its lines and first event. */
-async function insertOrder({ customerUserId, restaurant, lines, addressId, customerNote, paymentMethod }, actor, trx) {
-  const totals = computeTotals({
+async function insertOrder(
+  { customerUserId, restaurant, lines, addressId, customerNote, paymentMethod, discountCode },
+  actor,
+  trx,
+) {
+  const pricing = {
     lines: lines.map((l) => ({
       foodItemId: l.foodItemId,
       name: l.name,
@@ -231,7 +251,8 @@ async function insertOrder({ customerUserId, restaurant, lines, addressId, custo
     })),
     deliveryFee: restaurant.delivery_fee,
     taxRate: config.taxRate,
-  });
+  };
+  let totals = computeTotals(pricing);
 
   if (!meetsMinimum(totals.subtotal, restaurant.minimum_order_amount)) {
     throw new ValidationError('BELOW_MINIMUM_ORDER', {
@@ -244,6 +265,15 @@ async function insertOrder({ customerUserId, restaurant, lines, addressId, custo
       }],
     });
   }
+
+  // The minimum above is on the pre-discount subtotal; the code is validated
+  // (and its row locked) here, then priced by the same computeTotals (BR-DC5).
+  const discount = discountCode
+    ? await discounts.validateForOrder(
+      { code: discountCode, customerUserId, restaurantId: restaurant.id, subtotal: totals.subtotal }, trx,
+    )
+    : null;
+  if (discount) totals = computeTotals({ ...pricing, discount });
 
   const address = await users.getAddressForOrder(customerUserId, addressId, trx);
 
@@ -261,6 +291,7 @@ async function insertOrder({ customerUserId, restaurant, lines, addressId, custo
       dispatch_state: 'NOT_REQUIRED',
       subtotal: totals.subtotal,
       delivery_fee: totals.deliveryFee,
+      discount_amount: totals.discountAmount,
       tax_amount: totals.taxAmount,
       total_amount: totals.totalAmount,
       payment_method: paymentMethod ?? 'CASH_ON_DELIVERY',
@@ -284,6 +315,14 @@ async function insertOrder({ customerUserId, restaurant, lines, addressId, custo
     })),
     trx,
   );
+
+  // A code worth nothing on this order (zero-value) leaves no redemption.
+  if (discount && !money.isZero(totals.discountAmount)) {
+    await discounts.recordRedemption(
+      { orderId: created.id, discountCodeId: discount.id, code: discount.code, amount: totals.discountAmount },
+      trx,
+    );
+  }
 
   await repo.appendEvent(
     { orderId: created.id, from: null, to: 'PENDING', actorUserId: actor.id, actorRole: actor.role },
@@ -397,16 +436,17 @@ export async function listForCustomer(customerUserId, query) {
 export async function getCustomerOrder(customerUserId, orderId) {
   const order = await repo.findForCustomer(orderId, customerUserId);
   if (!order) throw new NotFoundError('RESOURCE_NOT_FOUND');
-  const [items, events, driver, review, payment] = await Promise.all([
+  const [items, events, driver, review, payment, discountCode] = await Promise.all([
     repo.listItems(orderId),
     repo.listEvents(orderId),
     repo.findDriverUser(order.driver_user_id),
     repo.hasReview(orderId),
     payments.getForOrder(orderId),
+    discountCodeOf(orderId),
   ]);
   const restaurant = await restaurants.getRestaurantById(order.restaurant_id);
   return toCustomerOrderDto(
-    { ...order, has_review: Boolean(review), restaurant_phone: restaurant?.phone,
+    { ...order, has_review: Boolean(review), discount_code: discountCode, restaurant_phone: restaurant?.phone,
       restaurant_logo_url: restaurant?.logo_url },
     { items, events, driver, payment: payments.toCustomerDto(payment) },
   );
@@ -450,9 +490,11 @@ export async function listForRestaurant(restaurantId, query) {
 export async function getRestaurantOrder(restaurantId, orderId) {
   const order = await repo.findDetailForRestaurant(orderId, restaurantId);
   if (!order) throw new NotFoundError('RESOURCE_NOT_FOUND');
-  const [items, events] = await Promise.all([repo.listItems(orderId), repo.listEvents(orderId)]);
+  const [items, events, discountCode] = await Promise.all([
+    repo.listItems(orderId), repo.listEvents(orderId), discountCodeOf(orderId),
+  ]);
   return {
-    ...toRestaurantOrderDto(order, { items, events }),
+    ...toRestaurantOrderDto({ ...order, discount_code: discountCode }, { items, events }),
     allowedActions: allowedTransitions(order.status, 'RESTAURANT'),
   };
 }
@@ -494,10 +536,13 @@ export async function adminList(query) {
 export async function adminGetOrder(orderId) {
   const order = await repo.findDetailForAdmin(orderId);
   if (!order) throw new NotFoundError('RESOURCE_NOT_FOUND');
-  const [items, events, payment] = await Promise.all([
-    repo.listItems(orderId), repo.listEvents(orderId), payments.getForOrder(orderId),
+  const [items, events, payment, discountCode] = await Promise.all([
+    repo.listItems(orderId), repo.listEvents(orderId), payments.getForOrder(orderId), discountCodeOf(orderId),
   ]);
-  return toAdminOrderDto(order, { items, events, payment: payments.toAdminPaymentDto(payment) });
+  return toAdminOrderDto(
+    { ...order, discount_code: discountCode },
+    { items, events, payment: payments.toAdminPaymentDto(payment) },
+  );
 }
 
 /**

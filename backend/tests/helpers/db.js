@@ -1,7 +1,7 @@
 import { knex } from '../../src/shared/db/knex.js';
 
 const TABLES = [
-  'payments', 'order_status_events', 'order_items', 'delivery_assignments', 'reviews', 'orders',
+  'payments', 'order_discounts', 'discount_codes', 'order_status_events', 'order_items', 'delivery_assignments', 'reviews', 'orders',
   'cart_items', 'carts', 'food_items', 'menu_categories', 'restaurant_hours',
   'driver_profiles', 'restaurants', 'admin_audit_logs', 'notifications',
   'refresh_tokens', 'customer_addresses', 'users',

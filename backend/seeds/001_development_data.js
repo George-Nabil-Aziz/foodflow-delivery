@@ -32,6 +32,7 @@ const SEED_DISTRICTS = [
 
 export async function seed(knex) {
   // Order matters: children before parents.
+  await knex('discount_codes').del();
   await knex('order_status_events').del();
   await knex('order_items').del();
   await knex('delivery_assignments').del();
@@ -725,6 +726,20 @@ export async function seed(knex) {
     quantity: 1,
     price_seen_at_add: '420.00',
   });
+
+  /* ---------------------------------------------------- discount codes */
+
+  const createdBy = byEmail[config.seed.adminEmail].id;
+  await knex('discount_codes').insert([
+    { code: 'WELCOME10', description: '10% off, up to 100.00', discount_type: 'PERCENT', value: '10.00',
+      max_discount_amount: '100.00', min_subtotal: '100.00', per_customer_limit: 1, created_by: createdBy },
+    { code: 'SAVE50', description: '50.00 off orders of 300.00 or more', discount_type: 'FIXED', value: '50.00',
+      min_subtotal: '300.00', usage_limit: 100, created_by: createdBy },
+    { code: 'GRILL15', description: '15% off at Olive Grill', discount_type: 'PERCENT', value: '15.00',
+      restaurant_id: bySlug['olive-grill']?.id ?? null, created_by: createdBy },
+    { code: 'OLDDEAL', description: 'An expired code, for the Expired filter', discount_type: 'PERCENT', value: '20.00',
+      ends_at: new Date(Date.now() - 7 * 24 * 3600 * 1000), created_by: createdBy },
+  ]);
 
   // eslint-disable-next-line no-console
   console.log(`Seed complete.

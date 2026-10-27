@@ -76,6 +76,10 @@ erDiagram
     FOOD_ITEMS ||--o{ ORDER_ITEMS : "snapshotted into"
 
     ORDERS ||--|{ ORDER_ITEMS : "contains"
+    DISCOUNT_CODES ||--o{ ORDER_DISCOUNTS : "redeemed as"
+    DISCOUNT_CODES ||--o{ CARTS : "applied to"
+    RESTAURANTS |o--o{ DISCOUNT_CODES : "scopes (optional)"
+    ORDERS ||--o| ORDER_DISCOUNTS : "snapshots (0..1)"
     ORDERS ||--o{ ORDER_STATUS_EVENTS : "audits"
     ORDERS ||--o{ DELIVERY_ASSIGNMENTS : "is offered via"
     ORDERS ||--o| REVIEWS : "is reviewed by (0..1)"
@@ -141,6 +145,7 @@ erDiagram
         uuid customer_user_id FK
         uuid restaurant_id FK "nullable"
         cart_status status
+        uuid discount_code_id FK "nullable"
     }
     CART_ITEMS {
         uuid id PK
@@ -160,6 +165,7 @@ erDiagram
         dispatch_state dispatch_state
         numeric subtotal
         numeric delivery_fee
+        numeric discount_amount
         numeric tax_amount
         numeric total_amount
         jsonb delivery_address_snapshot
@@ -167,6 +173,29 @@ erDiagram
         cancellation_reason cancellation_reason
         timestamptz placed_at
         timestamptz delivered_at
+    }
+    DISCOUNT_CODES {
+        uuid id PK
+        citext code UK "unique while not deleted"
+        text discount_type "PERCENT or FIXED"
+        numeric value
+        numeric max_discount_amount "nullable, percent only"
+        numeric min_subtotal
+        uuid restaurant_id FK "nullable = all"
+        timestamptz starts_at
+        timestamptz ends_at
+        int usage_limit
+        int per_customer_limit
+        bool is_active
+        timestamptz deleted_at
+        uuid created_by FK
+    }
+    ORDER_DISCOUNTS {
+        uuid id PK
+        uuid order_id FK "unique"
+        uuid discount_code_id FK "nullable"
+        text code_snapshot
+        numeric amount
     }
     ORDER_ITEMS {
         uuid id PK
@@ -329,6 +358,7 @@ empty cart is unbound).
 - `uq_cart_items_line UNIQUE (cart_id, food_item_id)` — BR-C6.
 - `chk_cart_items_quantity (quantity BETWEEN 1 AND 20)` — BR-C5.
 - **No price column** — ADR-008.
+- `carts.discount_code_id` → `discount_codes(id)` `ON DELETE SET NULL`, nullable — the code the customer has applied (added by migration 011; [spec-12](../specs/spec-12-discount-codes.md)). It is a preview only: checkout re-validates it.
 
 ### `orders`
 | Column | Type | Notes |
@@ -344,6 +374,7 @@ empty cart is unbound).
 | `status` | order_status NOT NULL DEFAULT `'PENDING'` | |
 | `dispatch_state` | dispatch_state NOT NULL DEFAULT `'NOT_REQUIRED'` | FR-7.4 |
 | `subtotal`, `delivery_fee`, `tax_amount`, `total_amount` | numeric(10,2) NOT NULL | BR-O3 |
+| `discount_amount` | numeric(10,2) NOT NULL DEFAULT 0 | Discount on the items subtotal (BR-DC4); 0 for orders without a code |
 | `payment_method` | payment_method NOT NULL DEFAULT `'CASH_ON_DELIVERY'` | |
 | `customer_note` | text | ≤500 |
 | `cancelled_by` | actor_type, nullable | BR-O8 |
@@ -351,7 +382,7 @@ empty cart is unbound).
 | `cancellation_note` | text, nullable | |
 | `placed_at`, `confirmed_at`, `preparing_at`, `ready_at`, `picked_up_at`, `delivered_at`, `cancelled_at` | timestamptz, nullable | The timeline the tracking UI renders |
 
-- Checks: `chk_orders_totals (total_amount = subtotal + delivery_fee + tax_amount)` — arithmetic enforced by the database, so a service bug cannot persist a wrong total; `chk_orders_cancel_fields (status <> 'CANCELLED' OR (cancelled_by IS NOT NULL AND cancellation_reason IS NOT NULL))` — BR-O8; `chk_orders_amounts_nonneg`.
+- Checks: `chk_orders_totals (total_amount = subtotal - discount_amount + delivery_fee + tax_amount)` — arithmetic enforced by the database, so a service bug cannot persist a wrong total (tax is charged on the discounted subtotal, BR-DC6; the check restates only the sum); `chk_orders_discount (discount_amount >= 0 AND discount_amount <= subtotal)`; `chk_orders_cancel_fields (status <> 'CANCELLED' OR (cancelled_by IS NOT NULL AND cancellation_reason IS NOT NULL))` — BR-O8; `chk_orders_amounts_nonneg`.
 - Indexes: `idx_orders_customer (customer_user_id, created_at DESC)`; `idx_orders_restaurant_status (restaurant_id, status, created_at DESC)`; `idx_orders_driver (driver_user_id, status)`; `idx_orders_dispatch (dispatch_state, confirmed_at) WHERE status IN ('CONFIRMED','PREPARING','READY_FOR_PICKUP')`; `idx_orders_pending_timeout (status, placed_at) WHERE status = 'PENDING'`.
 
 ### `order_items`
@@ -366,6 +397,36 @@ empty cart is unbound).
 **This table is where G2 lives.** Nothing in it is read from `food_items` after
 creation; the FK exists only so a restaurant can see "which of my current items
 sold well", and it is allowed to go null.
+
+### `discount_codes`
+Owned by the discounts module ([spec-12](../specs/spec-12-discount-codes.md)).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | uuid PK | |
+| `code` | citext NOT NULL | Compared case-insensitively; the API stores it upper-case |
+| `description` | text, nullable | Admin-facing |
+| `discount_type` | text NOT NULL | `PERCENT` \| `FIXED` |
+| `value` | numeric(10,2) NOT NULL | A percentage (≤ 100) or an amount |
+| `max_discount_amount` | numeric(10,2), nullable | Cap, percent only |
+| `min_subtotal` | numeric(10,2) NOT NULL DEFAULT 0 | Judged on the pre-discount subtotal |
+| `restaurant_id` | uuid FK → restaurants `ON DELETE CASCADE`, nullable | Null = every restaurant |
+| `starts_at`, `ends_at` | timestamptz, nullable | Validity window |
+| `usage_limit`, `per_customer_limit` | integer, nullable | Null = unlimited |
+| `is_active` | boolean NOT NULL DEFAULT true | Deactivate / reactivate |
+| `deleted_at` | timestamptz, nullable | Soft delete — see ADR-013 |
+| `created_by` | uuid FK → users `ON DELETE SET NULL` | |
+
+- Checks: `chk_discount_type`, `chk_discount_value (value > 0 AND (discount_type <> 'PERCENT' OR value <= 100))`, `chk_discount_cap` (percent only), `chk_discount_min_subtotal`, `chk_discount_window (starts_at < ends_at)`, `chk_discount_limits (>= 1)`.
+- **`uq_discount_codes_code UNIQUE (code) WHERE deleted_at IS NULL`** — BR-DC1: case-insensitive through `citext`, and a deleted code releases its name.
+- Usage is not stored: it is counted from `order_discounts` joined to non-cancelled orders, under a `FOR UPDATE` lock on the code row at checkout (BR-DC7, BR-DC9).
+
+### `order_discounts`
+`order_id` → `orders(id)` `ON DELETE CASCADE`, unique (one code per order,
+BR-DC11); `discount_code_id` → `discount_codes(id)` **`ON DELETE SET NULL`**;
+`code_snapshot text`, `amount numeric(10,2) CHECK (amount > 0)`. The snapshot
+keeps the order's discount intact when the code is edited or deleted (BR-DC10).
+`idx_order_discounts_code (discount_code_id)`.
 
 ### `order_status_events`
 Append-only audit (FR-6.4). `order_id` `ON DELETE CASCADE`, `from_status`
@@ -492,6 +553,8 @@ Knex migrations, one per logical change, named
 9. `admin_audit_logs`, `notifications`
 10. seed admin user
 11. `010_payments` (card payments, spec-11): `CARD` and `PAYMENT_TIMEOUT` enum values, `payment_status`, `payments`
+12. `011_discounts.js`: `discount_codes`, `order_discounts`, `orders.discount_amount` with the rewritten `chk_orders_totals`, `carts.discount_code_id` (existing orders get a discount of 0)
+13. `012_notification_delivery` (spec-13): delivery `status`, `attempts`, `last_error`, `recipient`, `next_attempt_at` and `dedupe_key` on `notifications`
 
 Migrations never contain business logic and are never edited after being applied
 to a shared environment — corrections ship as new migrations.

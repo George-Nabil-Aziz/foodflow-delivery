@@ -13,6 +13,7 @@ import * as auth from '../auth/index.js';
 import * as users from '../users/index.js';
 import * as restaurants from '../restaurants/index.js';
 import * as orders from '../orders/index.js';
+import * as discounts from '../discounts/index.js';
 import * as delivery from '../delivery/index.js';
 import * as payments from '../payments/index.js';
 import * as reviews from '../reviews/index.js';
@@ -625,13 +626,77 @@ export async function placeOrder(adminUserId, input) {
     const created = await orders.adminPlaceOrder(adminUserId, input, trx);
     await audit(
       { adminUserId, action: 'ORDER_PLACED', entityType: 'order', entityId: created.id,
-        metadata: { customerUserId: input.customerUserId, orderNumber: created.order_number } },
+        metadata: {
+          customerUserId: input.customerUserId,
+          orderNumber: created.order_number,
+          ...(input.discountCode ? { discountCode: input.discountCode, discountAmount: created.discount_amount } : {}),
+        } },
       trx,
     );
     return created;
   });
   await orders.notifyNewOrder(order);
   return orders.adminGetOrder(order.id);
+}
+
+/* --------------------------------------------------------- discount codes */
+
+export const listDiscountCodes = discounts.adminList;
+export const getDiscountCode = (id) => discounts.adminGet(id);
+
+export async function createDiscountCode(adminUserId, input) {
+  return withTransaction(async (trx) => {
+    const created = await discounts.adminCreate(adminUserId, input, trx);
+    await audit(
+      { adminUserId, action: 'DISCOUNT_CODE_CREATED', entityType: 'discount_code', entityId: created.id,
+        metadata: { code: created.code, type: created.type, value: created.value } },
+      trx,
+    );
+    return created;
+  });
+}
+
+export async function updateDiscountCode(adminUserId, id, input) {
+  return withTransaction(async (trx) => {
+    const before = await discounts.adminGet(id, trx);
+    const updated = await discounts.adminUpdate(id, input, trx);
+    await audit(
+      { adminUserId, action: 'DISCOUNT_CODE_UPDATED', entityType: 'discount_code', entityId: id,
+        metadata: { code: updated.code, before: { type: before.type, value: before.value }, after: { type: updated.type, value: updated.value } } },
+      trx,
+    );
+    return updated;
+  });
+}
+
+async function setDiscountCodeActive(adminUserId, id, isActive, reason) {
+  return withTransaction(async (trx) => {
+    const updated = await discounts.adminSetActive(id, isActive, trx);
+    await audit(
+      { adminUserId, action: isActive ? 'DISCOUNT_CODE_REACTIVATED' : 'DISCOUNT_CODE_DEACTIVATED',
+        entityType: 'discount_code', entityId: id, metadata: { code: updated.code, reason } },
+      trx,
+    );
+    return updated;
+  });
+}
+
+export const deactivateDiscountCode = (adminUserId, id, { reason }) =>
+  setDiscountCodeActive(adminUserId, id, false, reason);
+export const reactivateDiscountCode = (adminUserId, id, { reason } = {}) =>
+  setDiscountCodeActive(adminUserId, id, true, reason);
+
+/** Soft delete: orders keep their snapshot, so history is unaffected (BR-DC10). */
+export async function deleteDiscountCode(adminUserId, id, { reason }) {
+  return withTransaction(async (trx) => {
+    const result = await discounts.adminDelete(id, trx);
+    await audit(
+      { adminUserId, action: 'DISCOUNT_CODE_DELETED', entityType: 'discount_code', entityId: id,
+        metadata: { code: result.code, reason } },
+      trx,
+    );
+    return { id, deleted: true };
+  });
 }
 
 /* ---------------------------------------------------------------- reviews */

@@ -38,6 +38,8 @@ export const cartApi = {
     http.post(`/cart/items${replace ? '?replace=true' : ''}`, body),
   updateQuantity: (itemId, quantity) => http.patch(`/cart/items/${itemId}`, { quantity }),
   removeItem: (itemId) => http.delete(`/cart/items/${itemId}`),
+  applyDiscount: (code) => http.post('/cart/discount', { code }),
+  removeDiscount: () => http.delete('/cart/discount'),
   clear: () => http.delete('/cart'),
 };
 
@@ -137,5 +139,12 @@ export const adminApi = {
   reviews: (params) => http.get('/admin/reviews', { params }),
   hideReview: (id, reason) => http.post(`/admin/reviews/${id}/hide`, { reason }),
   restoreReview: (id) => http.post(`/admin/reviews/${id}/restore`, {}),
+  discountCodes: (params) => http.get('/admin/discount-codes', { params }),
+  discountCode: (id) => http.get(`/admin/discount-codes/${id}`),
+  createDiscountCode: (body) => http.post('/admin/discount-codes', body),
+  updateDiscountCode: (id, body) => http.put(`/admin/discount-codes/${id}`, body),
+  deactivateDiscountCode: (id, reason) => http.post(`/admin/discount-codes/${id}/deactivate`, { reason }),
+  reactivateDiscountCode: (id) => http.post(`/admin/discount-codes/${id}/reactivate`, {}),
+  deleteDiscountCode: (id, reason) => http.delete(`/admin/discount-codes/${id}`, { data: { reason } }),
   auditLogs: (params) => http.get('/admin/audit-logs', { params }),
 };

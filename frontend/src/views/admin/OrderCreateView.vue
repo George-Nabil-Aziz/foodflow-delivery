@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router';
 import { adminApi, discoveryApi } from '../../services/api.js';
 import { useUiStore } from '../../stores/ui.store.js';
 import { formatMoney } from '../../utils/money.js';
+import { discountErrorText } from '../../utils/discount.js';
 import { t } from '../../i18n/index.js';
 import AppButton from '../../components/shared/AppButton.vue';
 import AppSpinner from '../../components/shared/AppSpinner.vue';
@@ -121,6 +122,7 @@ const itemCount = computed(() => chosen.value.reduce((n, i) => n + i.quantity, 0
 /* ------------------------------------------------------------------ submit */
 
 const customerNote = ref('');
+const discountCode = ref('');
 const placing = ref(false);
 const placed = ref(null);
 
@@ -142,14 +144,16 @@ async function placeOrder() {
       addressId: addressId.value,
       items: chosen.value.map((i) => ({ foodItemId: i.id, quantity: i.quantity })),
       customerNote: customerNote.value.trim() || null,
+      discountCode: discountCode.value.trim() || null,
     });
     placed.value = data;
     ui.toastSuccess(t('Order {orderNumber} placed', { orderNumber: data.orderNumber }));
     // Ready for the next one; the customer and restaurant often repeat.
     quantities.value = {};
     customerNote.value = '';
+    discountCode.value = '';
   } catch (err) {
-    ui.toastError(err.details?.[0]?.issue ?? err.message);
+    ui.toastError(err.code?.startsWith('DISCOUNT_CODE_') ? discountErrorText(err) : (err.details?.[0]?.issue ?? err.message));
   } finally {
     placing.value = false;
   }
@@ -305,6 +309,10 @@ async function placeOrder() {
 
       <label for="mo-note" class="field-label mt-4">{{ t('Note for the restaurant (optional)') }}</label>
       <textarea id="mo-note" v-model="customerNote" rows="2" maxlength="500" class="field-input" />
+
+      <label for="mo-discount" class="field-label mt-4">{{ t('Discount code (optional)') }}</label>
+      <input id="mo-discount" v-model="discountCode" type="text" maxlength="40" autocomplete="off"
+             class="field-input uppercase">
 
       <div class="mt-4 flex flex-wrap items-center gap-3">
         <AppButton :loading="placing" :disabled="Boolean(missing)" @click="placeOrder">{{ t('Place order') }}</AppButton>
