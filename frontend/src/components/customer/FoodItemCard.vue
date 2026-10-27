@@ -3,6 +3,7 @@ import { formatMoney } from '../../utils/money.js';
 import { tileClass } from '../../utils/cuisine.js';
 import { t } from '../../i18n/index.js';
 import AppButton from '../shared/AppButton.vue';
+import FavouriteButton from './FavouriteButton.vue';
 
 defineProps({
   item: { type: Object, required: true },
@@ -30,7 +31,12 @@ defineEmits(['add']);
     </div>
 
     <div class="min-w-0 flex-1">
-      <h4 class="font-semibold text-slate-900">{{ item.name }}</h4>
+      <div class="flex items-start justify-between gap-2">
+        <h4 class="font-semibold text-slate-900">{{ item.name }}</h4>
+        <!-- Only a signed-in customer's menu carries the flag (spec-16). -->
+        <FavouriteButton v-if="item.isFavourite !== undefined" kind="item" :id="item.id"
+                         :name="item.name" :favourite="item.isFavourite" />
+      </div>
       <p v-if="item.description" class="mt-1 text-sm text-slate-600">{{ item.description }}</p>
 
       <div class="mt-3 flex flex-wrap items-center justify-between gap-2">

@@ -14,6 +14,7 @@ export const customerRoutes = [
       { path: 'account/profile', name: 'profile', meta, component: () => import('../views/customer/ProfileView.vue') },
       { path: 'account/addresses', name: 'addresses', meta, component: () => import('../views/customer/AddressesView.vue') },
       { path: 'account/addresses/new', name: 'address-new', meta, component: () => import('../views/customer/AddressCreateView.vue') },
+      { path: 'account/favourites', name: 'favourites', meta, component: () => import('../views/customer/FavouritesView.vue') },
       { path: 'account/reviews', name: 'my-reviews', meta, component: () => import('../views/customer/MyReviewsView.vue') },
     ],
   },

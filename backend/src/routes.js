@@ -12,6 +12,7 @@ import { driverRouter } from './modules/delivery/index.js';
 import { reviewsRouter } from './modules/reviews/index.js';
 import { adminRouter } from './modules/admin/index.js';
 import { eventsRouter } from './modules/events/index.js';
+import { favouritesRouter } from './modules/favourites/index.js';
 import { paymentsRouter } from './modules/payments/index.js';
 
 export const apiRouter = Router();
@@ -48,3 +49,4 @@ apiRouter.use('/reviews', reviewsRouter);
 apiRouter.use('/admin', adminRouter);
 apiRouter.use('/events', eventsRouter);
 apiRouter.use('/payments', paymentsRouter);
+apiRouter.use('/favourites', favouritesRouter);

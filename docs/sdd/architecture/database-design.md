@@ -511,6 +511,19 @@ NULL`) stores a given template/order/channel/recipient once;
 `idx_notifications_recipient_sent` the per-recipient hourly cap. Added in
 migration 012.
 
+### `favourite_restaurants` / `favourite_items`
+Owned by the favourites module ([spec-16](../specs/spec-16-favourites.md)).
+
+| Table | Columns |
+|-------|---------|
+| `favourite_restaurants` | `user_id` → `users(id)` `ON DELETE CASCADE`, `restaurant_id` → `restaurants(id)` `ON DELETE CASCADE`, `created_at timestamptz DEFAULT now()` |
+| `favourite_items` | `user_id` → `users(id)` `ON DELETE CASCADE`, `food_item_id` → `food_items(id)` `ON DELETE CASCADE`, `created_at timestamptz DEFAULT now()` |
+
+- **Primary key `(user_id, restaurant_id)` / `(user_id, food_item_id)`** — BR-FV2: favouriting twice is one row; the insert is `ON CONFLICT DO NOTHING`.
+- `idx_favourite_restaurants_user` and `idx_favourite_items_user` on `(user_id, created_at DESC)` serve the list, newest first.
+- Two tables rather than one polymorphic `(kind, target_id)` table, so each target is a real foreign key. Restaurants and items are soft-deleted, so the cascade fires only on a hard delete; a soft-deleted target keeps its row and is listed as unavailable (BR-FV5).
+- Restaurant analytics ([spec-17](../specs/spec-17-restaurant-analytics.md)) adds no table: it aggregates `orders`, `order_items` and `order_status_events`, using `idx_orders_restaurant_status`.
+
 ## 5. Cardinality summary
 
 | Relationship | Cardinality | Delete behaviour |
@@ -530,6 +543,9 @@ migration 012.
 | orders → order_status_events | 1 : 1..N | CASCADE |
 | orders → delivery_assignments | 1 : 0..N (≤1 ACCEPTED) | CASCADE |
 | orders → reviews | 1 : 0..1 | CASCADE |
+| users → favourite_restaurants / favourite_items | 1 : 0..N | CASCADE |
+| restaurants → favourite_restaurants | 1 : 0..N | CASCADE |
+| food_items → favourite_items | 1 : 0..N | CASCADE |
 
 **Data ownership:** a row belongs to the actor named in its owning FK. Customers
 own their addresses, carts and orders-as-customer. Restaurant owners own their
@@ -557,6 +573,7 @@ Knex migrations, one per logical change, named
 12. `011_discounts.js`: `discount_codes`, `order_discounts`, `orders.discount_amount` with the rewritten `chk_orders_totals`, `carts.discount_code_id` (existing orders get a discount of 0)
 13. `012_notification_delivery` (spec-13): delivery `status`, `attempts`, `last_error`, `recipient`, `next_attempt_at` and `dedupe_key` on `notifications`
 14. `013_user_preferred_language` (spec-13): `users.preferred_language` (`en`/`ar`, nullable, check-constrained)
+15. `015_favourites` (spec-16): `favourite_restaurants` and `favourite_items`, each with a composite primary key and a `(user_id, created_at DESC)` index. Restaurant analytics (spec-17) needs no migration.
 
 Migrations never contain business logic and are never edited after being applied
 to a shared environment — corrections ship as new migrations.

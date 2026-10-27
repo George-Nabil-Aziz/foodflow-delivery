@@ -180,6 +180,36 @@ excluded from both groups.
 
 ---
 
+## 4a. Favourites — `/api/favourites` (spec-16)
+
+All routes: role `CUSTOMER`, scoped to the caller (the user id comes from the
+token; no route names a user). `PUT` and `DELETE` are idempotent.
+
+| Method | Route | Auth | Purpose |
+|--------|-------|------|---------|
+| GET | `/api/favourites` | C | `{ restaurants, items }`, newest first, at most 200 of each |
+| PUT | `/api/favourites/restaurants/:id` | C | Add; `200 { restaurantId, isFavourite: true }`; 404 unless the restaurant is `ACTIVE` and not deleted |
+| DELETE | `/api/favourites/restaurants/:id` | C | Remove; `204`, also when it was not a favourite |
+| PUT | `/api/favourites/items/:id` | C | Add; `200 { foodItemId, isFavourite: true }`; 404 if the item is deleted or its restaurant is not `ACTIVE` (an unavailable item is accepted) |
+| DELETE | `/api/favourites/items/:id` | C | Remove; `204` |
+
+Nothing is hidden on the list (BR-FV5):
+
+```jsonc
+{ "restaurants": [ { /* public restaurant fields */ "isOrderable": false, "unavailableReason": "CLOSED_NOW",
+                     "isBrowsable": true, "isFavourite": true, "favouritedAt": "2026-10-27T09:00:00Z" } ],
+  "items": [ { "id": "…", "name": "Mixed Grill", "price": "58.00", "isAvailable": false,   // off, deleted, hidden category, or restaurant not ACTIVE
+              "isFavourite": true, "favouritedAt": "…",
+              "restaurant": { "id": "…", "name": "Olive Grill", "isBrowsable": true } } ] }
+```
+
+**The flag on discovery.** `GET /api/restaurants`, `/api/restaurants/:id`,
+`/api/restaurants/:id/menu` (on each item) and `/api/search` (on restaurants and
+food items) accept an optional token. For a signed-in **customer** each entry
+carries `isFavourite: true|false`; for everyone else — anonymous, an expired or
+invalid token, or another role — the field is absent and the response is exactly
+what it was (BR-FV6).
+
 ## 5. Restaurant self-service — `/api/restaurant`
 
 All routes: role `RESTAURANT`, scoped to the caller's own restaurant resolved
@@ -211,6 +241,7 @@ name a restaurant other than their own, which removes a whole class of IDOR.
 | POST | `/api/restaurant/orders/:id/ready` | R +own | T5 |
 | POST | `/api/restaurant/orders/:id/cancel` | R +own | T4 / T6 with reason |
 | GET | `/api/restaurant/stats` | R +own | Today's counts, revenue, rating |
+| GET | `/api/restaurant/analytics` | R +own | `?days=7\|30\|90` (default 30): delivered orders and revenue, average order value, cancellation rate, top 5 items, orders by hour, average preparation time (spec-17) |
 
 `PUT /api/restaurant/hours` replaces all seven days atomically — a partial
 update of opening hours is a footgun (a client that sends only Monday would

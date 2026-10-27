@@ -5,14 +5,23 @@ import { formatMoney } from '../../utils/money.js';
 import { UNAVAILABLE_REASON_LABEL } from '../../utils/orderStatus.js';
 import { cuisineStyle } from '../../utils/cuisine.js';
 import { t } from '../../i18n/index.js';
+import FavouriteButton from './FavouriteButton.vue';
 
 const props = defineProps({ restaurant: { type: Object, required: true } });
+defineEmits(['favourite-change']);
 const style = computed(() => cuisineStyle(props.restaurant.cuisineType));
+// A restaurant that is not on the platform has no page to open (the Favourites
+// page lists such ones, as unavailable).
+const linkable = computed(() => props.restaurant.isBrowsable !== false);
 </script>
 
 <template>
-  <RouterLink :to="{ name: 'restaurant-detail', params: { id: restaurant.id } }"
-              class="card group block overflow-hidden transition duration-200 hover:-translate-y-0.5 hover:shadow-raised">
+  <!-- The heart is a sibling of the link, not inside it: a button nested in a link is invalid. -->
+  <div class="relative">
+  <component :is="linkable ? RouterLink : 'div'"
+             v-bind="linkable ? { to: { name: 'restaurant-detail', params: { id: restaurant.id } } } : {}"
+             class="card group block h-full overflow-hidden transition duration-200"
+             :class="linkable ? 'hover:-translate-y-0.5 hover:shadow-raised' : 'bg-slate-50'">
     <!-- A photo when there is one; otherwise a cover in the cuisine's colours. -->
     <div class="relative h-32">
       <img v-if="restaurant.coverImageUrl" :src="restaurant.coverImageUrl" alt=""
@@ -54,5 +63,9 @@ const style = computed(() => cuisineStyle(props.restaurant.cuisineType));
         <div><dt class="inline">{{ t('Prep') }}</dt> <dd class="inline font-semibold text-slate-800">{{ t('{n} min', { n: restaurant.avgPreparationMinutes }) }}</dd></div>
       </dl>
     </div>
-  </RouterLink>
+  </component>
+  <FavouriteButton v-if="restaurant.isFavourite !== undefined" kind="restaurant" :id="restaurant.id"
+                   :name="restaurant.name" :favourite="restaurant.isFavourite"
+                   class="absolute start-3 top-3 z-20" @change="$emit('favourite-change', $event)" />
+  </div>
 </template>
