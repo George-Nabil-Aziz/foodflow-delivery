@@ -126,6 +126,11 @@ export async function appendEvent(
       actor_role: actorRole,
       reason: reason ?? null,
       note: note ?? null,
+      // The moment the row is written, not the column default now() (which is
+      // the transaction's START). A transition that waited on the order lock
+      // would otherwise be stamped before the one it waited for, and the
+      // timeline would read out of order.
+      created_at: knex.raw('clock_timestamp()'),
     })
     .returning('*');
   return row;
