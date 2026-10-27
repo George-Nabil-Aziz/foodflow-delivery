@@ -11,12 +11,16 @@ import EmptyState from '../../components/shared/EmptyState.vue';
 import ErrorState from '../../components/shared/ErrorState.vue';
 import { cuisineStyle } from '../../utils/cuisine.js';
 import FoodItemCard from '../../components/customer/FoodItemCard.vue';
+import ItemOptionsDialog from '../../components/customer/ItemOptionsDialog.vue';
 import SwitchRestaurantDialog from '../../components/customer/SwitchRestaurantDialog.vue';
 import { t } from '../../i18n/index.js';
 
 const route = useRoute();
 const router = useRouter();
-const { adding, replacing, conflictOpen, conflict, add, keepCart, replaceCart } = useAddToCart(router);
+const {
+  adding, replacing, conflictOpen, conflict, add, keepCart, replaceCart,
+  optionsOpen, optionsItem, confirmOptions, cancelOptions,
+} = useAddToCart(router);
 
 const restaurant = ref(null);
 const menu = ref([]);
@@ -151,6 +155,8 @@ onMounted(load);
       </div>
     </template>
 
+    <ItemOptionsDialog :open="optionsOpen" :item="optionsItem" :adding="adding === optionsItem?.id"
+                       @cancel="cancelOptions" @confirm="confirmOptions" />
     <SwitchRestaurantDialog :open="conflictOpen" :conflict="conflict" :replacing="replacing"
                             @keep="keepCart" @replace="replaceCart" />
   </div>

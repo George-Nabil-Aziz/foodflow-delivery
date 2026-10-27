@@ -25,13 +25,29 @@ async function getOrCreateCart(customerUserId, trx) {
   return repo.findActiveCartForUpdate(customerUserId, trx);
 }
 
+/**
+ * Lines with their chosen option ids, plus the live option data validation
+ * needs: the item's live groups and every option the lines reference.
+ */
+async function loadLinesWithOptions(cartId, trx) {
+  const lines = await repo.listLines(cartId, trx);
+  const links = await repo.listLineOptions(lines.map((l) => l.id), trx);
+  for (const line of lines) {
+    line.optionIds = links.filter((l) => l.cart_item_id === line.id).map((l) => l.option_id);
+  }
+  const { groupsByItem, optionsById } = await menu.getOptionContext(
+    [...new Set(lines.map((l) => l.food_item_id))], links.map((l) => l.option_id), trx,
+  );
+  return { lines, groupsByItem, optionsById };
+}
+
 /** Builds the full cart payload: live prices, per-line issues, server totals. */
 async function buildCartView(cart, trx, strict = false) {
   if (!cart) {
     return emptyCartView();
   }
 
-  const lines = await repo.listLines(cart.id, trx);
+  const { lines, groupsByItem, optionsById } = await loadLinesWithOptions(cart.id, trx);
   if (!lines.length) {
     return { ...emptyCartView(), id: cart.id };
   }
@@ -44,6 +60,8 @@ async function buildCartView(cart, trx, strict = false) {
 
   const validated = validateLines(lines, liveItems, {
     restaurantOrderable: orderability.isOrderable,
+    groupsByItem,
+    optionsById,
   });
   const issues = collectIssues(validated);
 
@@ -154,7 +172,7 @@ export async function getCart(customerUserId) {
  * Switching requires an explicit `replace=true`, which clears and rebinds in
  * the same transaction (BR-C4).
  */
-export async function addItem(customerUserId, { foodItemId, quantity, notes }, { replace = false } = {}) {
+export async function addItem(customerUserId, { foodItemId, quantity, notes, optionIds = [] }, { replace = false } = {}) {
   return withTransaction(async (trx) => {
     const cart = await getOrCreateCart(customerUserId, trx);
 
@@ -190,8 +208,17 @@ export async function addItem(customerUserId, { foodItemId, quantity, notes }, {
       await repo.setRestaurant(cart.id, item.restaurant_id, trx);
     }
 
+    // Judged against the live menu: a missing required choice, a surplus or an
+    // unavailable option is refused here, before it can reach a cart (BR-IO3).
+    const note = menu.normalizeNote(notes);
+    const ids = [...new Set(optionIds)];
+    const [{ unitPrice }] = await menu.resolveSelections(
+      [{ foodItemId, name: item.name, basePrice: item.price, optionIds: ids }], trx,
+    );
+
     await repo.upsertLine(
-      { cartId: cart.id, foodItemId, quantity, notes, price: item.price },
+      { cartId: cart.id, foodItemId, quantity, notes: note, price: unitPrice,
+        lineKey: menu.lineKeyOf(ids, note), optionIds: ids },
       trx,
     );
 
@@ -271,7 +298,7 @@ export async function removeDiscount(customerUserId) {
 export async function getActiveCartForCheckout(customerUserId, trx) {
   const cart = await repo.findActiveCartForUpdate(customerUserId, trx);
   if (!cart) return null;
-  const lines = await repo.listLines(cart.id, trx);
+  const { lines, groupsByItem, optionsById } = await loadLinesWithOptions(cart.id, trx);
   let discountCode = null;
   if (cart.discount_code_id) {
     const row = await discounts.getCodeById(cart.discount_code_id, trx);
@@ -279,13 +306,15 @@ export async function getActiveCartForCheckout(customerUserId, trx) {
     if (!row || row.deleted_at) throw new ValidationError('DISCOUNT_CODE_INVALID');
     discountCode = row.code;
   }
-  return { id: cart.id, restaurantId: cart.restaurant_id, items: lines, discountCode };
+  return { id: cart.id, restaurantId: cart.restaurant_id, items: lines, discountCode, groupsByItem, optionsById };
 }
 
 /** Revalidates a locked cart against live menu data, for checkout. */
 export async function revalidateLines(cart, trx) {
   const liveItems = await menu.getItemsByIds(cart.items.map((l) => l.food_item_id), trx);
-  return validateLines(cart.items, liveItems);
+  return validateLines(cart.items, liveItems, {
+    groupsByItem: cart.groupsByItem, optionsById: cart.optionsById,
+  });
 }
 
 export const markConverted = repo.markConverted;

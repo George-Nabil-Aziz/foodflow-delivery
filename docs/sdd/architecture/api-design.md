@@ -163,6 +163,11 @@ Returns active categories in `display_order`, each with its non-deleted items.
 Unavailable items are **included** with `"isAvailable": false` (FR-4.5) so the
 UI can show them greyed rather than silently shrinking the menu.
 
+Each item carries `optionGroups` (spec-15): `[{ id, name, minSelect, maxSelect,
+isRequired, displayOrder, options: [{ id, name, priceDelta, isAvailable,
+displayOrder }] }]`, empty for an item without options. Unavailable options are
+included and flagged, like unavailable items.
+
 ### `GET /api/search`
 
 Query `q` (2–60 chars, required), `limit` (≤20 per group).
@@ -203,6 +208,21 @@ name a restaurant other than their own, which removes a whole class of IDOR.
 | PATCH | `/api/restaurant/items/:id` | R +own | Update |
 | PATCH | `/api/restaurant/items/:id/availability` | R +own | `{ isAvailable }` |
 | DELETE | `/api/restaurant/items/:id` | R +own | Soft-delete |
+| GET | `/api/restaurant/items/:itemId/option-groups` | R +own | The item's option groups with options (spec-15) |
+| POST | `/api/restaurant/items/:itemId/option-groups` | R +own | Create a group with its options (`name`, `minSelect`, `maxSelect`, `displayOrder`, `options[{ name, priceDelta, isAvailable }]`); 201 |
+| PUT | `/api/restaurant/items/:itemId/option-groups/order` | R +own | Reorder atomically, `{ groups: [{ id, displayOrder }] }` |
+| PATCH | `/api/restaurant/option-groups/:groupId` | R +own | Edit `name`, `minSelect`, `maxSelect`, `displayOrder` |
+| DELETE | `/api/restaurant/option-groups/:groupId` | R +own | Soft-delete the group and its options; 204 |
+| POST | `/api/restaurant/option-groups/:groupId/options` | R +own | Add an option `{ name, priceDelta, isAvailable }`; 201 |
+| PUT | `/api/restaurant/option-groups/:groupId/options/order` | R +own | Reorder atomically, `{ options: [{ id, displayOrder }] }` |
+| PATCH | `/api/restaurant/options/:optionId` | R +own | Edit `name`, `priceDelta`, `isAvailable`, `displayOrder` |
+| PATCH | `/api/restaurant/options/:optionId/availability` | R +own | `{ isAvailable }` |
+| DELETE | `/api/restaurant/options/:optionId` | R +own | Soft-delete (409 `OPTION_GROUP_UNSATISFIABLE` if the group would fall under its minimum) |
+
+Option routes return the affected group: `{ id, name, minSelect, maxSelect,
+isRequired, displayOrder, options: [{ id, name, priceDelta, isAvailable,
+displayOrder }] }`. `GET /api/restaurant/items` adds `optionGroups` of that shape
+to each item. A group or option of another restaurant is 404 (BR-IO1).
 | GET | `/api/restaurant/orders` | R +own | Orders, `?status=`, `?scope=active\|history` |
 | GET | `/api/restaurant/orders/:id` | R +own | Order detail |
 | POST | `/api/restaurant/orders/:id/accept` | R +own | T1 |
@@ -309,10 +329,23 @@ lazily on first add.
 ### `POST /api/cart/items`
 
 ```jsonc
-{ "foodItemId": "…", "quantity": 2, "notes": "No onions" }
+{ "foodItemId": "…", "quantity": 2, "notes": "No onions", "optionIds": ["…", "…"] }
 ```
 
-Adding an item already present increments the line (BR-C6).
+Adding an item with the same options and note as an existing line increments
+that line (BR-C6, BR-IO6); any difference in options or note makes a separate
+line. `optionIds` (default `[]`, at most 30) are ids only: the server derives the
+groups and the price (unit price = base + the chosen deltas, BR-IO5) and refuses
+a choice that breaks the item's groups with `422 ITEM_OPTIONS_INVALID`
+(`details[]` of `{ field, issue, foodItemId, code }`, `code` one of
+`OPTION_REMOVED`, `OPTION_UNAVAILABLE`, `GROUP_MIN`, `GROUP_MAX`). `notes` is at
+most 200 characters; a blank note is no note.
+
+Each cart line in the cart response carries `basePrice`, `unitPrice` (base +
+deltas, live), `notes` and `options: [{ optionId, groupName, name, priceDelta,
+isAvailable, isRemoved }]`. A line's `issues` may now include
+`OPTION_UNAVAILABLE`, `OPTION_REMOVED` and `OPTIONS_CHANGED` (BR-IO8); each blocks
+`canCheckout`, and checkout then answers `422 CART_HAS_ISSUES` with those codes.
 
 **Cross-restaurant conflict (BR-C3):**
 
@@ -366,7 +399,8 @@ retries with `?replace=true`, which clears and rebinds in one transaction
   "data": {
     "id": "…", "orderNumber": "FF-20260922-4K9P2M", "status": "PENDING",
     "restaurant": { "id": "…", "name": "Olive Grill", "phone": "+9661…" },
-    "items": [ { "name": "Mixed Grill", "unitPrice": "58.00", "quantity": 2, "lineTotal": "116.00" } ],
+    "items": [ { "name": "Mixed Grill", "unitPrice": "70.50", "quantity": 2, "lineTotal": "141.00", "notes": "No onions",
+                 "options": [ { "groupName": "Size", "name": "Large", "priceDelta": "12.50" } ] } ],
     "subtotal": "134.00", "deliveryFee": "12.00", "taxAmount": "20.10", "totalAmount": "166.10",
     "deliveryAddress": { "line1": "…", "city": "Riyadh", "district": "Al Olaya" },
     "placedAt": "2026-09-22T18:04:11.201Z",
@@ -557,7 +591,7 @@ created through `POST /api/admin/drivers`, because they also need a vehicle.
 ```jsonc
 // request — as at checkout, no prices (BR-O5)
 { "customerUserId": "…", "restaurantId": "…", "addressId": "…",
-  "items": [ { "foodItemId": "…", "quantity": 2, "notes": "No onions" } ],
+  "items": [ { "foodItemId": "…", "quantity": 2, "notes": "No onions", "optionIds": ["…"] } ],
   "customerNote": "Ring the bell twice", "discountCode": "SAVE10" }   // discountCode optional
 ```
 
@@ -565,7 +599,11 @@ created through `POST /api/admin/drivers`, because they also need a vehicle.
 refused code is the matching `422 DISCOUNT_CODE_*` and no order or audit row is
 written. The `ORDER_PLACED` audit metadata records the code and amount.
 
-`items` holds 1–50 lines, quantity 1–20 each, with no item listed twice. The
+`items` holds 1–50 lines, quantity 1–20 each, with no identical line (same item,
+options and note) listed twice. `optionIds` is optional per line, and is judged
+by the same rules as a customer's choice (spec-15, BR-IO9): an item with a
+required group and no choice is `422 ITEM_OPTIONS_INVALID`, and no order or
+audit row is written. The
 response is 201 with the same payload as `GET /api/admin/orders/:id`. The
 order is always `CASH_ON_DELIVERY` and the customer's cart is not touched. It
 is written by the same function as checkout (`insertOrder`), so totals,

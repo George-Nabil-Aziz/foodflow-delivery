@@ -43,9 +43,12 @@ defineEmits(['add']);
                      ? t('{name} is unavailable', { name: item.name })
                      : t('Add {name} to cart', { name: item.name })"
                    @click="$emit('add', item)">
-          <span aria-hidden="true">+</span> {{ t('Add') }}
+          <span aria-hidden="true">+</span> {{ item.optionGroups?.length ? t('Choose options') : t('Add') }}
         </AppButton>
       </div>
+      <p v-if="item.optionGroups?.length && item.isAvailable" class="mt-1 text-xs text-slate-600">
+        {{ t('Sizes, extras or notes available') }}
+      </p>
 
       <!--
         Unavailability is stated as text, not implied by styling. The disabled

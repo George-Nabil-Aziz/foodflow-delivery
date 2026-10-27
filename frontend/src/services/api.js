@@ -84,6 +84,19 @@ export const restaurantApi = {
   setAvailability: (id, isAvailable) =>
     http.patch(`/restaurant/items/${id}/availability`, { isAvailable }),
   deleteItem: (id) => http.delete(`/restaurant/items/${id}`),
+  optionGroups: (itemId) => http.get(`/restaurant/items/${itemId}/option-groups`),
+  createOptionGroup: (itemId, body) => http.post(`/restaurant/items/${itemId}/option-groups`, body),
+  reorderOptionGroups: (itemId, groups) =>
+    http.put(`/restaurant/items/${itemId}/option-groups/order`, { groups }),
+  updateOptionGroup: (groupId, body) => http.patch(`/restaurant/option-groups/${groupId}`, body),
+  deleteOptionGroup: (groupId) => http.delete(`/restaurant/option-groups/${groupId}`),
+  createOption: (groupId, body) => http.post(`/restaurant/option-groups/${groupId}/options`, body),
+  reorderOptions: (groupId, options) =>
+    http.put(`/restaurant/option-groups/${groupId}/options/order`, { options }),
+  updateOption: (optionId, body) => http.patch(`/restaurant/options/${optionId}`, body),
+  setOptionAvailability: (optionId, isAvailable) =>
+    http.patch(`/restaurant/options/${optionId}/availability`, { isAvailable }),
+  deleteOption: (optionId) => http.delete(`/restaurant/options/${optionId}`),
   orders: (params) => http.get('/restaurant/orders', { params }),
   order: (id) => http.get(`/restaurant/orders/${id}`),
   orderAction: (id, action, body) => http.post(`/restaurant/orders/${id}/${action}`, body ?? {}),

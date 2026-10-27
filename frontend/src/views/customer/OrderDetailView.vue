@@ -12,6 +12,7 @@ import { formatDateTime } from '../../utils/datetime.js';
 import AppSpinner from '../../components/shared/AppSpinner.vue';
 import ErrorState from '../../components/shared/ErrorState.vue';
 import AppButton from '../../components/shared/AppButton.vue';
+import LineOptions from '../../components/shared/LineOptions.vue';
 import StatusBadge from '../../components/shared/StatusBadge.vue';
 import PaymentBadge from '../../components/shared/PaymentBadge.vue';
 import PaymentForm from '../../components/customer/PaymentForm.vue';
@@ -254,7 +255,10 @@ async function submitReview() {
             <h2 class="font-semibold text-slate-900">{{ t('Items') }}</h2>
             <ul class="mt-3 space-y-2 text-sm">
               <li v-for="item in order.items" :key="item.id" class="flex justify-between gap-2">
-                <span class="text-slate-700">{{ item.quantity }} &times; {{ item.name }}</span>
+                <span class="text-slate-700">
+                  {{ item.quantity }} &times; {{ item.name }}
+                  <LineOptions :options="item.options" :notes="item.notes" />
+                </span>
                 <span>{{ formatMoney(item.lineTotal) }}</span>
               </li>
             </ul>

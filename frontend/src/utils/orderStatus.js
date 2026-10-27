@@ -89,6 +89,9 @@ export const CART_ISSUE_LABEL = {
   ITEM_UNAVAILABLE: 'No longer available',
   ITEM_REMOVED: 'Removed from the menu',
   PRICE_CHANGED: 'Price changed',
+  OPTION_UNAVAILABLE: 'A chosen option is no longer available. Remove this item and add it again.',
+  OPTION_REMOVED: 'A chosen option was removed from the menu. Remove this item and add it again.',
+  OPTIONS_CHANGED: 'The choices for this item changed. Remove it and add it again.',
 };
 
 export const UNAVAILABLE_REASON_LABEL = {

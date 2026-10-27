@@ -53,21 +53,33 @@ export function findLine(lineId, cartId, trx) {
  * `LEAST(... , 20)` caps rather than failing: a customer clicking add on their
  * twentieth unit should get twenty, not an error about a limit nobody showed
  * them.
+ *
+ * A line is (cart, item, line_key): the same item with other options or
+ * another note is a separate line, identical choices merge (BR-IO6). The
+ * chosen options are written only when the line is new; a merge keeps them.
+ * `price` is the whole unit price, kept only to detect a later change.
  */
-export async function upsertLine({ cartId, foodItemId, quantity, notes, price }, trx) {
+export async function upsertLine({ cartId, foodItemId, quantity, notes, price, lineKey, optionIds = [] }, trx) {
   const [row] = await trx.raw(
     `
-    INSERT INTO cart_items (cart_id, food_item_id, quantity, notes, price_seen_at_add)
-    VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT (cart_id, food_item_id) DO UPDATE
+    INSERT INTO cart_items (cart_id, food_item_id, quantity, notes, price_seen_at_add, line_key)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT (cart_id, food_item_id, line_key) DO UPDATE
       SET quantity = LEAST(cart_items.quantity + EXCLUDED.quantity, 20),
-          notes    = COALESCE(EXCLUDED.notes, cart_items.notes),
           updated_at = now()
-    RETURNING *
+    RETURNING *, (xmax = 0) AS inserted
     `,
-    [cartId, foodItemId, quantity, notes ?? null, price],
+    [cartId, foodItemId, quantity, notes ?? null, price, lineKey],
   ).then((r) => r.rows);
+  if (row.inserted && optionIds.length) {
+    await trx('cart_item_options').insert(optionIds.map((optionId) => ({ cart_item_id: row.id, option_id: optionId })));
+  }
   return row;
+}
+
+export function listLineOptions(cartItemIds, trx) {
+  if (!cartItemIds.length) return Promise.resolve([]);
+  return db(trx)('cart_item_options').whereIn('cart_item_id', cartItemIds);
 }
 
 export async function updateLineQuantity(lineId, cartId, quantity, trx) {

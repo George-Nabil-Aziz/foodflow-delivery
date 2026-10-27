@@ -10,6 +10,7 @@ import AppSpinner from '../../components/shared/AppSpinner.vue';
 import EmptyState from '../../components/shared/EmptyState.vue';
 import AppButton from '../../components/shared/AppButton.vue';
 import AppInput from '../../components/shared/AppInput.vue';
+import ItemOptionsEditor from '../../components/restaurant/ItemOptionsEditor.vue';
 import FilterBar from '../../components/shared/FilterBar.vue';
 import FilterSearch from '../../components/shared/FilterSearch.vue';
 import FilterSelect from '../../components/shared/FilterSelect.vue';
@@ -28,14 +29,17 @@ const search = ref('');
 // Every item matching the search alone, for the filter counts.
 const searched = ref([]);
 
+// The item whose option editor is open.
+const optionsFor = ref(null);
 const showForm = ref(false);
 const editingId = ref(null);
 const localErrors = ref({});
 const blank = () => ({ categoryId: '', name: '', description: '', price: '', imageUrl: '', isAvailable: true });
 const form = ref(blank());
 
-async function load() {
-  loading.value = true;
+// `silent` refreshes in place, so an open option editor is not torn down by a spinner.
+async function load(opts) {
+  if (opts?.silent !== true) loading.value = true;
   try {
     const params = {};
     if (filterCategory.value) params.categoryId = filterCategory.value;
@@ -257,12 +261,17 @@ async function remove(item) {
             <button type="button" class="action-link text-sm text-brand-700 hover:underline" @click="startEdit(item)">
               {{ t('Edit') }}
             </button>
+            <button type="button" class="action-link text-sm text-brand-700 hover:underline"
+                    :aria-expanded="optionsFor === item.id" @click="optionsFor = optionsFor === item.id ? null : item.id">
+              {{ t('Options ({count})', { count: item.optionGroups?.length ?? 0 }) }}
+            </button>
             <button type="button" class="action-link text-sm text-red-700 hover:underline"
                     :disabled="busy === item.id" @click="remove(item)">
               {{ t('Delete') }}
             </button>
           </div>
         </div>
+        <ItemOptionsEditor v-if="optionsFor === item.id" :item="item" @changed="load({ silent: true })" />
       </li>
     </ul>
   </div>

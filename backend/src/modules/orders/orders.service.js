@@ -93,7 +93,11 @@ export async function checkout(customerUserId, { addressId, customerNote, paymen
     }
 
     const created = await insertOrder(
-      { customerUserId, restaurant, lines: liveItems, addressId, customerNote, paymentMethod,
+      { customerUserId, restaurant, addressId, customerNote, paymentMethod,
+        lines: liveItems.map((l) => ({
+          foodItemId: l.foodItemId, name: l.name, description: l.description,
+          basePrice: l.basePrice, quantity: l.quantity, notes: l.notes, optionIds: l.optionIds,
+        })),
         discountCode: activeCart.discountCode },
       { id: customerUserId, role: 'CUSTOMER' },
       trx,
@@ -187,13 +191,13 @@ export async function adminPlaceOrder(adminUserId, input, trx) {
     const restaurant = await restaurants.assertOrderable(restaurantId, t);
 
     const lines = [];
-    for (const { foodItemId, quantity, notes } of items) {
+    for (const { foodItemId, quantity, notes, optionIds } of items) {
       const item = await menu.assertItemOrderable(foodItemId, t);
       // An item of another restaurant is as unknown here as a missing one.
       if (item.restaurant_id !== restaurant.id) throw new NotFoundError('RESOURCE_NOT_FOUND');
       lines.push({
         foodItemId: item.id, name: item.name, description: item.description,
-        unitPrice: item.price, quantity, notes,
+        basePrice: item.price, quantity, notes, optionIds,
       });
     }
 
@@ -240,12 +244,22 @@ async function insertOrder(
   actor,
   trx,
 ) {
+  // The one place option rules are enforced for every way an order is made:
+  // checkout and admin placement both end here, so neither can order an item
+  // without its required choices, with an unavailable option or with a price
+  // of its own (BR-IO3..IO5). The unit price is base + chosen deltas.
+  const selections = await menu.resolveSelections(
+    lines.map((l) => ({ foodItemId: l.foodItemId, name: l.name, basePrice: l.basePrice, optionIds: l.optionIds })),
+    trx,
+  );
+
   const pricing = {
-    lines: lines.map((l) => ({
+    lines: lines.map((l, i) => ({
       foodItemId: l.foodItemId,
       name: l.name,
       description: l.description,
-      unitPrice: l.unitPrice,
+      unitPrice: selections[i].unitPrice,
+      options: selections[i].options,
       quantity: l.quantity,
       notes: l.notes,
     })),
@@ -302,7 +316,7 @@ async function insertOrder(
   );
 
   // Snapshot columns: nothing reads food_items for this order again (BR-O1).
-  await repo.insertItems(
+  const insertedItems = await repo.insertItems(
     created.id,
     totals.lines.map((l) => ({
       food_item_id: l.foodItemId,
@@ -313,6 +327,16 @@ async function insertOrder(
       line_total: l.lineTotal,
       notes: l.notes ?? null,
     })),
+    trx,
+  );
+  // Rows come back in insertion order, so line i's options belong to row i.
+  await repo.insertItemOptions(
+    totals.lines.flatMap((l, i) => l.options.map((o) => ({
+      order_item_id: insertedItems[i].id,
+      group_name_snapshot: o.groupName,
+      option_name_snapshot: o.name,
+      price_delta: o.priceDelta,
+    }))),
     trx,
   );
 

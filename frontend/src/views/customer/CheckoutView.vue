@@ -8,6 +8,7 @@ import { formatMoney } from '../../utils/money.js';
 import { CART_ISSUE_LABEL } from '../../utils/orderStatus.js';
 import AppSpinner from '../../components/shared/AppSpinner.vue';
 import AppButton from '../../components/shared/AppButton.vue';
+import LineOptions from '../../components/shared/LineOptions.vue';
 import DiscountCodeField from '../../components/customer/DiscountCodeField.vue';
 import { discountErrorText, isPositiveAmount } from '../../utils/discount.js';
 import EmptyState from '../../components/shared/EmptyState.vue';
@@ -185,7 +186,10 @@ async function placeOrder() {
 
           <ul class="mt-3 space-y-1 text-sm">
             <li v-for="item in cart.items" :key="item.id" class="flex justify-between gap-2">
-              <span class="text-slate-700">{{ item.quantity }} &times; {{ item.name }}</span>
+              <span class="text-slate-700">
+                {{ item.quantity }} &times; {{ item.name }}
+                <LineOptions :options="item.options" :notes="item.notes" />
+              </span>
               <span>{{ formatMoney(item.lineTotal) }}</span>
             </li>
           </ul>

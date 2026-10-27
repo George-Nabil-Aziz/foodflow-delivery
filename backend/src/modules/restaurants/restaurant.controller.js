@@ -82,3 +82,56 @@ export async function deleteItem(req, res) {
   await menu.deleteItem(req.restaurant.id, req.validated.params.id);
   res.status(204).send();
 }
+
+/* ---------------------------------------------------------- item options */
+
+export async function listOptionGroups(req, res) {
+  res.json(ok(await menu.listGroups(req.restaurant.id, req.validated.params.itemId), { requestId: req.id }));
+}
+
+export async function createOptionGroup(req, res) {
+  const group = await menu.createGroup(req.restaurant.id, req.validated.params.itemId, req.validated.body);
+  res.status(201).json(ok(group, { requestId: req.id }));
+}
+
+export async function reorderOptionGroups(req, res) {
+  const groups = await menu.reorderGroups(req.restaurant.id, req.validated.params.itemId, req.validated.body.groups);
+  res.json(ok(groups, { requestId: req.id }));
+}
+
+export async function updateOptionGroup(req, res) {
+  const group = await menu.updateGroup(req.restaurant.id, req.validated.params.groupId, req.validated.body);
+  res.json(ok(group, { requestId: req.id }));
+}
+
+export async function deleteOptionGroup(req, res) {
+  await menu.deleteGroup(req.restaurant.id, req.validated.params.groupId);
+  res.status(204).send();
+}
+
+export async function createOption(req, res) {
+  const group = await menu.createOption(req.restaurant.id, req.validated.params.groupId, req.validated.body);
+  res.status(201).json(ok(group, { requestId: req.id }));
+}
+
+export async function reorderOptions(req, res) {
+  const group = await menu.reorderOptions(req.restaurant.id, req.validated.params.groupId, req.validated.body.options);
+  res.json(ok(group, { requestId: req.id }));
+}
+
+export async function updateOption(req, res) {
+  const group = await menu.updateOption(req.restaurant.id, req.validated.params.optionId, req.validated.body);
+  res.json(ok(group, { requestId: req.id }));
+}
+
+export async function setOptionAvailability(req, res) {
+  const group = await menu.setOptionAvailability(
+    req.restaurant.id, req.validated.params.optionId, req.validated.body.isAvailable,
+  );
+  res.json(ok(group, { requestId: req.id }));
+}
+
+export async function deleteOption(req, res) {
+  const group = await menu.deleteOption(req.restaurant.id, req.validated.params.optionId);
+  res.json(ok(group, { requestId: req.id }));
+}

@@ -256,6 +256,7 @@ export async function getDelivery(driverUserId, orderId) {
       name: i.item_name_snapshot,
       quantity: i.quantity,
       notes: i.notes,
+      options: (i.options ?? []).map((o) => `${o.group_name_snapshot}: ${o.option_name_snapshot}`),
     })),
     readyAt: row.ready_at,
     pickedUpAt: row.picked_up_at,

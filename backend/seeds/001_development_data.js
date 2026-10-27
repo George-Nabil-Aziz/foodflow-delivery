@@ -316,6 +316,34 @@ export async function seed(knex) {
 
   const item = (name) => items.find((i) => i.name === name);
 
+  /* -------------------------------------------------------- item options */
+
+  // Demo option groups (spec-15): a required choice, an optional multi-choice
+  // and a sold-out option. Groups cascade away with their items on re-seed.
+  const optionGroups = [
+    { item: 'Mixed Grill', name: 'Size', min: 1, max: 1, options: [
+      ['Regular', '0.00'], ['Large (+ extra skewer)', '60.00'] ] },
+    { item: 'Mixed Grill', name: 'Extras', min: 0, max: 3, options: [
+      ['Grilled tomato', '10.00'], ['Garlic sauce', '8.00'], ['Extra rice', '25.00'] ] },
+    { item: 'Lentil Soup', name: 'Add-ons', min: 0, max: 2, options: [
+      ['Croutons', '5.00'], ['Lemon wedge', '0.00'] ] },
+    { item: 'Arrabbiata', name: 'Spice level', min: 1, max: 1, options: [
+      ['Mild', '0.00'], ['Medium', '0.00'], ['Hot', '0.00'] ] },
+    { item: 'Arrabbiata', name: 'Extras', min: 0, max: 2, options: [
+      ['Parmesan', '20.00'], ['Burrata', '45.00'], ['Fresh basil', '5.00', false] ] },
+  ];
+  for (const [i, g] of optionGroups.entries()) {
+    const [group] = await knex('item_option_groups')
+      .insert({
+        food_item_id: item(g.item).id, name: g.name, min_select: g.min, max_select: g.max,
+        display_order: i % 2,
+      })
+      .returning('*');
+    await knex('item_options').insert(g.options.map(([name, delta, available = true], order) => ({
+      group_id: group.id, name, price_delta: delta, is_available: available, display_order: order,
+    })));
+  }
+
   /* ----------------------------------------------------- driver profiles */
 
   // Profile created with the account; approved a few days later.

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { CART_ITEM_MAX_QTY, CART_ITEM_MIN_QTY } from '../../shared/constants.js';
 import { optionalTrimmed, uuid } from '../../shared/validation/common.js';
+import { optionIds } from '../menu/index.js';
 
 const quantity = z.coerce
   .number()
@@ -12,6 +13,8 @@ export const addItemSchema = z.object({
   foodItemId: uuid,
   quantity: quantity.default(1),
   notes: optionalTrimmed(200),
+  // Ids only; the server derives groups and prices (BR-IO4).
+  optionIds,
 });
 
 export const addItemQuery = z.object({

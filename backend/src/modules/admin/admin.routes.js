@@ -14,6 +14,7 @@ import { asyncHandler } from '../../shared/http/asyncHandler.js';
 import * as service from './admin.service.js';
 import { createAddressSchema } from '../users/index.js';
 import { platformStats } from './stats.service.js';
+import { lineKeyOf } from '../menu/index.js';
 
 /** Reason is mandatory on every destructive action (BR-AD5, FR-9.4). */
 const reasonSchema = z.object({
@@ -278,8 +279,12 @@ const placeOrderSchema = z.object({
     foodItemId: uuid,
     quantity: z.number().int().min(1).max(20),
     notes: z.string().trim().max(200).optional().nullable(),
+    // The options chosen for this line; an item with a required group must have them (BR-IO9).
+    optionIds: z.array(uuid).max(30).default([]),
   })).min(1).max(50)
-    .refine((items) => new Set(items.map((i) => i.foodItemId)).size === items.length, 'lists an item twice'),
+    // The same item may appear again with other options or another note.
+    .refine((items) => new Set(items.map((i) => lineKeyOf(i.optionIds, i.notes?.trim() || null) + i.foodItemId)).size === items.length,
+      'lists an item twice'),
   customerNote: z.string().trim().max(500).optional().nullable(),
   // Judged by the same rules as a customer's code (BR-DC8).
   discountCode: z.string().trim().min(1).max(40).optional().nullable(),
