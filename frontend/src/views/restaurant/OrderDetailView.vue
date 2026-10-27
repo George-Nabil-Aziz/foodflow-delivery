@@ -164,7 +164,7 @@ async function confirmReason({ reason, reasonCode }) {
                 <dt>{{ t('Total') }}</dt><dd>{{ formatMoney(order.totalAmount) }}</dd>
               </div>
             </dl>
-            <p class="mt-2 text-xs text-slate-500">{{ t('Cash on delivery') }}</p>
+            <p class="mt-2 text-xs text-slate-500">{{ order.paymentMethod === 'CARD' ? t('Paid by card') : t('Cash on delivery') }}</p>
           </div>
         </aside>
       </div>

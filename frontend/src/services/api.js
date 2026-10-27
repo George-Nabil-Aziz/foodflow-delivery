@@ -47,6 +47,14 @@ export const orderApi = {
   get: (id) => http.get(`/orders/${id}`),
   status: (id) => http.get(`/orders/${id}/status`),
   cancel: (id, body) => http.post(`/orders/${id}/cancel`, body ?? {}),
+  // The gateway payment id is only a pointer; the server asks the gateway.
+  confirmPayment: (id, providerPaymentId) => http.post(`/orders/${id}/payment/confirm`, { providerPaymentId }),
+  // Development only: stands in for the gateway page when the server runs its fake provider.
+  simulatePayment: (id) => http.post(`/orders/${id}/payment/simulate`),
+};
+
+export const paymentApi = {
+  config: () => http.get('/payments/config'),
 };
 
 export const reviewApi = {
@@ -122,6 +130,7 @@ export const adminApi = {
   order: (id) => http.get(`/admin/orders/${id}`),
   unassigned: () => http.get('/admin/orders/unassigned'),
   stuck: () => http.get('/admin/orders/stuck'),
+  refundPayment: (paymentId) => http.post(`/admin/payments/${paymentId}/refund`, {}),
   placeOrder: (body) => http.post('/admin/orders', body),
   customerAddresses: (id) => http.get(`/admin/users/${id}/addresses`),
   forceCancel: (id, body) => http.post(`/admin/orders/${id}/force-cancel`, body),
