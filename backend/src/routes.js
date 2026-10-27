@@ -11,6 +11,7 @@ import { ordersRouter } from './modules/orders/index.js';
 import { driverRouter } from './modules/delivery/index.js';
 import { reviewsRouter } from './modules/reviews/index.js';
 import { adminRouter } from './modules/admin/index.js';
+import { paymentsRouter } from './modules/payments/index.js';
 
 export const apiRouter = Router();
 
@@ -44,3 +45,4 @@ apiRouter.use('/orders', ordersRouter);
 apiRouter.use('/driver', driverRouter);
 apiRouter.use('/reviews', reviewsRouter);
 apiRouter.use('/admin', adminRouter);
+apiRouter.use('/payments', paymentsRouter);

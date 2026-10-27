@@ -31,6 +31,7 @@ export const CODES = {
   DRIVER_HAS_ACTIVE_DELIVERY: 409,
   HAS_ACTIVE_ORDERS: 409,
   OFFER_NO_LONGER_AVAILABLE: 409,
+  PAYMENT_NOT_REFUNDABLE: 409,
   CONFLICT: 409,
   // 422
   VALIDATION_ERROR: 422,
@@ -40,11 +41,15 @@ export const CODES = {
   ITEM_UNAVAILABLE: 422,
   RESTAURANT_UNAVAILABLE: 422,
   ORDER_NOT_REVIEWABLE: 422,
+  PAYMENT_NOT_VERIFIED: 422,
+  CARD_PAYMENTS_UNAVAILABLE: 422,
   UNPROCESSABLE: 422,
   // 429
   RATE_LIMIT_EXCEEDED: 429,
   // 500
   INTERNAL_ERROR: 500,
+  // 503
+  PAYMENT_PROVIDER_UNAVAILABLE: 503,
 };
 
 /**
@@ -73,6 +78,7 @@ export const PUBLIC_MESSAGES = {
   DRIVER_HAS_ACTIVE_DELIVERY: 'This driver has an active delivery.',
   HAS_ACTIVE_ORDERS: 'There are orders still in progress.',
   OFFER_NO_LONGER_AVAILABLE: 'This delivery offer is no longer available.',
+  PAYMENT_NOT_REFUNDABLE: 'This payment cannot be refunded in its current state.',
   CONFLICT: 'The request conflicts with the current state.',
   VALIDATION_ERROR: 'Some of the submitted values are not valid.',
   CART_EMPTY: 'Your cart is empty.',
@@ -81,9 +87,12 @@ export const PUBLIC_MESSAGES = {
   ITEM_UNAVAILABLE: 'This item is currently unavailable.',
   RESTAURANT_UNAVAILABLE: 'This restaurant is not accepting orders right now.',
   ORDER_NOT_REVIEWABLE: 'This order cannot be reviewed.',
+  PAYMENT_NOT_VERIFIED: 'We could not verify this payment.',
+  CARD_PAYMENTS_UNAVAILABLE: 'Card payments are not available right now.',
   UNPROCESSABLE: 'The request could not be processed.',
   RATE_LIMIT_EXCEEDED: 'Too many requests. Please try again shortly.',
   INTERNAL_ERROR: 'Something went wrong. Please try again.',
+  PAYMENT_PROVIDER_UNAVAILABLE: 'The payment service is not responding. Please try again shortly.',
 };
 
 export const isRegisteredCode = (code) => Object.hasOwn(CODES, code);

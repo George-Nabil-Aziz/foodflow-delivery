@@ -80,6 +80,10 @@ export async function ownerStats(restaurantId, trx) {
       COALESCE(sum(total_amount) FILTER (
         WHERE status = 'DELIVERED' AND delivered_at >= date_trunc('day', now())), 0)             AS revenue_today
     FROM orders WHERE restaurant_id = ?
+      -- An unpaid card order is not the restaurant's to see yet (spec-11 BR-P4).
+      AND (payment_method <> 'CARD' OR EXISTS (
+        SELECT 1 FROM payments p WHERE p.order_id = orders.id
+          AND p.status IN ('PAID','REFUNDING','REFUNDED','REFUND_FAILED')))
     `,
     [restaurantId],
   ).then((r) => r.rows);

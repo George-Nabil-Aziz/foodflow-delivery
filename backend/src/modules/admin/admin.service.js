@@ -13,6 +13,7 @@ import * as users from '../users/index.js';
 import * as restaurants from '../restaurants/index.js';
 import * as orders from '../orders/index.js';
 import * as delivery from '../delivery/index.js';
+import * as payments from '../payments/index.js';
 import * as reviews from '../reviews/index.js';
 import { audit } from './audit.service.js';
 import { toAdminRestaurantDto } from '../restaurants/index.js';
@@ -560,14 +561,35 @@ export const listUnassigned = orders.listUnassigned;
 export const listStuck = orders.listStuck;
 
 export async function forceCancelOrder(adminUserId, orderId, { reason, note }) {
-  return withTransaction(async (trx) => {
-    const updated = await orders.adminForceCancel(adminUserId, orderId, { reason, note }, trx);
+  const updated = await withTransaction(async (trx) => {
+    const cancelled = await orders.adminForceCancel(adminUserId, orderId, { reason, note }, trx);
     await audit(
       { adminUserId, action: 'ORDER_FORCE_CANCELLED', entityType: 'order', entityId: orderId, metadata: { reason, note } },
       trx,
     );
-    return { id: updated.id, status: updated.status, cancellationReason: updated.cancellation_reason };
+    return cancelled;
   });
+  // After commit: a paid card order is refunded (spec-11 BR-P5).
+  await orders.settleCancelled(updated);
+  return { id: updated.id, status: updated.status, cancellationReason: updated.cancellation_reason };
+}
+
+/**
+ * Retries a refund that failed. The gateway call happens first and is recorded
+ * on the payment; the audit row commits in the same transaction as that record,
+ * whether the retry succeeded or failed again (BR-AD1, BR-P6).
+ */
+export async function retryRefund(adminUserId, paymentId) {
+  const { payment, outcome } = await payments.retryRefund(paymentId, {
+    onRecorded: (trx, row, result) => audit(
+      {
+        adminUserId, action: 'PAYMENT_REFUND_RETRIED', entityType: 'payment', entityId: paymentId,
+        metadata: { orderId: row.order_id, outcome: result, amount: row.amount, error: row.refund_error },
+      },
+      trx,
+    ),
+  });
+  return { ...payments.toAdminPaymentDto(payment), outcome };
 }
 
 /** Only an active customer can have an order placed for them. */

@@ -27,6 +27,7 @@ import * as restaurants from '../restaurants/index.js';
 import * as menu from '../menu/index.js';
 import * as users from '../users/index.js';
 import * as delivery from '../delivery/index.js';
+import * as payments from '../payments/index.js';
 import { notify } from '../../shared/notifications.js';
 
 /* ------------------------------------------------------------------ checkout */
@@ -39,6 +40,9 @@ import { notify } from '../../shared/notifications.js';
  * a note; every monetary figure is computed here (BR-O5).
  */
 export async function checkout(customerUserId, { addressId, customerNote, paymentMethod }) {
+  const isCard = paymentMethod === 'CARD';
+  if (isCard) payments.assertCardEnabled();
+
   const order = await withTransaction(async (trx) => {
     const activeCart = await cart.getActiveCartForCheckout(customerUserId, trx);
 
@@ -68,12 +72,65 @@ export async function checkout(customerUserId, { addressId, customerNote, paymen
       { id: customerUserId, role: 'CUSTOMER' },
       trx,
     );
+    // The amount comes from the total just computed, never from the request.
+    if (isCard) {
+      await payments.initiate(
+        { orderId: created.id, customerUserId, amount: created.total_amount }, trx,
+      );
+    }
     await cart.markConverted(activeCart.id, trx);
     return created;
   });
 
-  await notifyNewOrder(order);
+  // A card order is not announced to the restaurant until it is paid; the
+  // payment listener below does that (BR-P4).
+  if (!isCard) await notifyNewOrder(order);
   return getCustomerOrder(customerUserId, order.id);
+}
+
+/**
+ * The customer's browser reports the gateway payment it just made. The gateway
+ * is asked whether it is paid and for what amount; the order is then returned
+ * with its payment state, whatever that turned out to be.
+ */
+export async function confirmPayment(customerUserId, orderId, providerPaymentId) {
+  const payment = await payments.getForCustomerOrder(orderId, customerUserId);
+  await payments.confirm(payment, providerPaymentId);
+  return getCustomerOrder(customerUserId, orderId);
+}
+
+/** Development stand-in for paying on the gateway's page (fake provider only). */
+export async function simulatePayment(customerUserId, orderId) {
+  const payment = await payments.getForCustomerOrder(orderId, customerUserId);
+  return payments.simulatePayment(payment);
+}
+
+/**
+ * Runs once per payment that becomes PAID (see `payments.onPaid`). A payment
+ * for a live order announces it to the restaurant; one that arrives after the
+ * order was cancelled (a late 3-D Secure, say) is refunded straight away.
+ */
+payments.onPaid(async (payment) => {
+  const order = await repo.findById(payment.order_id);
+  if (!order) return;
+  if (order.status === 'CANCELLED') await settleCancelled(order);
+  else if (order.status === 'PENDING') await notifyNewOrder(order);
+});
+
+/**
+ * Post-commit follow-up to a cancellation, shared by every path that cancels
+ * (`transition` and the admin force-cancel): refunds a PAID card payment.
+ * External I/O, so it runs after the status change has committed, and it never
+ * throws - a failed refund is recorded on the payment for an admin to retry
+ * (BR-P5), it does not undo the cancellation.
+ */
+export async function settleCancelled(order) {
+  if (order.payment_method !== 'CARD') return;
+  try {
+    await payments.refundForOrder(order.id);
+  } catch (err) {
+    logger.error({ err, orderId: order.id }, 'refund after cancellation crashed');
+  }
 }
 
 /**
@@ -205,46 +262,63 @@ async function insertOrder({ customerUserId, restaurant, lines, addressId, custo
  * makes goal G3 (every change legal, attributed and auditable) testable rather
  * than aspirational.
  */
-export async function transition(orderId, toStatus, actor, { reason, note, scope } = {}) {
-  return withTransaction(async (trx) => {
-    const order = await repo.findByIdForUpdate(orderId, trx);
-    if (!order) throw new NotFoundError('RESOURCE_NOT_FOUND');
+export async function transition(orderId, toStatus, actor, opts = {}) {
+  const updated = await withTransaction((trx) => transitionInTransaction(orderId, toStatus, actor, opts, trx));
+  // After commit, outside any lock: refund a paid card order that was cancelled.
+  if (toStatus === 'CANCELLED') await settleCancelled(updated);
+  return updated;
+}
 
-    // Ownership is checked before legality, so a cross-tenant probe gets 404
-    // rather than a 409 that would confirm the order exists (ADR-010).
-    assertActorOwnsOrder(order, actor, scope);
-    assertTransition(order.status, toStatus, { actorRole: actor.role, reason });
+/**
+ * The body of `transition`, for a caller that owns the surrounding transaction
+ * (the admin force-cancel commits its audit row with it). Such a caller must
+ * call `settleCancelled` itself once its transaction has committed.
+ */
+async function transitionInTransaction(orderId, toStatus, actor, { reason, note, scope } = {}, trx) {
+  const order = await repo.findByIdForUpdate(orderId, trx);
+  if (!order) throw new NotFoundError('RESOURCE_NOT_FOUND');
 
-    const patch = { status: toStatus };
-    const stamp = STATUS_TIMESTAMP_COLUMN[toStatus];
-    if (stamp) patch[stamp] = trx.fn.now();
+  // Ownership is checked before legality, so a cross-tenant probe gets 404
+  // rather than a 409 that would confirm the order exists (ADR-010).
+  assertActorOwnsOrder(order, actor, scope);
+  // An unpaid card order does not exist as far as the restaurant is concerned (BR-P4).
+  if (
+    actor.role === 'RESTAURANT' && order.payment_method === 'CARD'
+    && !(await payments.isSettled(orderId, trx))
+  ) {
+    throw new NotFoundError('RESOURCE_NOT_FOUND');
+  }
+  assertTransition(order.status, toStatus, { actorRole: actor.role, reason });
 
-    if (toStatus === 'CANCELLED') {
-      patch.cancelled_by = actor.role;
-      patch.cancellation_reason = reason ?? 'CUSTOMER_CHANGED_MIND';
-      patch.cancellation_note = note ?? null;
-    }
-    if (toStatus === 'CONFIRMED') patch.dispatch_state = 'UNASSIGNED';
-    if (toStatus === 'DELIVERED') patch.dispatch_state = 'COMPLETED';
+  const patch = { status: toStatus };
+  const stamp = STATUS_TIMESTAMP_COLUMN[toStatus];
+  if (stamp) patch[stamp] = trx.fn.now();
 
-    const updated = await repo.updateOrder(orderId, patch, trx);
+  if (toStatus === 'CANCELLED') {
+    patch.cancelled_by = actor.role;
+    patch.cancellation_reason = reason ?? 'CUSTOMER_CHANGED_MIND';
+    patch.cancellation_note = note ?? null;
+  }
+  if (toStatus === 'CONFIRMED') patch.dispatch_state = 'UNASSIGNED';
+  if (toStatus === 'DELIVERED') patch.dispatch_state = 'COMPLETED';
 
-    await repo.appendEvent(
-      {
-        orderId,
-        from: order.status,
-        to: toStatus,
-        actorUserId: actor.id ?? null,
-        actorRole: actor.role,
-        reason: reason ?? null,
-        note: note ?? null,
-      },
-      trx,
-    );
+  const updated = await repo.updateOrder(orderId, patch, trx);
 
-    await applySideEffects(order, updated, toStatus, trx);
-    return updated;
-  });
+  await repo.appendEvent(
+    {
+      orderId,
+      from: order.status,
+      to: toStatus,
+      actorUserId: actor.id ?? null,
+      actorRole: actor.role,
+      reason: reason ?? null,
+      note: note ?? null,
+    },
+    trx,
+  );
+
+  await applySideEffects(order, updated, toStatus, trx);
+  return updated;
 }
 
 /** Side effects, all inside the same transaction as the status change. */
@@ -279,17 +353,18 @@ export async function listForCustomer(customerUserId, query) {
 export async function getCustomerOrder(customerUserId, orderId) {
   const order = await repo.findForCustomer(orderId, customerUserId);
   if (!order) throw new NotFoundError('RESOURCE_NOT_FOUND');
-  const [items, events, driver, review] = await Promise.all([
+  const [items, events, driver, review, payment] = await Promise.all([
     repo.listItems(orderId),
     repo.listEvents(orderId),
     repo.findDriverUser(order.driver_user_id),
     repo.hasReview(orderId),
+    payments.getForOrder(orderId),
   ]);
   const restaurant = await restaurants.getRestaurantById(order.restaurant_id);
   return toCustomerOrderDto(
     { ...order, has_review: Boolean(review), restaurant_phone: restaurant?.phone,
       restaurant_logo_url: restaurant?.logo_url },
-    { items, events, driver },
+    { items, events, driver, payment: payments.toCustomerDto(payment) },
   );
 }
 
@@ -365,6 +440,8 @@ export async function adminList(query) {
       ...toOrderSummaryDto(r),
       customerName: r.customer_full_name,
       status: r.status,
+      paymentMethod: r.payment_method,
+      paymentStatus: r.payment_status ?? null,
     })),
     meta: paginationMeta({ page, limit, total }),
   };
@@ -373,37 +450,22 @@ export async function adminList(query) {
 export async function adminGetOrder(orderId) {
   const order = await repo.findDetailForAdmin(orderId);
   if (!order) throw new NotFoundError('RESOURCE_NOT_FOUND');
-  const [items, events] = await Promise.all([repo.listItems(orderId), repo.listEvents(orderId)]);
-  return toAdminOrderDto(order, { items, events });
+  const [items, events, payment] = await Promise.all([
+    repo.listItems(orderId), repo.listEvents(orderId), payments.getForOrder(orderId),
+  ]);
+  return toAdminOrderDto(order, { items, events, payment: payments.toAdminPaymentDto(payment) });
 }
 
+/**
+ * Admin force-cancel: the same transition as every other cancellation, inside
+ * the caller's transaction so the audit row commits with it. The caller then
+ * calls `settleCancelled` (exported) once that transaction has committed.
+ */
 export async function adminForceCancel(adminUserId, orderId, { reason, note }, trx) {
-  const run = async (t) => {
-    const order = await repo.findByIdForUpdate(orderId, t);
-    if (!order) throw new NotFoundError('RESOURCE_NOT_FOUND');
-    assertTransition(order.status, 'CANCELLED', { actorRole: 'ADMIN', reason });
-
-    const updated = await repo.updateOrder(
-      orderId,
-      {
-        status: 'CANCELLED',
-        cancelled_at: t.fn.now(),
-        cancelled_by: 'ADMIN',
-        cancellation_reason: reason,
-        cancellation_note: note ?? null,
-      },
-      t,
-    );
-    await repo.appendEvent(
-      { orderId, from: order.status, to: 'CANCELLED', actorUserId: adminUserId,
-        actorRole: 'ADMIN', reason, note },
-      t,
-    );
-    await delivery.closeAssignmentsForOrder(orderId, { cancelled: true }, t);
-    if (order.driver_user_id) await delivery.releaseDriver(order.driver_user_id, t);
-    return updated;
-  };
-  return trx ? run(trx) : withTransaction(run);
+  return withTransaction(
+    (t) => transitionInTransaction(orderId, 'CANCELLED', { id: adminUserId, role: 'ADMIN' }, { reason, note }, t),
+    trx,
+  );
 }
 
 export async function listUnassigned() {
@@ -428,12 +490,12 @@ export async function listStuck() {
 /* ------------------------------------------------------- jobs / interfaces */
 
 /** SYSTEM cancellation of a PENDING order the restaurant never answered (T2). */
-export async function systemCancelStale(orderId) {
+export async function systemCancelStale(orderId, {
+  reason = 'ACCEPT_TIMEOUT',
+  note = 'Automatically cancelled: the restaurant did not respond in time.',
+} = {}) {
   try {
-    await transition(orderId, 'CANCELLED', { id: null, role: 'SYSTEM' }, {
-      reason: 'ACCEPT_TIMEOUT',
-      note: 'Automatically cancelled: the restaurant did not respond in time.',
-    });
+    await transition(orderId, 'CANCELLED', { id: null, role: 'SYSTEM' }, { reason, note });
     return true;
   } catch (err) {
     if (err instanceof ConflictError) return false; // Someone acted first.

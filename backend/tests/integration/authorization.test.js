@@ -22,6 +22,8 @@ const PUBLIC_ALLOWLIST = new Set([
   'GET /api/search',
   'GET /api/cuisines',
   'GET /api/__test_boom',
+  // Called by Moyasar, authenticated by its shared secret token instead.
+  'POST /api/payments/webhooks/moyasar',
 ]);
 
 /** Authenticated but role-agnostic: any signed-in user may call these. */

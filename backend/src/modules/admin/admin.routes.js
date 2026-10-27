@@ -304,6 +304,12 @@ adminRouter.post(
   }),
 );
 
+/* -------------------------------------------------------------- payments */
+
+adminRouter.post('/payments/:id/refund', validate({ params: idParam }), asyncHandler(async (req, res) => {
+  res.json(ok(await service.retryRefund(req.user.id, req.validated.params.id), { requestId: req.id }));
+}));
+
 /* --------------------------------------------------------------- reviews */
 
 const reviewsQuery = paginationQuery.extend({
