@@ -413,8 +413,17 @@ no update or delete path exists in code (FR-9.6).
 Index `idx_audit_entity (entity_type, entity_id, created_at DESC)`.
 
 ### `notifications`
-The stub transport's log (see Non-Goals). `user_id`, `channel` (`EMAIL`/`SMS`/
-`IN_APP`), `template`, `payload jsonb`, `sent_at`, `read_at`.
+One row per message, recipient and channel, and its delivery state
+([spec-13](../specs/spec-13-notifications.md)). `user_id`, `channel` (`EMAIL`/
+`SMS`/`IN_APP`), `template`, `payload jsonb`, `read_at`, `created_at`, plus:
+`status` (`QUEUED`/`SENT`/`FAILED`/`SKIPPED`, check-constrained), `attempts`,
+`last_error`, `recipient` (email or E.164 phone), `next_attempt_at` (when a
+`FAILED` row is next due) and `dedupe_key`. `sent_at` is null until delivery
+actually succeeds. `uq_notifications_dedupe` (partial, where `dedupe_key IS NOT
+NULL`) stores a given template/order/channel/recipient once;
+`idx_notifications_retry` serves the retry job and
+`idx_notifications_recipient_sent` the per-recipient hourly cap. Added in
+migration 012.
 
 ## 5. Cardinality summary
 
