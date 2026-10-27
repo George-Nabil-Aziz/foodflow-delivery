@@ -5,6 +5,7 @@ export {
   assertOrderable,
   orderabilityFor,
   getPublicRestaurant,
+  deliveryZoneFields,
   setStatus,
   countAvailableItems,
   adminList,
@@ -20,6 +21,8 @@ export {
   dayOfWeek,
   minutesOfDay,
 } from './orderability.js';
+
+export { checkDeliveryZone, distanceToRestaurantKm } from './deliveryZone.js';
 
 export {
   toPublicRestaurantDto,

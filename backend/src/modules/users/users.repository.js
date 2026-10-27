@@ -54,6 +54,13 @@ export function findAddress(id, userId, trx) {
     .first();
 }
 
+export function findDefaultAddress(userId, trx) {
+  return db(trx)('customer_addresses')
+    .where({ user_id: userId, is_default: true })
+    .whereNull('deleted_at')
+    .first();
+}
+
 export async function insertAddress(userId, data, trx) {
   const [row] = await db(trx)('customer_addresses')
     .insert({ ...data, user_id: userId })

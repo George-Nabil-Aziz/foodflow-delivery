@@ -6,6 +6,14 @@ import { config } from '../../config/index.js';
 import * as restaurants from '../restaurants/index.js';
 import { toPublicRestaurantDto, dayOfWeek, minutesOfDay } from '../restaurants/index.js';
 import * as menu from '../menu/index.js';
+import * as users from '../users/index.js';
+
+/**
+ * The customer's delivery point for annotating restaurants (spec-18 FR-18.3):
+ * only a signed-in customer has one, so anonymous browsing is unchanged.
+ */
+const browsingPoint = (user, addressId) =>
+  (user?.role === 'CUSTOMER' ? users.getBrowsingAddress(user.id, addressId) : null);
 
 
 
@@ -50,9 +58,10 @@ function applyOpenNow(query, now) {
     });
 }
 
-export async function listRestaurants(query) {
+export async function listRestaurants(query, user) {
   const { limit, offset, page } = toLimitOffset(query);
   const now = new Date();
+  const point = await browsingPoint(user, query.addressId);
 
   const q = knex('restaurants as r')
     .whereNull('r.deleted_at')
@@ -82,13 +91,16 @@ export async function listRestaurants(query) {
 
   const rows = await q;
   const data = await Promise.all(
-    rows.map(async (r) => toPublicRestaurantDto(r, await restaurants.orderabilityFor(r, undefined, now))),
+    rows.map(async (r) => ({
+      ...toPublicRestaurantDto(r, await restaurants.orderabilityFor(r, undefined, now)),
+      ...restaurants.deliveryZoneFields(r, point),
+    })),
   );
   return { data, meta: paginationMeta({ page, limit, total: rows[0]?.total_count ?? 0 }) };
 }
 
-export async function getRestaurant(id) {
-  return restaurants.getPublicRestaurant(id);
+export async function getRestaurant(id, user, addressId) {
+  return restaurants.getPublicRestaurant(id, await browsingPoint(user, addressId));
 }
 
 export async function getMenu(id) {
@@ -106,7 +118,8 @@ export async function getMenu(id) {
  * Wildcards are escaped: unescaped, a search for "%" returns the entire table
  * and turns the search box into a full-table-scan button.
  */
-export async function search({ q, limit = 10 }) {
+export async function search({ q, limit = 10, addressId }, user) {
+  const point = await browsingPoint(user, addressId);
   const pattern = `%${escapeLikePattern(q)}%`;
   const now = new Date();
 
@@ -136,8 +149,10 @@ export async function search({ q, limit = 10 }) {
     .limit(limit);
 
   const restaurantDtos = await Promise.all(
-    restaurantRows.map(async (r) =>
-      toPublicRestaurantDto(r, await restaurants.orderabilityFor(r, undefined, now))),
+    restaurantRows.map(async (r) => ({
+      ...toPublicRestaurantDto(r, await restaurants.orderabilityFor(r, undefined, now)),
+      ...restaurants.deliveryZoneFields(r, point),
+    })),
   );
 
   const itemDtos = await Promise.all(

@@ -113,6 +113,20 @@ export async function getAddressForOrder(userId, addressId, trx) {
   return { id: row.id, snapshot: toAddressSnapshot(row) };
 }
 
+/**
+ * The address a signed-in customer is browsing for: the one they selected, or
+ * else their default. Returns its coordinates, or null when there is none.
+ * Unlike checkout this never throws: an unknown address id just means the
+ * listing is not annotated (spec-18 FR-18.3).
+ */
+export async function getBrowsingAddress(userId, addressId) {
+  const row = addressId
+    ? await repo.findAddress(addressId, userId)
+    : await repo.findDefaultAddress(userId);
+  if (!row) return null;
+  return { id: row.id, latitude: row.latitude, longitude: row.longitude };
+}
+
 export const getUserById = repo.findById;
 export const setUserStatus = repo.setStatus;
 export const getUserByIdIncludingDeleted = repo.findByIdIncludingDeleted;

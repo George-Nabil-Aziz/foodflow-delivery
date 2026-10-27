@@ -43,6 +43,9 @@ async function load() {
       deliveryFee: profile.value.deliveryFee,
       minimumOrderAmount: profile.value.minimumOrderAmount,
       avgPreparationMinutes: profile.value.avgPreparationMinutes,
+      deliveryRadiusKm: profile.value.deliveryRadiusKm,
+      latitude: profile.value.latitude ?? '',
+      longitude: profile.value.longitude ?? '',
     };
   } catch (err) {
     ui.toastError(err.message);
@@ -58,6 +61,7 @@ async function save() {
   localErrors.value = validate(form.value, {
     name: [rules.required('Name'), rules.minLength(2, 'Name'), rules.maxLength(120, 'Name')],
     phone: [rules.phone],
+    deliveryRadiusKm: [(v) => (Number(v) >= 1 && Number(v) <= 30 ? null : 'Delivery radius must be between 1 and 30 km')],
   });
   if (Object.keys(localErrors.value).length) return;
 
@@ -132,6 +136,18 @@ async function save() {
         <AppInput id="r-prep" v-model="form.avgPreparationMinutes" label="Prep time (minutes)"
                   type="number" hint="Between 5 and 180"
                   :error="fieldError('avgPreparationMinutes')" />
+      </div>
+
+      <!-- The delivery zone: a circle around the restaurant (spec-18). -->
+      <div class="grid gap-4 sm:grid-cols-3">
+        <AppInput id="r-radius" v-model="form.deliveryRadiusKm" label="Delivery radius (km)"
+                  type="number" hint="Between 1 and 30"
+                  :error="localErrors.deliveryRadiusKm || fieldError('deliveryRadiusKm')" />
+        <AppInput id="r-lat" v-model="form.latitude" label="Latitude" type="number"
+                  hint="Needed to check customers' addresses against your delivery radius"
+                  :error="fieldError('latitude')" />
+        <AppInput id="r-lng" v-model="form.longitude" label="Longitude" type="number"
+                  :error="fieldError('longitude')" />
       </div>
 
       <div class="flex items-center gap-3">

@@ -8,6 +8,9 @@ import { t } from '../../i18n/index.js';
 
 const props = defineProps({ restaurant: { type: Object, required: true } });
 const style = computed(() => cuisineStyle(props.restaurant.cuisineType));
+// Only a signed-in customer with an address gets this field (spec-18); it is
+// absent, not true, for everyone else.
+const outsideZone = computed(() => props.restaurant.deliversToAddress === false);
 </script>
 
 <template>
@@ -23,7 +26,11 @@ const style = computed(() => cuisineStyle(props.restaurant.cuisineType));
       </div>
 
       <!-- Colour AND text: never status by colour alone. -->
-      <span v-if="!restaurant.isOrderable"
+      <span v-if="outsideZone"
+            class="absolute end-3 top-3 z-10 rounded-full bg-rose-900/90 px-2.5 py-1 text-xs font-medium text-white backdrop-blur">
+        {{ t("Doesn't deliver to your address") }}
+      </span>
+      <span v-else-if="!restaurant.isOrderable"
             class="absolute end-3 top-3 z-10 rounded-full bg-slate-900/80 px-2.5 py-1 text-xs font-medium text-slate-50 backdrop-blur">
         {{ t(UNAVAILABLE_REASON_LABEL[restaurant.unavailableReason] || 'Unavailable') }}
       </span>
@@ -52,6 +59,9 @@ const style = computed(() => cuisineStyle(props.restaurant.cuisineType));
         <div><dt class="inline">{{ t('Delivery') }}</dt> <dd class="inline font-semibold text-slate-800">{{ formatMoney(restaurant.deliveryFee) }}</dd></div>
         <div><dt class="inline">{{ t('Minimum') }}</dt> <dd class="inline font-semibold text-slate-800">{{ formatMoney(restaurant.minimumOrderAmount) }}</dd></div>
         <div><dt class="inline">{{ t('Prep') }}</dt> <dd class="inline font-semibold text-slate-800">{{ t('{n} min', { n: restaurant.avgPreparationMinutes }) }}</dd></div>
+        <div v-if="restaurant.distanceKm != null">
+          <dt class="inline">{{ t('Distance') }}</dt> <dd class="inline font-semibold text-slate-800">{{ t('{n} km', { n: restaurant.distanceKm }) }}</dd>
+        </div>
       </dl>
     </div>
   </RouterLink>

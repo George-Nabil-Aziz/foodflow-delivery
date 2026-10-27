@@ -6,6 +6,7 @@ export {
   softDeleteUser,
   restoreUser,
   getAddressForOrder,
+  getBrowsingAddress,
   listAddresses,
   getMe,
 } from './users.service.js';

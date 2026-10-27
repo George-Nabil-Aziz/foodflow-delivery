@@ -118,18 +118,18 @@ the API always soft-deletes, so this is a defensive code path).
 
 | Method | Route | Auth | Purpose |
 |--------|-------|------|---------|
-| GET | `/api/restaurants` | — | Paginated list of `ACTIVE` restaurants |
-| GET | `/api/restaurants/:id` | — | Restaurant detail |
+| GET | `/api/restaurants` | optional | Paginated list of `ACTIVE` restaurants; a signed-in customer's address adds the delivery-zone fields (spec-18) |
+| GET | `/api/restaurants/:id` | optional | Restaurant detail; same zone fields |
 | GET | `/api/restaurants/:id/menu` | — | Active categories with available-flagged items |
 | GET | `/api/restaurants/:id/reviews` | — | Published reviews, paginated |
-| GET | `/api/search` | — | Combined restaurant + food-item search |
+| GET | `/api/search` | optional | Combined restaurant + food-item search; `restaurants[]` carry the zone fields |
 | GET | `/api/cuisines` | — | Distinct cuisine list for the filter UI |
 
 ### `GET /api/restaurants`
 
 Query: `page`, `limit`, `cuisine`, `openNow=true`, `minRating=1..5`,
 `q` (name fragment), `sort ∈ {rating, deliveryFee, name, newest}`,
-`order ∈ {asc, desc}`.
+`order ∈ {asc, desc}`, `addressId` (optional, see *Delivery zone* below).
 
 ```jsonc
 // 200
@@ -140,7 +140,7 @@ Query: `page`, `limit`, `cuisine`, `openNow=true`, `minRating=1..5`,
       "id": "…", "name": "Olive Grill", "slug": "olive-grill",
       "cuisineType": "LEVANTINE", "logoUrl": "https://…", "coverImageUrl": "https://…",
       "deliveryFee": "12.00", "minimumOrderAmount": "30.00",
-      "avgPreparationMinutes": 25,
+      "avgPreparationMinutes": 25, "deliveryRadiusKm": "8.0",
       "ratingAverage": "4.35", "ratingCount": 128,
       "isOpenNow": true, "isAcceptingOrders": true, "isOrderable": true,
       "city": "Riyadh", "district": "Al Olaya"
@@ -152,6 +152,24 @@ Query: `page`, `limit`, `cuisine`, `openNow=true`, `minRating=1..5`,
 
 `isOrderable` is computed server-side from BR-R3 and is the **only** flag the UI
 may use to enable an "Add to cart" button.
+
+**Delivery zone (spec-18).** These three routes accept a token but do not
+require one. When the caller is a signed-in `CUSTOMER` with a delivery address
+— `?addressId=` (list and detail, also on search) if given, otherwise their
+default address — every restaurant also carries:
+
+```jsonc
+{ "deliversToAddress": false, "distanceKm": 12.3, "zoneChecked": true }
+```
+
+`distanceKm` is the great-circle distance to one decimal. `deliversToAddress`
+is true when the exact distance is at most `deliveryRadiusKm`. When either the
+restaurant or the address has no coordinates the distance cannot be measured:
+`deliversToAddress: true`, `distanceKm: null`, `zoneChecked: false`. Anonymous
+callers, non-customers, customers without an address and callers whose
+`addressId` is unknown or not theirs get none of these fields; an invalid or
+expired token is treated as anonymous. `addressId` must be a UUID (422
+otherwise).
 
 Only `status = ACTIVE` rows are ever returned. `PENDING_APPROVAL`, `SUSPENDED`
 and `REJECTED` restaurants are invisible here — a direct `GET
@@ -189,7 +207,7 @@ name a restaurant other than their own, which removes a whole class of IDOR.
 | Method | Route | Auth | Purpose |
 |--------|-------|------|---------|
 | GET | `/api/restaurant/profile` | R +own | Own profile incl. `status` |
-| PATCH | `/api/restaurant/profile` | R +own | Update profile fields |
+| PATCH | `/api/restaurant/profile` | R +own | Update profile fields, including `deliveryRadiusKm` (1–30, one decimal), `latitude`, `longitude` (spec-18) |
 | GET | `/api/restaurant/hours` | R +own | Weekly hours |
 | PUT | `/api/restaurant/hours` | R +own | Replace the full 7-day schedule |
 | PATCH | `/api/restaurant/accepting-orders` | R +own | `{ isAcceptingOrders }` toggle |
@@ -387,6 +405,7 @@ checked on the subtotal before the discount.
 
 **Errors:** 422 `CARD_PAYMENTS_UNAVAILABLE` · 422 `UNPROCESSABLE` (card chosen for a zero total) · 422 `CART_EMPTY` · 422 `CART_HAS_ISSUES` (with the offending lines in
 `details`) · 422 `BELOW_MINIMUM_ORDER` (with `required` and `actual`) · 422
+`OUTSIDE_DELIVERY_ZONE` (the address is farther than the restaurant's radius; `details[0]` carries `distanceKm` and `radiusKm`; spec-18) · 422
 `RESTAURANT_UNAVAILABLE` (closed between cart and checkout) · 422
 `DISCOUNT_CODE_INVALID` / `_EXPIRED` / `_NOT_APPLICABLE` / `_LIMIT_REACHED` (the
 code on the cart stopped qualifying; no order is created and the cart stays
@@ -577,7 +596,7 @@ goes out after commit.
 **Errors:** 404 (customer missing or not a CUSTOMER; item missing or of another
 restaurant; address not the customer's) · 422 `UNPROCESSABLE` (customer not
 `ACTIVE`) · 422 `RESTAURANT_UNAVAILABLE` · 422 `ITEM_UNAVAILABLE` · 422
-`BELOW_MINIMUM_ORDER` · 422 `VALIDATION_ERROR`.
+`BELOW_MINIMUM_ORDER` · 422 `OUTSIDE_DELIVERY_ZONE` · 422 `VALIDATION_ERROR`.
 
 ### `POST /api/admin/discount-codes`
 

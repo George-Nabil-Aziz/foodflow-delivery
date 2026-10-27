@@ -60,6 +60,14 @@ function messageFor(err) {
         })
         : t('Your order is below this restaurant’s minimum.');
     }
+    case 'OUTSIDE_DELIVERY_ZONE': {
+      const detail = err.details?.[0];
+      return detail
+        ? t('This restaurant delivers within {radius} km, and this address is {distance} km away. Choose another address.', {
+          radius: detail.radiusKm, distance: detail.distanceKm,
+        })
+        : t('This restaurant does not deliver to this address.');
+    }
     case 'RESTAURANT_UNAVAILABLE':
       return t('This restaurant stopped accepting orders. Your cart has been kept.');
     case 'CARD_PAYMENTS_UNAVAILABLE':

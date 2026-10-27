@@ -37,9 +37,8 @@ export async function authenticate(req, _res, next) {
 export async function authenticateOptional(req, _res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) return next();
-  try {
-    await authenticate(req, _res, next);
-  } catch {
-    next();
-  }
+  // `authenticate` reports failures through its callback rather than throwing,
+  // so an invalid or expired token must be dropped here: a public page should
+  // behave as anonymous, not fail, because of a stale token.
+  await authenticate(req, _res, () => next());
 }

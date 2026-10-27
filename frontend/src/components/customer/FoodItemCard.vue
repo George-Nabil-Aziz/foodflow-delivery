@@ -7,6 +7,8 @@ import AppButton from '../shared/AppButton.vue';
 defineProps({
   item: { type: Object, required: true },
   restaurantOrderable: { type: Boolean, default: true },
+  // False when the restaurant does not deliver to the customer's address.
+  deliverable: { type: Boolean, default: true },
   adding: { type: Boolean, default: false },
 });
 defineEmits(['add']);
@@ -38,7 +40,7 @@ defineEmits(['add']);
           {{ formatMoney(item.price) }}
         </p>
         <AppButton size="sm" :loading="adding"
-                   :disabled="!item.isAvailable || !restaurantOrderable"
+                   :disabled="!item.isAvailable || !restaurantOrderable || !deliverable"
                    :aria-label="!item.isAvailable
                      ? t('{name} is unavailable', { name: item.name })
                      : t('Add {name} to cart', { name: item.name })"
@@ -56,6 +58,9 @@ defineEmits(['add']);
       </p>
       <p v-else-if="!restaurantOrderable" class="mt-2 text-sm text-slate-600">
         {{ t('This restaurant is not taking orders right now') }}
+      </p>
+      <p v-else-if="!deliverable" class="mt-2 text-sm font-medium text-rose-800">
+        {{ t("Doesn't deliver to your address") }}
       </p>
     </div>
   </div>
