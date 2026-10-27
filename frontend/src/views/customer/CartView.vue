@@ -8,6 +8,7 @@ import { CART_ISSUE_LABEL, UNAVAILABLE_REASON_LABEL } from '../../utils/orderSta
 import AppSpinner from '../../components/shared/AppSpinner.vue';
 import EmptyState from '../../components/shared/EmptyState.vue';
 import AppButton from '../../components/shared/AppButton.vue';
+import LineOptions from '../../components/shared/LineOptions.vue';
 import DiscountCodeField from '../../components/customer/DiscountCodeField.vue';
 import { discountErrorText, isPositiveAmount } from '../../utils/discount.js';
 import { t } from '../../i18n/index.js';
@@ -100,6 +101,7 @@ async function remove(item) {
               <div class="min-w-0 flex-1">
                 <h3 class="font-medium text-slate-900">{{ item.name }}</h3>
                 <p class="mt-1 text-sm text-slate-600">{{ t('{price} each', { price: formatMoney(item.unitPrice) }) }}</p>
+                <LineOptions :options="item.options" :notes="item.notes" />
 
                 <!-- Issues are shown per line, with the resolution next to them. -->
                 <ul v-if="item.issues.length" class="mt-2 space-y-1">

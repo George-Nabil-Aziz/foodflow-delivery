@@ -6,6 +6,7 @@ import {
 } from '../../shared/errors/AppError.js';
 import * as repo from './menu.repository.js';
 import { toCategoryDto, toItemDto, toPublicMenuDto } from './menu.mapper.js';
+import { groupDtosForItems } from './options.service.js';
 
 /* --------------------------------------------------------------- categories */
 
@@ -70,7 +71,8 @@ export async function reorderCategories(restaurantId, categories) {
 
 export async function listItems(restaurantId, filters) {
   const rows = await repo.listItems(restaurantId, filters);
-  return rows.map(toItemDto);
+  const groups = await groupDtosForItems(rows.map((r) => r.id));
+  return rows.map((r) => toItemDto(r, groups.get(r.id)));
 }
 
 /**
@@ -135,10 +137,10 @@ export async function getMenuForRestaurant(restaurantId, { publicOnly = true } =
       repo.listCategories(restaurantId, {}, trx),
       repo.listItems(restaurantId, {}, trx),
     ]);
-    return toPublicMenuDto(categories, items);
+    return toPublicMenuDto(categories, items, await groupDtosForItems(items.map((i) => i.id), trx));
   }
   const { categories, items } = await repo.publicMenu(restaurantId, trx);
-  return toPublicMenuDto(categories, items);
+  return toPublicMenuDto(categories, items, await groupDtosForItems(items.map((i) => i.id), trx));
 }
 
 export const getItemsByIds = repo.findItemsByIds;

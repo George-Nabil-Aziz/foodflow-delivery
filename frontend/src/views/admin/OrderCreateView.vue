@@ -110,6 +110,9 @@ async function chooseRestaurant(r) {
   }
 }
 
+/** An item with a required option group cannot be picked here: the server refuses it without a choice. */
+const needsChoices = (item) => (item.optionGroups ?? []).some((g) => g.minSelect >= 1);
+
 const setQuantity = (itemId, n) => {
   quantities.value = { ...quantities.value, [itemId]: Math.min(20, Math.max(0, n)) };
 };
@@ -277,8 +280,11 @@ async function placeOrder() {
                 </span>
                 <span class="text-slate-600">{{ formatMoney(item.price) }}</span>
                 <span v-if="!item.isAvailable" class="ms-2 text-xs text-slate-500">{{ t('Unavailable') }}</span>
+                <span v-else-if="needsChoices(item)" class="block text-xs text-slate-500">
+                  {{ t('Requires option choices: the customer must order this item themselves.') }}
+                </span>
               </span>
-              <span v-if="item.isAvailable" class="flex shrink-0 items-center gap-1">
+              <span v-if="item.isAvailable && !needsChoices(item)" class="flex shrink-0 items-center gap-1">
                 <button type="button" class="ui-control h-8 w-8 rounded-lg border border-slate-300 text-slate-700 disabled:opacity-40"
                         :disabled="!quantities[item.id]" :aria-label="t('Remove one {name}', { name: item.name })"
                         @click="setQuantity(item.id, (quantities[item.id] ?? 0) - 1)">&minus;</button>

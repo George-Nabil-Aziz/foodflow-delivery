@@ -10,6 +10,7 @@ import { t } from '../../i18n/index.js';
 import AppSpinner from '../../components/shared/AppSpinner.vue';
 import ErrorState from '../../components/shared/ErrorState.vue';
 import AppButton from '../../components/shared/AppButton.vue';
+import LineOptions from '../../components/shared/LineOptions.vue';
 import StatusBadge from '../../components/shared/StatusBadge.vue';
 import ConfirmDialog from '../../components/shared/ConfirmDialog.vue';
 
@@ -99,7 +100,7 @@ async function confirmReason({ reason, reasonCode }) {
               <li v-for="item in order.items" :key="item.id" class="flex justify-between gap-3 text-sm">
                 <span class="text-slate-800">
                   <strong>{{ item.quantity }} &times;</strong> {{ item.name }}
-                  <span v-if="item.notes" class="block text-slate-600">{{ t('Note: {note}', { note: item.notes }) }}</span>
+                  <LineOptions :options="item.options" :notes="item.notes" />
                 </span>
                 <span>{{ formatMoney(item.lineTotal) }}</span>
               </li>

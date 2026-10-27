@@ -350,6 +350,17 @@ so the denormalization cannot drift (BR-R6).
 - Checks: `chk_food_items_price (price > 0 AND price <= 9999.99)`.
 - Indexes: `uq_food_items_category_name UNIQUE (category_id, lower(name)) WHERE deleted_at IS NULL`; `idx_food_items_restaurant_available (restaurant_id, is_available) WHERE deleted_at IS NULL`; `idx_food_items_name_trgm GIN (name gin_trgm_ops)`.
 
+### `item_option_groups` / `item_options` (spec-15)
+`item_option_groups.food_item_id` → `food_items(id)` `ON DELETE CASCADE`;
+`item_options.group_id` → `item_option_groups(id)` `ON DELETE CASCADE`. Both are
+**soft-deleted** (`deleted_at`): a cart line points at an option by id, and a
+hard delete would turn "this option was removed" into "you never chose one"
+(BR-IO8). Columns: group `name`, `min_select`, `max_select`, `display_order`;
+option `name`, `price_delta NUMERIC(10,2)`, `is_available`, `display_order`.
+
+- Checks: `chk_option_groups_select (min_select >= 0 AND max_select >= 1 AND max_select >= min_select AND max_select <= 20)`; `chk_item_options_delta (price_delta >= 0 AND price_delta <= 9999.99)`; both `display_order BETWEEN 0 AND 999`.
+- Indexes: `uq_option_groups_item_name UNIQUE (food_item_id, lower(name)) WHERE deleted_at IS NULL`; `uq_item_options_group_name UNIQUE (group_id, lower(name)) WHERE deleted_at IS NULL`; `idx_option_groups_item`, `idx_item_options_group` (live rows).
+
 ### `carts` / `cart_items`
 `carts.customer_user_id` → `users(id)` `ON DELETE CASCADE`;
 `carts.restaurant_id` → `restaurants(id)` `ON DELETE SET NULL`, nullable (an
@@ -357,7 +368,8 @@ empty cart is unbound).
 
 - **`uq_carts_one_active UNIQUE (customer_user_id) WHERE status = 'ACTIVE'`** — BR-C1 in the schema. This is the single most important constraint in the cart design: it makes "one active cart" a database invariant rather than a service convention that a race could break.
 - `cart_items.cart_id` → `carts(id)` `ON DELETE CASCADE`; `food_item_id` → `food_items(id)` `ON DELETE CASCADE` (deleting a menu item removes it from live carts — carts are ephemeral, unlike orders).
-- `uq_cart_items_line UNIQUE (cart_id, food_item_id)` — BR-C6.
+- `uq_cart_items_line UNIQUE (cart_id, food_item_id, line_key)` — BR-C6, widened by migration 014 (spec-15, BR-IO6): `line_key text NOT NULL DEFAULT ''` is the sorted option ids plus the note (`''` for a plain line), so the same item with other options or another note is a separate line and identical choices merge.
+- `cart_item_options (cart_item_id, option_id)`, primary key on both, `cart_item_id` → `cart_items(id)` `ON DELETE CASCADE`, `option_id` → `item_options(id)` `ON DELETE CASCADE` — the options chosen on a line (ids only). `price_seen_at_add` holds the whole unit price (base + deltas) at add (A-IO5).
 - `chk_cart_items_quantity (quantity BETWEEN 1 AND 20)` — BR-C5.
 - **No price column** — ADR-008.
 - `carts.discount_code_id` → `discount_codes(id)` `ON DELETE SET NULL`, nullable — the code the customer has applied (added by migration 011; [spec-12](../specs/spec-12-discount-codes.md)). It is a preview only: checkout re-validates it.
@@ -395,6 +407,13 @@ empty cart is unbound).
 - Check `chk_order_items_line_total (line_total = unit_price * quantity)`.
 - Check `chk_order_items_quantity (quantity BETWEEN 1 AND 20)`.
 - `idx_order_items_order (order_id)`.
+
+With item options (migration 014, spec-15) `unit_price` is the base price plus
+the chosen deltas, so the line-total check is unchanged. The chosen options live
+in **`order_item_options`**: `order_item_id` → `order_items(id)` `ON DELETE
+CASCADE`; `group_name_snapshot`, `option_name_snapshot`, `price_delta` (`>= 0`);
+`idx_order_item_options_item (order_item_id)`. It deliberately has **no FK** to
+`item_options`: like the rest of `order_items` it is a snapshot (BR-IO10).
 
 **This table is where G2 lives.** Nothing in it is read from `food_items` after
 creation; the FK exists only so a restaurant can see "which of my current items
@@ -540,6 +559,10 @@ Owned by the favourites module ([spec-16](../specs/spec-16-favourites.md)).
 | menu_categories → food_items | 1 : 0..N | RESTRICT |
 | restaurants → orders | 1 : 0..N | RESTRICT |
 | carts → cart_items | 1 : 0..N | CASCADE |
+| food_items → item_option_groups | 1 : 0..N | CASCADE (soft-deleted in practice) |
+| item_option_groups → item_options | 1 : 1..N | CASCADE (soft-deleted in practice) |
+| cart_items → cart_item_options | 1 : 0..N | CASCADE |
+| order_items → order_item_options | 1 : 0..N | CASCADE |
 | orders → order_items | 1 : 1..N | CASCADE |
 | orders → order_status_events | 1 : 1..N | CASCADE |
 | orders → delivery_assignments | 1 : 0..N (≤1 ACCEPTED) | CASCADE |
@@ -574,8 +597,9 @@ Knex migrations, one per logical change, named
 12. `011_discounts.js`: `discount_codes`, `order_discounts`, `orders.discount_amount` with the rewritten `chk_orders_totals`, `carts.discount_code_id` (existing orders get a discount of 0)
 13. `012_notification_delivery` (spec-13): delivery `status`, `attempts`, `last_error`, `recipient`, `next_attempt_at` and `dedupe_key` on `notifications`
 14. `013_user_preferred_language` (spec-13): `users.preferred_language` (`en`/`ar`, nullable, check-constrained)
-15. `015_favourites` (spec-16): `favourite_restaurants` and `favourite_items`, each with a composite primary key and a `(user_id, created_at DESC)` index. Restaurant analytics (spec-17) needs no migration.
-16. `016_delivery_zones` (spec-18): `restaurants.delivery_radius_km` (`NUMERIC(4,1)`, default 8, check 1–30)
+15. `014_item_options` (spec-15): `item_option_groups`, `item_options`, `cart_items.line_key` (with `uq_cart_items_line` widened to include it), `cart_item_options`, `order_item_options`
+16. `015_favourites` (spec-16): `favourite_restaurants` and `favourite_items`, each with a composite primary key and a `(user_id, created_at DESC)` index. Restaurant analytics (spec-17) needs no migration.
+17. `016_delivery_zones` (spec-18): `restaurants.delivery_radius_km` (`NUMERIC(4,1)`, default 8, check 1–30)
 
 Migrations never contain business logic and are never edited after being applied
 to a shared environment — corrections ship as new migrations.

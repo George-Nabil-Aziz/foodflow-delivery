@@ -9,6 +9,7 @@ import { capitalize, enumText } from '../../utils/labels.js';
 import { PAYMENT_STATUS_LABEL } from '../../utils/orderStatus.js';
 import DetailsDialog from '../shared/DetailsDialog.vue';
 import AppButton from '../shared/AppButton.vue';
+import LineOptions from '../shared/LineOptions.vue';
 
 /**
  * One order, everything an admin can see: both parties, the driver, the
@@ -112,7 +113,7 @@ const fields = computed(() => {
         <li v-for="item in order.items" :key="item.id" class="flex justify-between gap-3 py-2">
           <span class="min-w-0 text-slate-900">
             {{ item.quantity }} × {{ item.name }}
-            <span v-if="item.notes" class="block text-xs text-slate-500">{{ item.notes }}</span>
+            <LineOptions :options="item.options" :notes="item.notes" />
           </span>
           <span class="shrink-0 text-slate-700">{{ formatMoney(item.lineTotal) }}</span>
         </li>

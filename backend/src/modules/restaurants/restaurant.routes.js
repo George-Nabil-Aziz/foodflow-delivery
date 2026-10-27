@@ -28,6 +28,15 @@ import {
   updateItemSchema,
   availabilitySchema,
   listItemsQuery,
+  createGroupSchema,
+  updateGroupSchema,
+  reorderGroupsSchema,
+  createOptionSchema,
+  updateOptionSchema,
+  reorderOptionsSchema,
+  itemParam,
+  groupParam,
+  optionParam,
 } from '../menu/index.js';
 import { restaurantReasonSchema, restaurantOrdersQuery } from '../orders/index.js';
 
@@ -86,6 +95,46 @@ restaurantRouter.patch(
   ctrl.setAvailability,
 );
 restaurantRouter.delete('/items/:id', validate({ params: idParam }), ctrl.deleteItem);
+
+// Item options (spec-15): groups of a food item, and the options in a group.
+restaurantRouter.get('/items/:itemId/option-groups', validate({ params: itemParam }), ctrl.listOptionGroups);
+restaurantRouter.post(
+  '/items/:itemId/option-groups',
+  validate({ params: itemParam, body: createGroupSchema }),
+  ctrl.createOptionGroup,
+);
+restaurantRouter.put(
+  '/items/:itemId/option-groups/order',
+  validate({ params: itemParam, body: reorderGroupsSchema }),
+  ctrl.reorderOptionGroups,
+);
+restaurantRouter.patch(
+  '/option-groups/:groupId',
+  validate({ params: groupParam, body: updateGroupSchema }),
+  ctrl.updateOptionGroup,
+);
+restaurantRouter.delete('/option-groups/:groupId', validate({ params: groupParam }), ctrl.deleteOptionGroup);
+restaurantRouter.post(
+  '/option-groups/:groupId/options',
+  validate({ params: groupParam, body: createOptionSchema }),
+  ctrl.createOption,
+);
+restaurantRouter.put(
+  '/option-groups/:groupId/options/order',
+  validate({ params: groupParam, body: reorderOptionsSchema }),
+  ctrl.reorderOptions,
+);
+restaurantRouter.patch(
+  '/options/:optionId',
+  validate({ params: optionParam, body: updateOptionSchema }),
+  ctrl.updateOption,
+);
+restaurantRouter.patch(
+  '/options/:optionId/availability',
+  validate({ params: optionParam, body: availabilitySchema }),
+  ctrl.setOptionAvailability,
+);
+restaurantRouter.delete('/options/:optionId', validate({ params: optionParam }), ctrl.deleteOption);
 
 /* ---- trading ----------------------------------------------------------- */
 

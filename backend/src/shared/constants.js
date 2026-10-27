@@ -83,6 +83,10 @@ export const CART_ISSUES = {
   ITEM_UNAVAILABLE: 'ITEM_UNAVAILABLE',
   ITEM_REMOVED: 'ITEM_REMOVED',
   PRICE_CHANGED: 'PRICE_CHANGED',
+  // Item options (spec-15, BR-IO8).
+  OPTION_UNAVAILABLE: 'OPTION_UNAVAILABLE',
+  OPTION_REMOVED: 'OPTION_REMOVED',
+  OPTIONS_CHANGED: 'OPTIONS_CHANGED',
 };
 
 /** Reasons orderability can fail, in precedence order (BR-R3). */

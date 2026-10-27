@@ -13,6 +13,12 @@ const toItemDto = (row) => ({
   quantity: row.quantity,
   lineTotal: row.line_total,
   notes: row.notes,
+  // Snapshotted at checkout, so later menu edits never change it (BR-O1).
+  options: (row.options ?? []).map((o) => ({
+    groupName: o.group_name_snapshot,
+    name: o.option_name_snapshot,
+    priceDelta: o.price_delta,
+  })),
 });
 
 const toEventDto = (row) => ({

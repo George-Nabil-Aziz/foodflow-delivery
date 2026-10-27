@@ -8,7 +8,7 @@ export const toCategoryDto = (c) => ({
   createdAt: c.created_at,
 });
 
-export const toItemDto = (i) => ({
+export const toItemDto = (i, optionGroups = []) => ({
   id: i.id,
   categoryId: i.category_id,
   name: i.name,
@@ -18,6 +18,7 @@ export const toItemDto = (i) => ({
   isAvailable: i.is_available,
   displayOrder: i.display_order,
   createdAt: i.created_at,
+  optionGroups,
 });
 
 /**
@@ -25,7 +26,7 @@ export const toItemDto = (i) => ({
  * hiding them would make the restaurant look smaller than it is and confuse a
  * customer who saw the dish yesterday.
  */
-export const toPublicMenuDto = (categories, items) =>
+export const toPublicMenuDto = (categories, items, groupsByItem = new Map()) =>
   categories.map((c) => ({
     id: c.id,
     name: c.name,
@@ -40,5 +41,7 @@ export const toPublicMenuDto = (categories, items) =>
         price: i.price,
         imageUrl: i.image_url,
         isAvailable: i.is_available,
+        // Unavailable options are included and flagged, like unavailable items.
+        optionGroups: groupsByItem.get(i.id) ?? [],
       })),
   }));

@@ -105,8 +105,19 @@ export async function insertItems(orderId, items, trx) {
     .returning('*');
 }
 
-export function listItems(orderId, trx) {
-  return db(trx)('order_items').where({ order_id: orderId }).orderBy('created_at');
+export async function insertItemOptions(rows, trx) {
+  if (!rows.length) return [];
+  return trx('order_item_options').insert(rows).returning('*');
+}
+
+/** The order's lines, each with its snapshotted `options` (spec-15). */
+export async function listItems(orderId, trx) {
+  const items = await db(trx)('order_items').where({ order_id: orderId }).orderBy('created_at');
+  if (!items.length) return items;
+  const options = await db(trx)('order_item_options')
+    .whereIn('order_item_id', items.map((i) => i.id))
+    .orderBy('created_at');
+  return items.map((i) => ({ ...i, options: options.filter((o) => o.order_item_id === i.id) }));
 }
 
 export function listEvents(orderId, trx) {
