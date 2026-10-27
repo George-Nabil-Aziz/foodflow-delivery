@@ -164,6 +164,17 @@ describe('TC-301..TC-307: the validation pipeline', () => {
     expect(fields).toEqual(expect.arrayContaining(['email', 'password', 'fullName', 'phone']));
   });
 
+  it('names a missing field "Required" and keeps the schema\'s own messages', async () => {
+    const res = await request(app).post('/api/auth/register')
+      .send({ email: 'not-an-email', password: 'Passw0rd!', fullName: 'Valid Name' });
+
+    expect(res.status).toBe(422);
+    const issueOf = (field) => res.body.error.details.find((d) => d.field === field)?.issue;
+    // The client's catalogues translate these exact texts.
+    expect(issueOf('phone')).toBe('Required');
+    expect(issueOf('email')).toBe('must be a valid email address');
+  });
+
   it('TC-306: type confusion is refused, never coerced dangerously', async () => {
     const customer = await makeUser({ role: 'CUSTOMER' });
     const { main } = await makeStockedRestaurant();

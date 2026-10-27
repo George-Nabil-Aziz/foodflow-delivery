@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../constants.js';
 
-export const uuid = z.string().uuid('must be a valid identifier');
+// `guid`, not `uuid`: Zod 4's uuid also checks the RFC version and variant
+// bits, which would turn some well-formed ids into 422 instead of 404.
+export const uuid = z.guid('must be a valid identifier');
 export const idParam = z.object({ id: uuid });
 
 export const trimmedString = (min, max) =>

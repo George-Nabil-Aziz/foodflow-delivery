@@ -1,4 +1,11 @@
+import { z } from 'zod';
 import { ValidationError } from '../shared/errors/AppError.js';
+
+// A missing field reads "Required", as it did before Zod 4; the client's
+// catalogues translate that text. Schema-specific messages still win.
+z.config({
+  customError: (issue) => (issue.input === undefined ? 'Required' : undefined),
+});
 
 /**
  * Parses body/params/query with Zod and writes the result to `req.validated`.
