@@ -31,6 +31,8 @@ const baseOrder = (row) => ({
   dispatchState: row.dispatch_state,
   subtotal: row.subtotal,
   deliveryFee: row.delivery_fee,
+  discountAmount: row.discount_amount,
+  discountCode: row.discount_code ?? null,
   taxAmount: row.tax_amount,
   totalAmount: row.total_amount,
   paymentMethod: row.payment_method,

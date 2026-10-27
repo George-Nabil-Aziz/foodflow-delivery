@@ -22,4 +22,9 @@ export const addItemQuery = z.object({
  *  "remove" reachable by an off-by-one in a stepper (BR-C5). */
 export const updateQuantitySchema = z.object({ quantity });
 
-export const lineParam = z.object({ itemId: uuid });
+/** A code is matched case-insensitively, so it is only trimmed here. */
+export const applyDiscountSchema = z.object({
+  code: z.string().trim().min(1, 'is required').max(40, 'must be at most 40 characters'),
+});
+
+export const lineParam =z.object({ itemId: uuid });

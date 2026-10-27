@@ -7,6 +7,7 @@ import * as repo from './cart.repository.js';
 import { validateLines, collectIssues } from './cartValidator.js';
 import * as menu from '../menu/index.js';
 import * as restaurants from '../restaurants/index.js';
+import * as discounts from '../discounts/index.js';
 import { computeTotals, meetsMinimum, shortfall } from '../orders/index.js';
 
 /** Lazily creates the single ACTIVE cart. The partial unique index
@@ -25,7 +26,7 @@ async function getOrCreateCart(customerUserId, trx) {
 }
 
 /** Builds the full cart payload: live prices, per-line issues, server totals. */
-async function buildCartView(cart, trx) {
+async function buildCartView(cart, trx, strict = false) {
   if (!cart) {
     return emptyCartView();
   }
@@ -46,11 +47,15 @@ async function buildCartView(cart, trx) {
   });
   const issues = collectIssues(validated);
 
-  const totals = computeTotals({
+  const pricing = {
     lines: validated.map((l) => ({ unitPrice: l.unitPrice, quantity: l.quantity })),
     deliveryFee: restaurant?.delivery_fee ?? money.ZERO,
     taxRate: config.taxRate,
-  });
+  };
+  // An applied code is re-judged on every view: a code that expired or no
+  // longer fits the cart stays visible with the reason, but is not priced.
+  const { discount, discountIssue } = await resolveDiscount(cart, computeTotals(pricing).subtotal, trx, strict);
+  const totals = computeTotals({ ...pricing, discount });
 
   const minimumMet = meetsMinimum(totals.subtotal, restaurant?.minimum_order_amount ?? 0);
 
@@ -71,9 +76,14 @@ async function buildCartView(cart, trx) {
     totals: {
       subtotal: totals.subtotal,
       deliveryFee: totals.deliveryFee,
+      discountAmount: totals.discountAmount,
       taxAmount: totals.taxAmount,
       total: totals.totalAmount,
     },
+    discount: discount
+      ? { code: discount.code, type: discount.type, value: discount.value, amount: totals.discountAmount }
+      : null,
+    discountIssue,
     issues,
     itemCount: validated.reduce((sum, l) => sum + l.quantity, 0),
     meetsMinimum: minimumMet,
@@ -81,8 +91,34 @@ async function buildCartView(cart, trx) {
     // The server's verdict. The client must not re-derive it: duplicating the
     // arithmetic guarantees the two eventually disagree, about money.
     canCheckout:
-      validated.length > 0 && issues.length === 0 && minimumMet && orderability.isOrderable,
+      validated.length > 0 && issues.length === 0 && minimumMet && orderability.isOrderable
+      && !discountIssue,
   };
+}
+
+/**
+ * Judges the cart's applied code against its current contents. Only a
+ * validation failure is swallowed into `discountIssue`; anything else is a bug.
+ * `strict` rethrows, for the apply call that must report the failure itself.
+ */
+async function resolveDiscount(cart, subtotal, trx, strict) {
+  if (!cart.discount_code_id) return { discount: null, discountIssue: null };
+  try {
+    const discount = await discounts.validateForCart({
+      codeId: cart.discount_code_id,
+      customerUserId: cart.customer_user_id,
+      restaurantId: cart.restaurant_id,
+      subtotal,
+    }, trx);
+    return { discount, discountIssue: null };
+  } catch (err) {
+    if (!(err instanceof ValidationError) || strict) throw err;
+    const row = await discounts.getCodeById(cart.discount_code_id, trx);
+    return {
+      discount: null,
+      discountIssue: { code: err.code, discountCode: row?.code ?? null, message: err.details?.[0]?.issue ?? err.publicMessage },
+    };
+  }
 }
 
 function emptyCartView() {
@@ -90,7 +126,12 @@ function emptyCartView() {
     id: null,
     restaurant: null,
     items: [],
-    totals: { subtotal: money.ZERO, deliveryFee: money.ZERO, taxAmount: money.ZERO, total: money.ZERO },
+    totals: {
+      subtotal: money.ZERO, deliveryFee: money.ZERO, discountAmount: money.ZERO,
+      taxAmount: money.ZERO, total: money.ZERO,
+    },
+    discount: null,
+    discountIssue: null,
     issues: [],
     itemCount: 0,
     meetsMinimum: false,
@@ -141,6 +182,8 @@ export async function addItem(customerUserId, { foodItemId, quantity, notes }, {
       // Explicit switch: clear, rebind, add - one transaction. The clear
       // happens AFTER validation, so a failing add never empties the cart.
       await repo.clearLines(cart.id, trx);
+      // A code was applied to the old restaurant's cart, not this one.
+      await repo.setDiscount(cart.id, null, trx);
     }
 
     if (!boundRestaurantId || boundRestaurantId !== item.restaurant_id) {
@@ -180,6 +223,7 @@ export async function removeItem(customerUserId, lineId) {
     // restaurant succeeds without a conflict (BR-C2).
     if ((await repo.countLines(cart.id, trx)) === 0) {
       await repo.setRestaurant(cart.id, null, trx);
+      await repo.setDiscount(cart.id, null, trx);
     }
     const refreshed = await repo.findActiveCart(customerUserId, trx);
     return buildCartView(refreshed, trx);
@@ -192,6 +236,32 @@ export async function clearCart(customerUserId) {
     if (!cart) return; // Idempotent.
     await repo.clearLines(cart.id, trx);
     await repo.setRestaurant(cart.id, null, trx);
+    await repo.setDiscount(cart.id, null, trx);
+  });
+}
+
+/**
+ * Applies a code to the cart. The code is judged against the cart as it is now
+ * and an unusable one is rejected with its specific error, leaving the cart
+ * unchanged. Checkout judges it again, because the world moves (BR-DC8).
+ */
+export async function applyDiscount(customerUserId, code) {
+  return withTransaction(async (trx) => {
+    const cart = await repo.findActiveCartForUpdate(customerUserId, trx);
+    if (!cart || (await repo.countLines(cart.id, trx)) === 0) throw new ValidationError('CART_EMPTY');
+    const row = await discounts.findCodeForCart(code, trx);
+    // Rejection throws, which rolls this write back with the transaction.
+    const updated = await repo.setDiscount(cart.id, row.id, trx);
+    return buildCartView(updated, trx, true);
+  });
+}
+
+export async function removeDiscount(customerUserId) {
+  return withTransaction(async (trx) => {
+    const cart = await repo.findActiveCartForUpdate(customerUserId, trx);
+    if (!cart) return buildCartView(null, trx);
+    const updated = await repo.setDiscount(cart.id, null, trx);
+    return buildCartView(updated, trx);
   });
 }
 
@@ -202,7 +272,14 @@ export async function getActiveCartForCheckout(customerUserId, trx) {
   const cart = await repo.findActiveCartForUpdate(customerUserId, trx);
   if (!cart) return null;
   const lines = await repo.listLines(cart.id, trx);
-  return { id: cart.id, restaurantId: cart.restaurant_id, items: lines };
+  let discountCode = null;
+  if (cart.discount_code_id) {
+    const row = await discounts.getCodeById(cart.discount_code_id, trx);
+    // A deleted code must not match a new code that reuses its spelling.
+    if (!row || row.deleted_at) throw new ValidationError('DISCOUNT_CODE_INVALID');
+    discountCode = row.code;
+  }
+  return { id: cart.id, restaurantId: cart.restaurant_id, items: lines, discountCode };
 }
 
 /** Revalidates a locked cart against live menu data, for checkout. */

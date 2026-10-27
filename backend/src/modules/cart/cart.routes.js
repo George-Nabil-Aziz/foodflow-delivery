@@ -5,7 +5,7 @@ import { validate } from '../../middleware/validate.js';
 import { wrapAll } from '../../shared/http/asyncHandler.js';
 import * as rawCtrl from './cart.controller.js';
 const ctrl = wrapAll(rawCtrl);
-import { addItemSchema, addItemQuery, updateQuantitySchema, lineParam } from './cart.schemas.js';
+import { addItemSchema, addItemQuery, updateQuantitySchema, lineParam, applyDiscountSchema } from './cart.schemas.js';
 
 export const cartRouter = Router();
 
@@ -17,4 +17,6 @@ cartRouter.get('/', ctrl.getCart);
 cartRouter.post('/items', validate({ body: addItemSchema, query: addItemQuery }), ctrl.addItem);
 cartRouter.patch('/items/:itemId', validate({ params: lineParam, body: updateQuantitySchema }), ctrl.updateQuantity);
 cartRouter.delete('/items/:itemId', validate({ params: lineParam }), ctrl.removeItem);
+cartRouter.post('/discount', validate({ body: applyDiscountSchema }), ctrl.applyDiscount);
+cartRouter.delete('/discount', ctrl.removeDiscount);
 cartRouter.delete('/', ctrl.clearCart);

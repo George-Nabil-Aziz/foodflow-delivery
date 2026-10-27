@@ -39,6 +39,17 @@ export const money = {
     return toStr(negative ? -rounded : rounded);
   },
 
+  /** `percent` of an amount, half-up at two decimals (BR-DC4). `percent` is a 2-decimal string. */
+  percentOf: (amount, percent) => {
+    const scaled = toMinor(amount) * toMinor(percent);
+    const negative = scaled < 0n;
+    const abs = negative ? -scaled : scaled;
+    const rounded = (abs + 5000n) / 10000n;
+    return toStr(negative ? -rounded : rounded);
+  },
+  /** The smaller of two amounts. */
+  min: (a, b) => toStr(toMinor(a) <= toMinor(b) ? toMinor(a) : toMinor(b)),
+
   compare: (a, b) => {
     const x = toMinor(a);
     const y = toMinor(b);

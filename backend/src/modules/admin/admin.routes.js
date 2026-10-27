@@ -4,11 +4,11 @@ import { authenticate } from '../../middleware/authenticate.js';
 import { authorize } from '../../middleware/authorize.js';
 import { validate } from '../../middleware/validate.js';
 import { ok } from '../../shared/http/envelope.js';
-import { idParam, paginationQuery, uuid, trimmedString, email, phone } from '../../shared/validation/common.js';
+import { idParam, paginationQuery, uuid, trimmedString, email, phone, moneyAmount } from '../../shared/validation/common.js';
 import {
   USER_ROLES, USER_STATUSES, RESTAURANT_STATUSES, DRIVER_STATUSES,
   DRIVER_AVAILABILITY, VEHICLE_TYPES, ORDER_STATUSES, REVIEW_STATUSES,
-  CANCELLATION_REASONS,
+  CANCELLATION_REASONS, DISCOUNT_TYPES,
 } from '../../shared/constants.js';
 import { asyncHandler } from '../../shared/http/asyncHandler.js';
 import * as service from './admin.service.js';
@@ -281,6 +281,8 @@ const placeOrderSchema = z.object({
   })).min(1).max(50)
     .refine((items) => new Set(items.map((i) => i.foodItemId)).size === items.length, 'lists an item twice'),
   customerNote: z.string().trim().max(500).optional().nullable(),
+  // Judged by the same rules as a customer's code (BR-DC8).
+  discountCode: z.string().trim().min(1).max(40).optional().nullable(),
 });
 
 adminRouter.post('/orders', validate({ body: placeOrderSchema }), asyncHandler(async (req, res) => {
@@ -301,6 +303,83 @@ adminRouter.post(
   validate({ params: idParam, body: cancelSchema }),
   asyncHandler(async (req, res) => {
     res.json(ok(await service.forceCancelOrder(req.user.id, req.validated.params.id, req.validated.body), { requestId: req.id }));
+  }),
+);
+
+/* -------------------------------------------------------- discount codes */
+
+const discountBody = z.object({
+  description: z.string().trim().max(200).optional().nullable(),
+  type: z.enum(DISCOUNT_TYPES),
+  // A percentage is at most 100; a fixed amount is money.
+  value: moneyAmount({ min: 0, exclusiveMin: true, max: 99999.99 }),
+  maxDiscountAmount: moneyAmount({ min: 0, exclusiveMin: true, max: 99999.99 }).optional().nullable(),
+  minSubtotal: moneyAmount({ min: 0, max: 99999.99 }).default('0.00'),
+  restaurantId: uuid.optional().nullable(),
+  startsAt: z.coerce.date().optional().nullable(),
+  endsAt: z.coerce.date().optional().nullable(),
+  usageLimit: z.number().int().min(1).max(1000000).optional().nullable(),
+  perCustomerLimit: z.number().int().min(1).max(1000).optional().nullable(),
+}).superRefine((v, ctx) => {
+  const bad = (path, message) => ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
+  if (v.type === 'PERCENT' && Number(v.value) > 100) bad('value', 'must be at most 100 for a percentage');
+  if (v.type === 'FIXED' && v.maxDiscountAmount != null) bad('maxDiscountAmount', 'is only for a percentage discount');
+  if (v.startsAt && v.endsAt && v.startsAt >= v.endsAt) bad('endsAt', 'must be after the start');
+});
+
+const createDiscountSchema = discountBody.and(z.object({
+  // Stored upper-case; the database compares case-insensitively regardless.
+  code: z.string().trim().regex(/^[A-Za-z0-9_-]{3,30}$/, 'must be 3-30 letters, digits, dashes or underscores')
+    .transform((v) => v.toUpperCase()),
+}));
+
+const discountsQuery = paginationQuery.extend({
+  status: z.enum(['ACTIVE', 'INACTIVE', 'EXPIRED', 'SCHEDULED']).optional(),
+  q: z.string().trim().min(1).max(60).optional(),
+});
+
+adminRouter.get('/discount-codes', validate({ query: discountsQuery }), asyncHandler(async (req, res) => {
+  const { data, meta } = await service.listDiscountCodes(req.validated.query);
+  res.json(ok(data, { requestId: req.id, ...meta }));
+}));
+
+adminRouter.post('/discount-codes', validate({ body: createDiscountSchema }), asyncHandler(async (req, res) => {
+  res.status(201).json(ok(await service.createDiscountCode(req.user.id, req.validated.body), { requestId: req.id }));
+}));
+
+adminRouter.get('/discount-codes/:id', validate({ params: idParam }), asyncHandler(async (req, res) => {
+  res.json(ok(await service.getDiscountCode(req.validated.params.id), { requestId: req.id }));
+}));
+
+adminRouter.put(
+  '/discount-codes/:id',
+  validate({ params: idParam, body: discountBody }),
+  asyncHandler(async (req, res) => {
+    res.json(ok(await service.updateDiscountCode(req.user.id, req.validated.params.id, req.validated.body), { requestId: req.id }));
+  }),
+);
+
+adminRouter.post(
+  '/discount-codes/:id/deactivate',
+  validate({ params: idParam, body: reasonSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(ok(await service.deactivateDiscountCode(req.user.id, req.validated.params.id, req.validated.body), { requestId: req.id }));
+  }),
+);
+
+adminRouter.post(
+  '/discount-codes/:id/reactivate',
+  validate({ params: idParam, body: optionalReasonSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(ok(await service.reactivateDiscountCode(req.user.id, req.validated.params.id, req.validated.body), { requestId: req.id }));
+  }),
+);
+
+adminRouter.delete(
+  '/discount-codes/:id',
+  validate({ params: idParam, body: reasonSchema }),
+  asyncHandler(async (req, res) => {
+    res.json(ok(await service.deleteDiscountCode(req.user.id, req.validated.params.id, req.validated.body), { requestId: req.id }));
   }),
 );
 
