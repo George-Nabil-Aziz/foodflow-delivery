@@ -25,8 +25,8 @@
 | Understand the whole system | [master-sdd.md](master-sdd.md) — the entry point and the normative source |
 | Build it | [implementation-plan.md](implementation-plan.md) — six phases, task by task |
 | Know what to build next | [dependency-map.md](dependency-map.md) — the ordering and what can run in parallel |
-| Understand a feature area | [specs/](specs/) — ten specs |
-| Pick up a unit of work | [stories/](stories/) — ten vertical slices with acceptance criteria |
+| Understand a feature area | [specs/](specs/) — fourteen specs |
+| Pick up a unit of work | [stories/](stories/) — fourteen vertical slices with acceptance criteria |
 | Understand a technical decision | [architecture/](architecture/) — seven documents plus the ADRs |
 | Know what was assumed | [assumptions.md](assumptions.md) |
 | Know what could go wrong | [risks.md](risks.md) |
@@ -56,7 +56,7 @@ docs/sdd/
 │   └── testing-strategy.md      ← the pyramid, suites, E2E scenarios, gates
 │
 ├── specs/    spec-01 … spec-14  ← what each area must do
-├── stories/  story-01 … story-10 ← vertical slices with acceptance criteria
+├── stories/  story-01 … story-14 ← vertical slices with acceptance criteria
 │
 ├── implementation-plan.md       ← six phases, TDD task breakdown
 ├── dependency-map.md            ← coverage matrix, graph, parallelization
@@ -99,6 +99,10 @@ docs/sdd/
 | 08 | [Driver Onboarding, Assignment & Delivery Execution](stories/story-08-driver-onboarding-delivery-execution.md) | 5 | 07 |
 | 09 | [Reviews & Ratings](stories/story-09-reviews-ratings.md) | 6 | 08 |
 | 10 | [Platform Administration & Reporting](stories/story-10-platform-administration-reporting.md) | 6 | 02 (+03, 07, 08, 09) |
+| 11 | [Card Payments & Refunds](stories/story-11-card-payments.md) | 7 (after v1) | 06, 07, 10 |
+| 12 | [Discount Codes](stories/story-12-discount-codes.md) | 7 (after v1) | 05, 06, 10 |
+| 13 | [Notifications (Email & SMS)](stories/story-13-notifications.md) | 7 (after v1) | 06, 07, 08, 10 |
+| 14 | [Live Updates](stories/story-14-live-updates.md) | 7 (after v1) | 06, 07, 08 |
 
 ---
 
@@ -137,8 +141,8 @@ payload rules ([ADR-011](architecture/api-design.md#adr-011-action-endpoints-for
 
 Verified before sign-off:
 
-- ✅ 14 specs, numbered `spec-01`–`spec-14`, no gaps or duplicates. Specs 11–14 were added after v1 and have no story of their own.
-- ✅ Exactly 10 stories, numbered `story-01`–`story-10`, no gaps or duplicates.
+- ✅ 14 specs, numbered `spec-01`–`spec-14`, no gaps or duplicates. Specs 11–14 were added after v1, each with its own story (story-11 – story-14).
+- ✅ Exactly 14 stories, numbered `story-01`–`story-14`, no gaps or duplicates.
 - ✅ Every spec is implemented by ≥1 story; every story cites ≥1 spec ([coverage matrix](dependency-map.md#1-coverage-matrix)).
 - ✅ Every story has Gherkin acceptance criteria.
 - ✅ All 10 order transitions define actors and guards; illegal transitions are enumerated and tested.

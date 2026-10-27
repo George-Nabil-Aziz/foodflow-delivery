@@ -51,6 +51,7 @@ section.**
 | **4 — Transaction core** | story-06, story-07 | A customer can place and track an order; a restaurant can process it to `READY_FOR_PICKUP`; snapshots and the state machine are proven |
 | **5 — Fulfilment** | story-08 | The full journey reaches `DELIVERED`; the no-driver case is proven non-destructive |
 | **6 — Trust & operations** | story-09, story-10 | Reviews with live aggregates; the complete admin surface; all E2E scenarios and NFR gates green |
+| **7 — After v1** | story-11, story-12, story-13, story-14 | Card payments with automatic refunds, discount codes, real email and SMS, live updates over SSE; each is independent of the others and builds on the finished v1 |
 
 Phases are derived from the dependency graph in
 [dependency-map.md](dependency-map.md), not chosen for symmetry. Nine of the ten

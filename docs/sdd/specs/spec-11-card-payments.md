@@ -1,6 +1,6 @@
 # Spec 11 — Card Payments & Refunds
 
-**Status:** Draft · **Owner:** Platform · **Covers:** FR-11.1 – FR-11.10 · **Supersedes:** the payment row of master-sdd §3 (Non-Goals) and §24 item 1, once the integrator edits them
+**Status:** Approved · **Owner:** Platform · **Covers:** FR-11.1 – FR-11.10 · **Supersedes:** the payment row of master-sdd §3 (Non-Goals) and §24 item 1
 
 ## Objective
 
@@ -99,6 +99,8 @@ and an admin sees and retries it.
 | BR-P8 | The unpaid-card timeout is separate from the restaurant-response timeout: `orderTimeoutJob` ignores unpaid card orders and, for card orders, measures the restaurant's response time from `paid_at` | `orderTimeoutJob`, `paymentTimeoutJob` |
 | BR-P9 | The fake provider can never take payment in production | `config.payments.cardEnabled` is false when `NODE_ENV=production` and the provider is `fake`; checkout answers `422 CARD_PAYMENTS_UNAVAILABLE`, the simulate endpoint answers `404` |
 | BR-P10 | Provider specifics (minor units, field names, webhook shape, auth) live only in the provider adapter; the rest of the app handles decimal-string amounts in the configured currency | `providers/*.provider.js` interface |
+| BR-P11 | A card order must have something to pay: a checkout whose total is zero after a discount code is refused, and nothing is written | Card branch of `checkout` in orders; the customer pays cash on delivery instead |
+| BR-P12 | `PAYMENT_PROVIDER=moyasar` without its secret and publishable keys stops the server at startup | Config validation |
 
 ## Data Requirements
 
@@ -177,6 +179,7 @@ Module `modules/payments/` — `payments.service.js`, `payments.repository.js`, 
 | Condition | Response |
 |-----------|----------|
 | Card checkout while cards are unavailable (production without keys) | `422 CARD_PAYMENTS_UNAVAILABLE` |
+| Card checkout whose total is zero after a discount code | `422 UNPROCESSABLE` on `paymentMethod` ("There is nothing to pay by card. Choose cash on delivery."); no order, no payment, the cart stays active |
 | Confirm with an unknown gateway id, wrong amount/currency/reference, or an id already used | `422 PAYMENT_NOT_VERIFIED`; the payment is unchanged |
 | Gateway unreachable during confirm | `503 PAYMENT_PROVIDER_UNAVAILABLE`; the customer retries; the webhook is the backstop |
 | Gateway reports the payment declined | `200`; the order carries `payment.status = FAILED` and the gateway's message; the customer may try again |
@@ -217,6 +220,7 @@ Frontend — lint, component/unit tests and a production build; the Arabic catal
 
 ## Related Stories
 
+- [Story 11 — Card Payments & Refunds](../stories/story-11-card-payments.md) — implements this spec
 - [Story 06 — Order Placement & Customer Tracking](../stories/story-06-order-placement-customer-tracking.md)
 - [Story 07 — Restaurant Order Processing](../stories/story-07-restaurant-order-processing.md)
 - [Story 10 — Platform Administration & Reporting](../stories/story-10-platform-administration-reporting.md)

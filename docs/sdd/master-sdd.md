@@ -709,10 +709,10 @@ reviews → the restaurant's rating average updates.
 | [spec-08](specs/spec-08-delivery-assignment-driver-operations.md) | Delivery Assignment & Driver Operations | story-07, story-08 |
 | [spec-09](specs/spec-09-reviews-ratings.md) | Reviews & Ratings | story-09, story-10 |
 | [spec-10](specs/spec-10-platform-administration-reporting.md) | Platform Administration & Reporting | story-03, story-08, story-09, story-10 |
-| [spec-11](specs/spec-11-card-payments.md) | Card Payments | — (added after v1) |
-| [spec-12](specs/spec-12-discount-codes.md) | Discount Codes | — (added after v1) |
-| [spec-13](specs/spec-13-notifications.md) | Notifications | — (added after v1) |
-| [spec-14](specs/spec-14-live-updates.md) | Live Updates | — (added after v1) |
+| [spec-11](specs/spec-11-card-payments.md) | Card Payments | story-11 |
+| [spec-12](specs/spec-12-discount-codes.md) | Discount Codes | story-12 |
+| [spec-13](specs/spec-13-notifications.md) | Notifications | story-13 |
+| [spec-14](specs/spec-14-live-updates.md) | Live Updates | story-14 |
 
 ## 19. Stories Index
 

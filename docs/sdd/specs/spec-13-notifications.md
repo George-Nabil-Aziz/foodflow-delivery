@@ -64,7 +64,7 @@ user-editable notification preferences, unsubscribe links, an in-app inbox UI.
 
 | Template | Trigger | Recipient | Channels |
 |----------|---------|-----------|----------|
-| `ORDER_PLACED` | Checkout, or admin places an order | Customer of the order | Email |
+| `ORDER_PLACED` | Checkout, or admin places an order; for a card order, when the payment becomes `PAID` | Customer of the order | Email |
 | `NEW_ORDER` | Same moment | Restaurant owner of the order | SMS + Email |
 | `NEW_OFFER` | Dispatch creates a delivery offer | The offered driver | In-app only (row, status `SENT`) |
 | `ORDER_OUT_FOR_DELIVERY` | Driver picks up (T7) | Customer of the order | SMS |
@@ -190,4 +190,4 @@ Blank values count as unset. Secrets are read only through the config module.
 
 ## Related Stories / Dependencies
 
-Depends on spec-07 (order lifecycle hooks), spec-08 (offers), spec-10 (account creation, BR-AD8). Master SDD §3 and §24 item 3 should be updated to point here.
+Implemented by [story-13](../stories/story-13-notifications.md). Depends on spec-07 (order lifecycle hooks), spec-08 (offers), spec-10 (account creation, BR-AD8).

@@ -242,3 +242,7 @@ terminal result.
 - **Bursts.** A transition that triggers several events (status plus driver assignment) is coalesced client-side into one refetch by the 250 ms debounce.
 - **Restaurant without a restaurant row** (deleted). Connects, receives nothing.
 - **Rolled-back accept** (lost race). No event; the loser's `409` is the only signal, as before.
+
+## Related Stories
+
+- [Story 14 — Live Updates](../stories/story-14-live-updates.md) — implements this spec

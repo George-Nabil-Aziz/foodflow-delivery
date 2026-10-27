@@ -27,7 +27,7 @@ amount.
 
 **Out of scope** — automatic or stacked promotions (one code per order), codes
 that discount the delivery fee, per-item or per-category discounts, referral or
-loyalty credit, refunds of a discount (payments are cash on delivery, A-01), a
+loyalty credit, refunds of a discount (a card refund returns what was paid, [spec-11](spec-11-card-payments.md)), a
 customer-facing list of available codes.
 
 ## Actors
@@ -191,6 +191,7 @@ An admin creating a name that already exists gets `409 CONFLICT`.
 - `utils/discount.discountErrorText` maps each `DISCOUNT_CODE_*` to its own sentence ("Add EGP 20.00 more to use this code (minimum EGP 50.00)", "This discount code has expired.").
 - Admin: **Discount codes** in the sidebar; `DiscountCodesView` (PageTitle with count, search, state `FilterSelect` with counts, "Add a discount code" in the `FilterBar`, details dialog, ConfirmDialog with reason for deactivate and delete); `DiscountCodeFormView` for create and edit on a page of its own (the code is read-only when editing). Routes `/admin/discount-codes`, `/new`, `/:id/edit`.
 - Make an order (admin) has an optional **Discount code** field.
+- **Development only:** `DevDiscountCodes` under the code field lists the codes `npm run seed` creates (WELCOME10, SAVE50, GRILL15, and the expired OLDDEAL to show the error), each with a one-line note; a click fills the code in and applies it, so the server still decides. Like `DevAccounts` on the login page it is rendered behind `import.meta.env.DEV` and loaded by a dynamic import, so it is not in a production build.
 - Arabic strings in `i18n/ar/discounts.js`.
 
 ## Backend Requirements
@@ -289,8 +290,8 @@ only above zero.
 
 ## Related Stories
 
-None of the existing stories cover promotions; this spec introduces its own
-requirement range (FR-11.x). It extends
+[Story 12 — Discount Codes](../stories/story-12-discount-codes.md) implements this
+spec, under its own requirement range (FR-12.x). It extends
 [story-05 — Cart Management](../stories/story-05-cart-management.md),
 [story-06 — Order Placement & Customer Order Tracking](../stories/story-06-order-placement-customer-tracking.md)
 and the admin story in [spec-10](spec-10-platform-administration-reporting.md).
