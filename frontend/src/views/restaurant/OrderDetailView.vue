@@ -158,6 +158,10 @@ async function confirmReason({ reason, reasonCode }) {
             <h2 class="font-semibold text-slate-900">{{ t('Total') }}</h2>
             <dl class="mt-2 space-y-1">
               <div class="flex justify-between"><dt class="text-slate-600">{{ t('Subtotal') }}</dt><dd>{{ formatMoney(order.subtotal) }}</dd></div>
+              <div v-if="Number(order.discountAmount) > 0" class="flex justify-between text-emerald-800">
+                <dt>{{ t('Discount') }}<template v-if="order.discountCode"> ({{ order.discountCode }})</template></dt>
+                <dd>&minus;{{ formatMoney(order.discountAmount) }}</dd>
+              </div>
               <div class="flex justify-between"><dt class="text-slate-600">{{ t('Delivery') }}</dt><dd>{{ formatMoney(order.deliveryFee) }}</dd></div>
               <div class="flex justify-between"><dt class="text-slate-600">{{ t('Tax') }}</dt><dd>{{ formatMoney(order.taxAmount) }}</dd></div>
               <div class="flex justify-between border-t border-slate-200 pt-1 font-semibold">

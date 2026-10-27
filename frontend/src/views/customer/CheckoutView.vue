@@ -8,6 +8,8 @@ import { formatMoney } from '../../utils/money.js';
 import { CART_ISSUE_LABEL } from '../../utils/orderStatus.js';
 import AppSpinner from '../../components/shared/AppSpinner.vue';
 import AppButton from '../../components/shared/AppButton.vue';
+import DiscountCodeField from '../../components/customer/DiscountCodeField.vue';
+import { discountErrorText, isPositiveAmount } from '../../utils/discount.js';
 import EmptyState from '../../components/shared/EmptyState.vue';
 import { t } from '../../i18n/index.js';
 
@@ -58,6 +60,12 @@ function messageFor(err) {
       return t('This restaurant stopped accepting orders. Your cart has been kept.');
     case 'RESOURCE_NOT_FOUND':
       return t('That delivery address is no longer available. Choose another.');
+    case 'DISCOUNT_CODE_INVALID':
+    case 'DISCOUNT_CODE_EXPIRED':
+    case 'DISCOUNT_CODE_NOT_APPLICABLE':
+    case 'DISCOUNT_CODE_LIMIT_REACHED':
+      // The cart is reloaded below and shows the code with this reason; removing it unblocks checkout.
+      return discountErrorText(err);
     default:
       return err.message;
   }
@@ -163,12 +171,18 @@ async function placeOrder() {
 
           <dl class="mt-3 space-y-2 border-t border-slate-200 pt-3 text-sm">
             <div class="flex justify-between"><dt class="text-slate-600">{{ t('Subtotal') }}</dt><dd>{{ formatMoney(cart.totals.subtotal) }}</dd></div>
+            <div v-if="isPositiveAmount(cart.totals.discountAmount)" class="flex justify-between text-emerald-800">
+              <dt>{{ t('Discount') }}<template v-if="cart.discount"> ({{ cart.discount.code }})</template></dt>
+              <dd>&minus;{{ formatMoney(cart.totals.discountAmount) }}</dd>
+            </div>
             <div class="flex justify-between"><dt class="text-slate-600">{{ t('Delivery') }}</dt><dd>{{ formatMoney(cart.totals.deliveryFee) }}</dd></div>
             <div class="flex justify-between"><dt class="text-slate-600">{{ t('Tax') }}</dt><dd>{{ formatMoney(cart.totals.taxAmount) }}</dd></div>
             <div class="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold">
               <dt>{{ t('Total') }}</dt><dd>{{ formatMoney(cart.totals.total) }}</dd>
             </div>
           </dl>
+
+          <DiscountCodeField id="checkout-discount-code" />
 
           <p v-if="checkoutError" class="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">
             {{ checkoutError }}
@@ -185,7 +199,10 @@ async function placeOrder() {
             {{ t('Place order') }}
           </AppButton>
 
-          <p v-if="!cart.canCheckout" class="mt-2 text-sm text-slate-700" role="status">
+          <p v-if="!cart.canCheckout && cart.discountIssue" class="mt-2 text-sm text-slate-700" role="status">
+            {{ t('Remove the discount code above or choose another to place your order.') }}
+          </p>
+          <p v-else-if="!cart.canCheckout" class="mt-2 text-sm text-slate-700" role="status">
             {{ t('Resolve the items above before placing your order.') }}
           </p>
           <p v-else-if="!selectedAddressId" class="mt-2 text-sm text-slate-700" role="status">

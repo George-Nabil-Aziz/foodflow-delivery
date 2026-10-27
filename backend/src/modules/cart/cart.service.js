@@ -116,7 +116,7 @@ async function resolveDiscount(cart, subtotal, trx, strict) {
     const row = await discounts.getCodeById(cart.discount_code_id, trx);
     return {
       discount: null,
-      discountIssue: { code: err.code, discountCode: row?.code ?? null, message: err.details?.[0]?.issue ?? err.publicMessage },
+      discountIssue: { code: err.code, discountCode: row?.code ?? null, message: err.publicMessage, details: err.details },
     };
   }
 }

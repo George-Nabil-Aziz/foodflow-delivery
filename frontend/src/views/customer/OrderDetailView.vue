@@ -205,6 +205,10 @@ async function submitReview() {
             </ul>
             <dl class="mt-3 space-y-2 border-t border-slate-200 pt-3 text-sm">
               <div class="flex justify-between"><dt class="text-slate-600">{{ t('Subtotal') }}</dt><dd>{{ formatMoney(order.subtotal) }}</dd></div>
+              <div v-if="Number(order.discountAmount) > 0" class="flex justify-between text-emerald-800">
+                <dt>{{ t('Discount') }}<template v-if="order.discountCode"> ({{ order.discountCode }})</template></dt>
+                <dd>&minus;{{ formatMoney(order.discountAmount) }}</dd>
+              </div>
               <div class="flex justify-between"><dt class="text-slate-600">{{ t('Delivery') }}</dt><dd>{{ formatMoney(order.deliveryFee) }}</dd></div>
               <div class="flex justify-between"><dt class="text-slate-600">{{ t('Tax') }}</dt><dd>{{ formatMoney(order.taxAmount) }}</dd></div>
               <div class="flex justify-between border-t border-slate-200 pt-2 font-semibold">

@@ -16,8 +16,12 @@ export const useCartStore = defineStore('cart', () => {
   const itemCount = computed(() => cart.value?.itemCount ?? 0);
   const restaurant = computed(() => cart.value?.restaurant ?? null);
   const totals = computed(
-    () => cart.value?.totals ?? { subtotal: '0.00', deliveryFee: '0.00', taxAmount: '0.00', total: '0.00' },
+    () => cart.value?.totals
+      ?? { subtotal: '0.00', deliveryFee: '0.00', discountAmount: '0.00', taxAmount: '0.00', total: '0.00' },
   );
+  // The applied code as the server priced it, or why a stored one no longer applies.
+  const discount = computed(() => cart.value?.discount ?? null);
+  const discountIssue = computed(() => cart.value?.discountIssue ?? null);
   const issues = computed(() => cart.value?.issues ?? []);
   const canCheckout = computed(() => cart.value?.canCheckout === true);
   const meetsMinimum = computed(() => cart.value?.meetsMinimum === true);
@@ -72,6 +76,17 @@ export const useCartStore = defineStore('cart', () => {
     return apply(await cartApi.removeItem(itemId), stamp);
   }
 
+  /** Throws ApiError with the specific DISCOUNT_CODE_* code; the cart is unchanged then. */
+  async function applyDiscount(code) {
+    const stamp = nextStamp();
+    return apply(await cartApi.applyDiscount(code), stamp);
+  }
+
+  async function removeDiscount() {
+    const stamp = nextStamp();
+    return apply(await cartApi.removeDiscount(), stamp);
+  }
+
   async function clear() {
     await cartApi.clear();
     return load();
@@ -86,8 +101,8 @@ export const useCartStore = defineStore('cart', () => {
   }
 
   return {
-    cart, loading, loaded, items, itemCount, restaurant, totals, issues,
+    cart, loading, loaded, items, itemCount, restaurant, totals, discount, discountIssue, issues,
     canCheckout, meetsMinimum, minimumShortfall, isEmpty,
-    load, addItem, updateQuantity, removeItem, clear, reset,
+    load, addItem, updateQuantity, removeItem, applyDiscount, removeDiscount, clear, reset,
   };
 });

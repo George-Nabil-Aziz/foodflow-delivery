@@ -8,6 +8,8 @@ import { CART_ISSUE_LABEL, UNAVAILABLE_REASON_LABEL } from '../../utils/orderSta
 import AppSpinner from '../../components/shared/AppSpinner.vue';
 import EmptyState from '../../components/shared/EmptyState.vue';
 import AppButton from '../../components/shared/AppButton.vue';
+import DiscountCodeField from '../../components/customer/DiscountCodeField.vue';
+import { discountErrorText, isPositiveAmount } from '../../utils/discount.js';
 import { t } from '../../i18n/index.js';
 
 const cart = useCartStore();
@@ -32,6 +34,9 @@ const blockedReason = computed(() => {
     return t('Add {amount} more to reach this restaurant\'s minimum order.', {
       amount: formatMoney(cart.minimumShortfall),
     });
+  }
+  if (cart.discountIssue) {
+    return `${cart.discountIssue.discountCode}: ${discountErrorText(cart.discountIssue)}`;
   }
   return null;
 });
@@ -146,12 +151,18 @@ async function remove(item) {
           <h2 class="font-semibold text-slate-900">{{ t('Order summary') }}</h2>
           <dl class="mt-3 space-y-2 text-sm">
             <div class="flex justify-between"><dt class="text-slate-600">{{ t('Subtotal') }}</dt><dd>{{ formatMoney(cart.totals.subtotal) }}</dd></div>
+            <div v-if="isPositiveAmount(cart.totals.discountAmount)" class="flex justify-between text-emerald-800">
+              <dt>{{ t('Discount') }}<template v-if="cart.discount"> ({{ cart.discount.code }})</template></dt>
+              <dd>&minus;{{ formatMoney(cart.totals.discountAmount) }}</dd>
+            </div>
             <div class="flex justify-between"><dt class="text-slate-600">{{ t('Delivery') }}</dt><dd>{{ formatMoney(cart.totals.deliveryFee) }}</dd></div>
             <div class="flex justify-between"><dt class="text-slate-600">{{ t('Tax') }}</dt><dd>{{ formatMoney(cart.totals.taxAmount) }}</dd></div>
             <div class="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold">
               <dt>{{ t('Total') }}</dt><dd>{{ formatMoney(cart.totals.total) }}</dd>
             </div>
           </dl>
+
+          <DiscountCodeField id="cart-discount-code" />
 
           <AppButton class="mt-4 w-full" :disabled="!cart.canCheckout"
                      @click="router.push({ name: 'checkout' })">
