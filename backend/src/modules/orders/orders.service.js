@@ -330,7 +330,8 @@ async function insertOrder(
   );
 
   // Checkout and admin placement both come through here, so one hook covers both.
-  publishOrderEvent(trx, created, EVENT_TYPES.ORDER_CREATED);
+  // A card order is hidden until paid; `payments.onPaid` announces it then.
+  if (created.payment_method !== 'CARD') publishOrderEvent(trx, created, EVENT_TYPES.ORDER_CREATED);
   return created;
 }
 

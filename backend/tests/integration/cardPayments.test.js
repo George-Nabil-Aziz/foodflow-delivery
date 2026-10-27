@@ -496,6 +496,21 @@ describe('with live updates and discount codes', () => {
     expect(created.audience.restaurantIds).toContain(ctx.restaurant.id);
   });
 
+  it('does not announce a card order at checkout, only once it is paid', async () => {
+    const { subscribe } = await import('../../src/shared/events/index.js');
+    const ctx = await setup();
+    const seen = [];
+    const unsubscribe = subscribe((event) => seen.push(event));
+    let orderId;
+    try {
+      orderId = (await checkoutCard(ctx.customer, ctx.address).expect(201)).body.data.id;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    } finally {
+      unsubscribe();
+    }
+    expect(seen.filter((e) => e.type === 'order.created' && e.data.orderId === orderId)).toHaveLength(0);
+  });
+
   it('refuses card for an order a discount brings to zero, and leaves the cart as it was', async () => {
     const ctx = await setup();
     await knex('restaurants').where({ id: ctx.restaurant.id }).update({ delivery_fee: '0.00' });

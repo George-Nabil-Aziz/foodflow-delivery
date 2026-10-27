@@ -99,10 +99,11 @@ Given an order status event is sent
 Then its data holds exactly type, orderId, status and at — no customer, address
   or price data
 
-Given a customer places an order at restaurant R
+Given a customer places a cash-on-delivery order at restaurant R
 Then R's owner receives order.created for it
 
-Given a customer pays an order by card
+Given a customer checks out by card
+Then no order.created is sent while the payment is unpaid
 When the payment becomes PAID
 Then R's owner receives order.created, so a screen that is not polling learns
   that the order has arrived
@@ -213,5 +214,5 @@ or filter. Event payloads are built in one place per producer.
 
 ## Testing Requirements
 
-- Integration: `backend/tests/integration/events.test.js` against real PostgreSQL and a real HTTP server. Required: the ticket refused without a token and for an admin; the stream refused with no, forged, reused and access-token tickets and a ticket whose user was suspended after issue; SSE headers, `retry:` and `ready`; a transition reaching the customer and restaurant but not another customer, another restaurant or a driver; the payload key set being exactly `type, orderId, status, at`; `order.created` through admin placement; `offer.created` reaching only the offered driver; accept reaching customer and driver; a refused transition publishing nothing; `publishAfterCommit` holding until commit and dropping on rollback; suspension closing the stream on heartbeat; the heartbeat comment; cleanup on disconnect; the per-user cap evicting the oldest. `backend/tests/integration/cardPayments.test.js`: `order.created` pushed to the restaurant when a card order becomes paid. `authorization.test.js`: the route-audit allow-list entry.
+- Integration: `backend/tests/integration/events.test.js` against real PostgreSQL and a real HTTP server. Required: the ticket refused without a token and for an admin; the stream refused with no, forged, reused and access-token tickets and a ticket whose user was suspended after issue; SSE headers, `retry:` and `ready`; a transition reaching the customer and restaurant but not another customer, another restaurant or a driver; the payload key set being exactly `type, orderId, status, at`; `order.created` through admin placement; `offer.created` reaching only the offered driver; accept reaching customer and driver; a refused transition publishing nothing; `publishAfterCommit` holding until commit and dropping on rollback; suspension closing the stream on heartbeat; the heartbeat comment; cleanup on disconnect; the per-user cap evicting the oldest. `backend/tests/integration/cardPayments.test.js`: `order.created` withheld at card checkout and pushed to the restaurant when the card order becomes paid. `authorization.test.js`: the route-audit allow-list entry.
 - Frontend: `frontend/tests/unit/liveUpdates.test.js` with a fake `EventSource` and fake timers: only the ticket in the URL; one shared connection closed after the last unsubscribe; routing by event type; reconnect with a new ticket and backoff; `failed` after repeated failures while retrying continues; an auth refusal being final; hide and show; polling until the stream opens then suspended; the filter; burst coalescing; fallback to polling on drop; a terminal result stopping the view.

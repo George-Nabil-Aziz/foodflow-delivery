@@ -148,7 +148,8 @@ plus `shared/events/` (`eventBus.js`, `eventTypes.js`).
 ### Publishing
 
 ```text
-orders.insertOrder        → order.created     (checkout and admin placement)
+orders.insertOrder        → order.created     (checkout and admin placement; not for a card order)
+payments.onPaid listener  → order.created     (a card order, once its payment is PAID)
 orders.transition         → order.status      (the only status-changing path)
 orders.adminForceCancel   → order.status      (the one other writer of orders.status)
 delivery.dispatchOrder    → offer.created

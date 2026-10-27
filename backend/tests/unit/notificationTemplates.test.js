@@ -1,7 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
+
+const nodemailer = vi.hoisted(() => {
+  const sendMail = vi.fn().mockResolvedValue({ messageId: 'm1' });
+  return { sendMail, createTransport: vi.fn(() => ({ sendMail })) };
+});
+vi.mock('nodemailer', () => ({ default: { createTransport: nodemailer.createTransport } }));
 import { TEMPLATES, render, escapeHtml } from '../../src/shared/messaging/templates.js';
 import { normalizePhone, addressFor, maskEmail } from '../../src/shared/messaging/recipients.js';
-import { createTwilioTransport } from '../../src/shared/messaging/transports.js';
+import { createTwilioTransport, createSmtpTransport } from '../../src/shared/messaging/transports.js';
 
 const payload = { orderNumber: 'FF-20260101-ABC123', total: '164.76', role: 'RESTAURANT' };
 
@@ -102,5 +108,35 @@ describe('twilio transport', () => {
     });
     await expect(createTwilioTransport(cfg, fetchFn).send({ to: 'x', text: 'y' }))
       .rejects.toThrow('Twilio 400 (21211): Invalid To number');
+  });
+});
+
+describe('smtp transport', () => {
+  const cfg = {
+    host: 'smtp.example.test', port: 587, secure: false,
+    user: 'mailer', pass: 'secret', from: 'FoodFlow <no-reply@example.test>',
+  };
+
+  it('sends through nodemailer with the configured server and sender, connecting once', async () => {
+    const transport = createSmtpTransport(cfg);
+    await transport.send({ to: 'a@example.test', subject: 'Hi', text: 'plain', html: '<p>html</p>' });
+    await transport.send({ to: 'b@example.test', subject: 'Again', text: 'plain' });
+
+    expect(nodemailer.createTransport).toHaveBeenCalledTimes(1);
+    expect(nodemailer.createTransport).toHaveBeenCalledWith(expect.objectContaining({
+      host: 'smtp.example.test', port: 587, secure: false, auth: { user: 'mailer', pass: 'secret' },
+    }));
+    expect(nodemailer.sendMail).toHaveBeenNthCalledWith(1, {
+      from: 'FoodFlow <no-reply@example.test>', to: 'a@example.test', subject: 'Hi', text: 'plain', html: '<p>html</p>',
+    });
+  });
+
+  it('connects without auth when no user is configured, and passes a send failure up', async () => {
+    nodemailer.createTransport.mockClear();
+    nodemailer.sendMail.mockRejectedValueOnce(new Error('connect ECONNREFUSED'));
+    const transport = createSmtpTransport({ ...cfg, user: '' });
+
+    await expect(transport.send({ to: 'a@example.test', subject: 'Hi', text: 'x' })).rejects.toThrow('ECONNREFUSED');
+    expect(nodemailer.createTransport.mock.calls[0][0].auth).toBeUndefined();
   });
 });

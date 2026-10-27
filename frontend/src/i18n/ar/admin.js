@@ -135,6 +135,9 @@ export default {
   "Place an order on a customer's behalf. It is paid cash on delivery and their cart is left as it is.":
     'أنشئ طلبًا نيابةً عن عميل. يُدفع نقدًا عند الاستلام ولا تتغير سلة العميل.',
   'Order {orderNumber} placed': 'تم إنشاء الطلب {orderNumber}',
+  Dismiss: 'إخفاء',
+  Change: 'تغيير',
+  each: 'للواحدة',
   'Searching…': 'جارٍ البحث…',
   'No active customer matches.': 'لا يوجد عميل نشط مطابق.',
   'This customer has no saved addresses, so an order cannot be placed for them yet.':
