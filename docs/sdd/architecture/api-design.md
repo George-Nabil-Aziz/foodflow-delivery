@@ -557,6 +557,25 @@ when there are no reviews.
 
 ---
 
+## 12. Live updates — `/api/events`
+
+Server-sent events; full design in [spec-14](../specs/spec-14-live-updates.md).
+Events carry ids and a status only; clients refetch through the endpoints above.
+
+| Method | Route | Auth | Purpose |
+|--------|-------|------|---------|
+| POST | `/api/events/ticket` | C / R / D | Exchange the access token for a single-use, 30 s stream ticket: `{ ticket, expiresInSeconds }` |
+| GET | `/api/events?ticket=…` | ticket | `text/event-stream`. Events: `ready`, `order.created`, `order.status`, `order.updated`, `offer.created`, `offer.expired`, `offer.taken`, `offer.withdrawn`; a `: ping` heartbeat every ~25 s |
+
+`EventSource` cannot send headers, so the ticket (never the access token) is the
+only credential in the URL. A missing, forged, used or expired ticket is
+`401 TOKEN_INVALID`; a suspended account `403 ACCOUNT_SUSPENDED`. At most 5
+streams per user (the oldest is closed). Scoping is by the authenticated user: a
+customer's own orders, a restaurant's own orders, a driver's own offers and
+deliveries.
+
+---
+
 ## Architecture Decision Records
 
 ### ADR-011: Action endpoints for state transitions
