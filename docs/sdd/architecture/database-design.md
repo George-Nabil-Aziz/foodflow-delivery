@@ -34,14 +34,17 @@ CREATE TYPE actor_type         AS ENUM ('CUSTOMER','RESTAURANT','DRIVER','ADMIN'
 CREATE TYPE cancellation_reason AS ENUM (
   'CUSTOMER_CHANGED_MIND','CUSTOMER_ORDERED_BY_MISTAKE',
   'RESTAURANT_TOO_BUSY','RESTAURANT_CLOSED','OUT_OF_STOCK',
-  'NO_DRIVER_AVAILABLE','UNDELIVERABLE_ADDRESS','ADMIN_INTERVENTION','ACCEPT_TIMEOUT');
+  'NO_DRIVER_AVAILABLE','UNDELIVERABLE_ADDRESS','ADMIN_INTERVENTION','ACCEPT_TIMEOUT',
+  'PAYMENT_TIMEOUT');   -- PAYMENT_TIMEOUT added by 010_payments
 CREATE TYPE assignment_status  AS ENUM ('OFFERED','ACCEPTED','DECLINED','EXPIRED','CANCELLED','COMPLETED');
-CREATE TYPE payment_method     AS ENUM ('CASH_ON_DELIVERY');
+CREATE TYPE payment_method     AS ENUM ('CASH_ON_DELIVERY','CARD');          -- CARD added by 010_payments
+CREATE TYPE payment_status     AS ENUM ('INITIATED','PAID','FAILED','REFUNDING','REFUNDED','REFUND_FAILED'); -- 010_payments
 CREATE TYPE review_status      AS ENUM ('PUBLISHED','HIDDEN');
 ```
 
-`payment_method` is a one-value enum on purpose: the column and the shape exist
-so a card gateway is an enum extension rather than an order-history migration.
+`payment_method` was a one-value enum on purpose: the column and the shape existed
+so a card gateway would be an enum extension rather than an order-history
+migration. Migration 010 adds `CARD` exactly that way (spec-11).
 
 ## 3. Entity relationship diagram
 
@@ -406,6 +409,27 @@ Index `idx_refresh_user_active (user_id) WHERE revoked_at IS NULL`.
 Family-wide revocation on reuse detection is a single `UPDATE ... WHERE
 family_id = $1`.
 
+### `payments`
+One row per card order (spec-11); created in the checkout transaction, so it commits with the order.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | uuid PK | Also the reference the browser form attaches to the gateway payment |
+| `order_id` | uuid FK → orders, `ON DELETE RESTRICT`, UNIQUE | One payment per order |
+| `customer_user_id` | uuid FK → users, `ON DELETE RESTRICT` | Ownership check without joining orders |
+| `provider` | text, CHECK in (`moyasar`,`fake`) | The adapter that took the payment |
+| `provider_payment_id` | text, nullable | Gateway id, set when verified `PAID` |
+| `amount` | numeric(10,2) NOT NULL, CHECK > 0 | Copied from `orders.total_amount` at checkout (BR-P2) |
+| `currency` | char(3) | From `PAYMENT_CURRENCY` at checkout |
+| `status` | payment_status NOT NULL DEFAULT `'INITIATED'` | |
+| `refunded_amount` | numeric(10,2) NOT NULL DEFAULT 0, CHECK 0..amount | |
+| `failure_message`, `refund_error` | text, nullable | Gateway's words, ≤300 for the refund error |
+| `refund_attempts`, `refund_started_at` | integer / timestamptz | The claim that stops double refunds; a stale `REFUNDING` (>5 min) is reclaimable |
+| `paid_at`, `refunded_at` | timestamptz, nullable | `paid_at` starts the restaurant-response clock for card orders |
+| `metadata` | jsonb NOT NULL DEFAULT `{}` | Verification snapshot and attempt log; never card data |
+
+Indexes: `uq_payments_order (order_id)`; `uq_payments_provider_payment (provider, provider_payment_id) WHERE provider_payment_id IS NOT NULL` — one gateway payment settles at most one order; `idx_payments_status (status, created_at)` for the timeout and refund sweeps. `orders` gains no column.
+
 ### `admin_audit_logs`
 `admin_user_id` `ON DELETE RESTRICT`, `action text`, `entity_type text`,
 `entity_id uuid`, `metadata jsonb`, `ip_address`, `created_at`. Append-only;
@@ -458,6 +482,7 @@ Knex migrations, one per logical change, named
 8. `reviews`
 9. `admin_audit_logs`, `notifications`
 10. seed admin user
+11. `010_payments` (card payments, spec-11): `CARD` and `PAYMENT_TIMEOUT` enum values, `payment_status`, `payments`
 
 Migrations never contain business logic and are never edited after being applied
 to a shared environment — corrections ship as new migrations.
