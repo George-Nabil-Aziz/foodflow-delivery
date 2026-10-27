@@ -13,6 +13,8 @@ import AppSpinner from '../../components/shared/AppSpinner.vue';
 import ErrorState from '../../components/shared/ErrorState.vue';
 import AppButton from '../../components/shared/AppButton.vue';
 import StatusBadge from '../../components/shared/StatusBadge.vue';
+import PaymentBadge from '../../components/shared/PaymentBadge.vue';
+import PaymentForm from '../../components/customer/PaymentForm.vue';
 import StarRating from '../../components/shared/StarRating.vue';
 import OrderTimeline from '../../components/customer/OrderTimeline.vue';
 import { locale, t } from '../../i18n/index.js';
@@ -25,6 +27,7 @@ const loading = ref(true);
 const error = ref(null);
 const cancelling = ref(false);
 const submittingReview = ref(false);
+const paymentNote = ref(null);
 const review = ref({ restaurantRating: null, driverRating: null, comment: '' });
 
 async function load() {
@@ -55,8 +58,26 @@ const polling = useLiveUpdates(
   },
 );
 
+/**
+ * Hands the gateway's payment id to the server, which asks the gateway whether
+ * it is paid and for the right amount. Nothing here decides that.
+ */
+async function confirmPayment(providerPaymentId) {
+  paymentNote.value = null;
+  try {
+    order.value = (await orderApi.confirmPayment(route.params.id, providerPaymentId)).data;
+    const state = order.value.payment?.status;
+    if (state === 'FAILED') paymentNote.value = order.value.payment.failureMessage || t('The payment was declined. You can try again.');
+    else if (state === 'INITIATED') paymentNote.value = t('Your payment is still being processed.');
+  } catch (err) {
+    paymentNote.value = err.details?.[0]?.issue ?? err.message;
+  }
+}
+
 onMounted(async () => {
   await load();
+  // Back from the gateway's 3-D Secure page: it appends ?id=<payment id>.
+  if (order.value?.payment && route.query.id) await confirmPayment(String(route.query.id));
   if (order.value && !isTerminal(order.value.status)) polling.start();
 });
 
@@ -70,6 +91,11 @@ const dispatchState = computed(() => polling.data.value?.dispatchState ?? order.
 const showFindingDriver = computed(
   () => dispatchState.value === 'UNASSIGNED'
     && ['CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'].includes(displayStatus.value),
+);
+
+const needsPayment = computed(
+  () => order.value?.status === 'PENDING'
+    && ['INITIATED', 'FAILED'].includes(order.value?.payment?.status),
 );
 
 const canCancel = computed(() => canCustomerCancel(displayStatus.value));
@@ -155,6 +181,31 @@ async function submitReview() {
                role="status">
               {{ t('Finding a driver for your order.') }}
             </p>
+
+            <section v-if="order.payment" class="mt-3 rounded-lg border border-slate-200 p-3 text-sm"
+                     aria-labelledby="payment-heading">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <h3 id="payment-heading" class="font-medium text-slate-900">{{ t('Card payment') }}</h3>
+                <PaymentBadge :status="order.payment.status" />
+              </div>
+              <p v-if="order.payment.status === 'REFUNDED'" class="mt-2 text-slate-700">
+                {{ t('{amount} was refunded to your card.', { amount: formatMoney(order.payment.refundedAmount) }) }}
+              </p>
+              <p v-else-if="['REFUNDING', 'REFUND_FAILED'].includes(order.payment.status)" class="mt-2 text-slate-700">
+                {{ t('Your order was cancelled and your refund is being processed.') }}
+              </p>
+              <p v-else-if="order.payment.status === 'PAID'" class="mt-2 text-slate-700">
+                {{ t('Paid {amount}.', { amount: formatMoney(order.payment.amount) }) }}
+              </p>
+              <p v-if="paymentNote" class="mt-2 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-amber-900" role="status">
+                {{ paymentNote }}
+              </p>
+              <div v-if="needsPayment" class="mt-3">
+                <p class="text-slate-600">{{ t('The restaurant will see your order once the payment succeeds.') }}</p>
+                <PaymentForm :order-id="order.id" :order-number="order.orderNumber" :payment="order.payment"
+                             @paid="confirmPayment" />
+              </div>
+            </section>
 
             <div class="mt-4"><OrderTimeline :timeline="displayTimeline" :current-status="displayStatus" /></div>
 

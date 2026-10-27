@@ -6,9 +6,12 @@ import { offerExpiryJob } from './offerExpiry.job.js';
 import { orderTimeoutJob } from './orderTimeout.job.js';
 import { unassignedEscalationJob } from './unassignedEscalation.job.js';
 import { notificationRetryJob } from './notificationRetry.job.js';
+import { paymentTimeoutJob } from './paymentTimeout.job.js';
+import { refundSweepJob } from './refundSweep.job.js';
 
 export {
-  dispatchJob, offerExpiryJob, orderTimeoutJob, unassignedEscalationJob, notificationRetryJob, runLocked,
+  dispatchJob, offerExpiryJob, orderTimeoutJob, unassignedEscalationJob, notificationRetryJob,
+  paymentTimeoutJob, refundSweepJob, runLocked,
 };
 
 const REGISTRY = [
@@ -17,6 +20,8 @@ const REGISTRY = [
   { name: 'orderTimeout', intervalMs: 60_000, fn: orderTimeoutJob },
   { name: 'unassignedEscalation', intervalMs: 60_000, fn: unassignedEscalationJob },
   { name: 'notificationRetry', intervalMs: 30_000, fn: notificationRetryJob },
+  { name: 'paymentTimeout', intervalMs: 60_000, fn: paymentTimeoutJob },
+  { name: 'refundSweep', intervalMs: 60_000, fn: refundSweepJob },
 ];
 
 let timers = [];

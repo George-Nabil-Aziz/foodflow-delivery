@@ -22,6 +22,15 @@ const schema = z
     ORDER_ACCEPT_TIMEOUT_MINUTES: z.coerce.number().int().positive().default(10),
     DELIVERY_OFFER_TTL_SECONDS: z.coerce.number().int().positive().default(90),
     UNASSIGNED_ESCALATION_MINUTES: z.coerce.number().int().positive().default(15),
+    // Card payments (spec-11). With no keys the deterministic `fake` provider
+    // is used, which production never accepts as a way to take payment.
+    PAYMENT_PROVIDER: z.enum(['moyasar', 'fake']).optional(),
+    MOYASAR_SECRET_KEY: z.string().trim().optional(),
+    MOYASAR_PUBLISHABLE_KEY: z.string().trim().optional(),
+    MOYASAR_WEBHOOK_SECRET: z.string().trim().optional(),
+    MOYASAR_API_URL: z.string().url().default('https://api.moyasar.com/v1'),
+    PAYMENT_CURRENCY: z.string().length(3).default('EGP'),
+    PAYMENT_TIMEOUT_MINUTES: z.coerce.number().int().positive().default(15),
     LOG_LEVEL: z.string().default('info'),
     RUN_JOBS: z
       .union([z.boolean(), z.string()])
@@ -59,6 +68,13 @@ const schema = z
     SEED_USER_PASSWORD: z.string().min(8).default('Passw0rd!seed'),
   })
   .superRefine((v, ctx) => {
+    if (v.PAYMENT_PROVIDER === 'moyasar' && !(v.MOYASAR_SECRET_KEY && v.MOYASAR_PUBLISHABLE_KEY)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['PAYMENT_PROVIDER'],
+        message: 'PAYMENT_PROVIDER=moyasar needs MOYASAR_SECRET_KEY and MOYASAR_PUBLISHABLE_KEY',
+      });
+    }
     // Security: a wildcard CORS origin must be impossible in production.
     if (v.NODE_ENV === 'production' && v.CORS_ORIGINS.split(',').some((o) => o.trim() === '*')) {
       ctx.addIssue({
@@ -88,6 +104,11 @@ export function parseConfig(env = process.env) {
   const databaseUrl =
     v.NODE_ENV === 'test' ? (v.TEST_DATABASE_URL ?? v.DATABASE_URL) : v.DATABASE_URL;
 
+  // Tests never reach a gateway, whatever keys the developer's .env holds.
+  const hasKeys = Boolean(v.MOYASAR_SECRET_KEY && v.MOYASAR_PUBLISHABLE_KEY);
+  const paymentProvider =
+    v.NODE_ENV === 'test' ? 'fake' : (v.PAYMENT_PROVIDER ?? (hasKeys ? 'moyasar' : 'fake'));
+
   return Object.freeze({
     env: v.NODE_ENV,
     isProduction: v.NODE_ENV === 'production',
@@ -108,6 +129,18 @@ export function parseConfig(env = process.env) {
     orderAcceptTimeoutMinutes: v.ORDER_ACCEPT_TIMEOUT_MINUTES,
     deliveryOfferTtlSeconds: v.DELIVERY_OFFER_TTL_SECONDS,
     unassignedEscalationMinutes: v.UNASSIGNED_ESCALATION_MINUTES,
+    payments: Object.freeze({
+      provider: paymentProvider,
+      // The fake provider confirms anything it is told to, so it may not take
+      // card payments where real money is at stake.
+      cardEnabled: paymentProvider === 'moyasar' || v.NODE_ENV !== 'production',
+      secretKey: v.MOYASAR_SECRET_KEY || null,
+      publishableKey: v.MOYASAR_PUBLISHABLE_KEY || null,
+      webhookSecret: v.MOYASAR_WEBHOOK_SECRET || null,
+      apiUrl: v.MOYASAR_API_URL.replace(/\/+$/, ''),
+      currency: v.PAYMENT_CURRENCY.toUpperCase(),
+      timeoutMinutes: v.PAYMENT_TIMEOUT_MINUTES,
+    }),
     logLevel: v.LOG_LEVEL,
     runJobs: v.RUN_JOBS,
     jobIntervalScale: v.JOB_INTERVAL_SCALE,

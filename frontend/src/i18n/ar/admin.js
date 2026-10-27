@@ -242,4 +242,17 @@ export default {
   'Driver rating': 'تقييم السائق',
   'Hidden by': 'أخفاه',
   Reason: 'السبب',
+
+  // Card payments
+  'Payment status': 'حالة الدفع',
+  'Gateway payment': 'عملية الدفع في البوابة',
+  'Payment failure': 'سبب فشل الدفع',
+  'Refund error': 'خطأ الاسترداد',
+  'Retry refund': 'إعادة محاولة الاسترداد',
+  'Refund completed': 'تم الاسترداد',
+  'The refund failed again: {reason}': 'فشل الاسترداد مرة أخرى: {reason}',
+  'The customer’s card refund failed and needs your attention.': 'فشل رد المبلغ إلى بطاقة العميل ويحتاج إلى تدخلك.',
+  card: 'بطاقة',
+  'payment timeout': 'انتهاء مهلة الدفع',
+  'refund failed': 'فشل الاسترداد',
 };

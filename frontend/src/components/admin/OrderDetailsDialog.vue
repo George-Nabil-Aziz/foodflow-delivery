@@ -6,7 +6,9 @@ import { formatMoney } from '../../utils/money.js';
 import { formatDateTime } from '../../utils/datetime.js';
 import { t } from '../../i18n/index.js';
 import { capitalize, enumText } from '../../utils/labels.js';
+import { PAYMENT_STATUS_LABEL } from '../../utils/orderStatus.js';
 import DetailsDialog from '../shared/DetailsDialog.vue';
+import AppButton from '../shared/AppButton.vue';
 
 /**
  * One order, everything an admin can see: both parties, the driver, the
@@ -23,6 +25,7 @@ const emit = defineEmits(['close']);
 const ui = useUiStore();
 const order = ref(null);
 const loading = ref(false);
+const retrying = ref(false);
 
 watch(() => [props.open, props.orderId], async ([open, id]) => {
   if (!open || !id) return;
@@ -36,6 +39,21 @@ watch(() => [props.open, props.orderId], async ([open, id]) => {
     loading.value = false;
   }
 });
+
+/** Re-runs a failed refund; the server audits the attempt and records the outcome. */
+async function retryRefund() {
+  retrying.value = true;
+  try {
+    const { data } = await adminApi.refundPayment(order.value.payment.id);
+    if (data.outcome === 'REFUNDED') ui.toastSuccess(t('Refund completed'));
+    else ui.toastError(t('The refund failed again: {reason}', { reason: data.refundError ?? '' }));
+    order.value = (await adminApi.order(order.value.id)).data;
+  } catch (err) {
+    ui.toastError(err.details?.[0]?.issue ?? err.message);
+  } finally {
+    retrying.value = false;
+  }
+}
 
 const addressText = (a) => (a ? [a.line1, a.district, a.city].filter(Boolean).join(', ') : '');
 
@@ -51,6 +69,13 @@ const fields = computed(() => {
     { label: t('Driver'), value: o.driver ? [o.driver.fullName, o.driver.phone].filter(Boolean).join(' · ') : capitalize(t('no driver yet')) },
     { label: t('Delivery address'), value: addressText(o.deliveryAddress) },
     { label: t('Payment'), value: o.paymentMethod && enumText(o.paymentMethod) },
+    ...(o.payment ? [
+      { label: t('Payment status'), value: t(PAYMENT_STATUS_LABEL[o.payment.status] ?? o.payment.status) },
+      ...(o.payment.providerPaymentId ? [{ label: t('Gateway payment'), value: o.payment.providerPaymentId }] : []),
+      ...(Number(o.payment.refundedAmount) > 0 ? [{ label: t('Refunded'), value: formatMoney(o.payment.refundedAmount) }] : []),
+      ...(o.payment.failureMessage ? [{ label: t('Payment failure'), value: o.payment.failureMessage }] : []),
+      ...(o.payment.refundError ? [{ label: t('Refund error'), value: o.payment.refundError }] : []),
+    ] : []),
     { label: t('Subtotal'), value: formatMoney(o.subtotal) },
     { label: t('Delivery fee'), value: formatMoney(o.deliveryFee) },
     { label: t('Tax'), value: formatMoney(o.taxAmount) },
@@ -70,6 +95,11 @@ const fields = computed(() => {
   <DetailsDialog :open="open" :loading="loading"
                  :title="t('Order {orderNumber}', { orderNumber: order?.orderNumber ?? orderNumber })"
                  :fields="fields" @close="emit('close')">
+    <div v-if="order?.payment?.status === 'REFUND_FAILED'"
+         class="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900" role="alert">
+      <p>{{ t('The customer’s card refund failed and needs your attention.') }}</p>
+      <AppButton class="mt-2" size="sm" :loading="retrying" @click="retryRefund">{{ t('Retry refund') }}</AppButton>
+    </div>
     <template v-if="order?.items?.length">
       <h3 class="mt-5 text-sm font-semibold text-slate-900">{{ t('Items') }}</h3>
       <ul class="mt-2 divide-y divide-slate-100 text-sm">

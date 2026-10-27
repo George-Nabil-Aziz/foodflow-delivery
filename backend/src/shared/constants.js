@@ -30,9 +30,12 @@ export const CANCELLATION_REASONS = [
   'UNDELIVERABLE_ADDRESS',
   'ADMIN_INTERVENTION',
   'ACCEPT_TIMEOUT',
+  'PAYMENT_TIMEOUT',
 ];
 export const ASSIGNMENT_STATUSES = ['OFFERED', 'ACCEPTED', 'DECLINED', 'EXPIRED', 'CANCELLED', 'COMPLETED'];
-export const PAYMENT_METHODS = ['CASH_ON_DELIVERY'];
+export const PAYMENT_METHODS = ['CASH_ON_DELIVERY', 'CARD'];
+export const PAYMENT_STATUSES = ['INITIATED', 'PAID', 'FAILED', 'REFUNDING', 'REFUNDED', 'REFUND_FAILED'];
+export const PAYMENT_PROVIDERS = ['moyasar', 'fake'];
 export const REVIEW_STATUSES = ['PUBLISHED', 'HIDDEN'];
 
 export const CUISINE_TYPES = [
@@ -64,6 +67,7 @@ export const PG_ENUM_MIRRORS = {
   cancellation_reason: CANCELLATION_REASONS,
   assignment_status: ASSIGNMENT_STATUSES,
   payment_method: PAYMENT_METHODS,
+  payment_status: PAYMENT_STATUSES,
   review_status: REVIEW_STATUSES,
 };
 

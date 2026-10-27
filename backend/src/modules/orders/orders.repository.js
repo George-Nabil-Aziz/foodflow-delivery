@@ -7,6 +7,19 @@ const CLOSED_STATUSES = ['DELIVERED', 'CANCELLED'];
 
 export { ACTIVE_STATUSES, CLOSED_STATUSES };
 
+/**
+ * A card order the customer has not paid yet is invisible to the restaurant
+ * (BR-P4): it must not be accepted, prepared or even seen until the money is
+ * taken. Cash orders are visible from the start. `alias` is the orders alias.
+ */
+const restaurantVisible = (alias) => `(${alias}.payment_method <> 'CARD' OR EXISTS (
+  SELECT 1 FROM payments pv
+  WHERE pv.order_id = ${alias}.id AND pv.status IN ('PAID','REFUNDING','REFUNDED','REFUND_FAILED')
+))`;
+
+const paymentStatusOf = (conn, alias) =>
+  conn.raw(`(SELECT p.status FROM payments p WHERE p.order_id = ${alias}.id) AS payment_status`);
+
 export async function countActiveForCustomer(customerUserId, trx) {
   const [row] = await db(trx)('orders')
     .where({ customer_user_id: customerUserId })
@@ -19,6 +32,7 @@ export async function countActiveForRestaurant(restaurantId, trx) {
   const [row] = await db(trx)('orders')
     .where({ restaurant_id: restaurantId })
     .whereIn('status', ACTIVE_STATUSES)
+    .whereRaw(restaurantVisible('orders'))
     .count();
   return Number(row?.count ?? 0);
 }
@@ -135,6 +149,7 @@ const withRestaurantJoin = (conn) =>
         `(SELECT count(*) FROM order_items oi WHERE oi.order_id = o.id) AS item_count`,
       ),
       conn.raw(`EXISTS(SELECT 1 FROM reviews rv WHERE rv.order_id = o.id) AS has_review`),
+      paymentStatusOf(conn, 'o'),
       conn.raw('count(*) OVER() AS total_count'),
     );
 
@@ -156,6 +171,7 @@ export async function listForRestaurant(restaurantId, { scope, status, limit, of
   const q = conn('orders as o')
     .leftJoin('users as cu', 'cu.id', 'o.customer_user_id')
     .where('o.restaurant_id', restaurantId)
+    .whereRaw(restaurantVisible('o'))
     .select(
       'o.*',
       'cu.full_name as customer_full_name',
@@ -178,6 +194,7 @@ export function findDetailForRestaurant(id, restaurantId, trx) {
   return conn('orders as o')
     .leftJoin('users as cu', 'cu.id', 'o.customer_user_id')
     .where({ 'o.id': id, 'o.restaurant_id': restaurantId })
+    .whereRaw(restaurantVisible('o'))
     .select('o.*', 'cu.full_name as customer_full_name', 'cu.phone as customer_phone')
     .first();
 }
@@ -213,6 +230,7 @@ export async function adminList({ status, restaurantId, from, to, q: search, lim
     .select(
       'o.*',
       'cu.full_name as customer_full_name',
+      paymentStatusOf(conn, 'o'),
       conn.raw('count(*) OVER() AS total_count'),
     )
     .orderBy('o.created_at', 'desc')
@@ -244,9 +262,14 @@ export async function listStuck({ unassignedMinutes, pendingMinutes, deliveringM
     UNION ALL
     SELECT o.*, 'UNANSWERED' AS stuck_reason FROM orders o
       WHERE o.status = 'PENDING' AND o.placed_at < now() - (? || ' minutes')::interval
+        AND ${restaurantVisible('o')}
     UNION ALL
     SELECT o.*, 'DELIVERING_TOO_LONG' AS stuck_reason FROM orders o
       WHERE o.status = 'OUT_FOR_DELIVERY' AND o.picked_up_at < now() - (? || ' minutes')::interval
+    UNION ALL
+    SELECT o.*, 'REFUND_FAILED' AS stuck_reason FROM orders o
+      JOIN payments rp ON rp.order_id = o.id
+      WHERE rp.status = 'REFUND_FAILED'
     ORDER BY placed_at ASC
     `,
     [unassignedMinutes, pendingMinutes, deliveringMinutes],

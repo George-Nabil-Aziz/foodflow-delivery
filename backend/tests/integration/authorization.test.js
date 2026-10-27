@@ -25,6 +25,8 @@ const PUBLIC_ALLOWLIST = new Set([
   // Authenticated by a single-use stream ticket instead of a header (spec-14);
   // events.test.js proves it refuses a missing, used or forged ticket.
   'GET /api/events',
+  // Called by Moyasar, authenticated by its shared secret token instead.
+  'POST /api/payments/webhooks/moyasar',
 ]);
 
 /** Authenticated but role-agnostic: any signed-in user may call these. */

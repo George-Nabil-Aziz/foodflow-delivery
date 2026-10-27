@@ -91,6 +91,7 @@ export default {
   Subtotal: 'المجموع الفرعي',
   Tax: 'الضريبة',
   'Cash on delivery': 'الدفع عند الاستلام',
+  'Paid by card': 'مدفوع بالبطاقة',
   'Back to orders': 'العودة إلى الطلبات',
 
   // Menu items

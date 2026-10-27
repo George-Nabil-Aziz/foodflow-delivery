@@ -26,6 +26,25 @@ export const STATUS_CLASS = {
   CANCELLED: 'bg-slate-200 text-slate-800 border-slate-400',
 };
 
+/** Payment state as the customer and admin see it (spec-11). */
+export const PAYMENT_STATUS_LABEL = {
+  INITIATED: 'Awaiting payment',
+  PAID: 'Paid',
+  FAILED: 'Payment failed',
+  REFUNDING: 'Refund in progress',
+  REFUNDED: 'Refunded',
+  REFUND_FAILED: 'Refund failed',
+};
+
+export const PAYMENT_STATUS_CLASS = {
+  INITIATED: 'bg-amber-100 text-amber-900 border-amber-300',
+  PAID: 'bg-emerald-100 text-emerald-900 border-emerald-300',
+  FAILED: 'bg-red-100 text-red-900 border-red-300',
+  REFUNDING: 'bg-sky-100 text-sky-900 border-sky-300',
+  REFUNDED: 'bg-slate-200 text-slate-800 border-slate-400',
+  REFUND_FAILED: 'bg-red-100 text-red-900 border-red-300',
+};
+
 export const isTerminal = (status) => status === 'DELIVERED' || status === 'CANCELLED';
 
 /** Customers may cancel only while PENDING or CONFIRMED (FR-6.6). The server

@@ -320,12 +320,14 @@ retries with `?replace=true`, which clears and rebinds in one transaction
 | GET | `/api/orders/:id` | C +own | Order detail with status timeline |
 | POST | `/api/orders/:id/cancel` | C +own | T2 / T4 |
 | GET | `/api/orders/:id/status` | C +own | Lightweight polling payload |
+| POST | `/api/orders/:id/payment/confirm` | C +own | Card payment: `{ providerPaymentId }`, verified with the gateway (spec-11) |
+| POST | `/api/orders/:id/payment/simulate` | C +own | Fake provider only, never in production |
 
 ### `POST /api/orders`
 
 ```jsonc
 // request — note the complete absence of prices (BR-O5)
-{ "addressId": "…", "customerNote": "Ring the bell twice", "paymentMethod": "CASH_ON_DELIVERY" }
+{ "addressId": "…", "customerNote": "Ring the bell twice", "paymentMethod": "CASH_ON_DELIVERY" }  // or "CARD" (spec-11)
 ```
 
 ```jsonc
@@ -342,7 +344,11 @@ retries with `?replace=true`, which clears and rebinds in one transaction
   } }
 ```
 
-**Errors:** 422 `CART_EMPTY` · 422 `CART_HAS_ISSUES` (with the offending lines in
+With `"paymentMethod": "CARD"` the order is created `PENDING` together with an `INITIATED` payment, returned as
+`data.payment` `{ id, provider, status, amount, currency, publishableKey, … }`; the amount is the order's
+total, computed here. The restaurant is not notified until the payment is verified.
+
+**Errors:** 422 `CARD_PAYMENTS_UNAVAILABLE` · 422 `CART_EMPTY` · 422 `CART_HAS_ISSUES` (with the offending lines in
 `details`) · 422 `BELOW_MINIMUM_ORDER` (with `required` and `actual`) · 422
 `RESTAURANT_UNAVAILABLE` (closed between cart and checkout) · 404 (address not
 owned) · 429.
@@ -351,6 +357,14 @@ The whole operation is one transaction: lock the cart → re-validate items and
 restaurant → compute totals → insert `orders` + `order_items` + the initial
 `order_status_events` row → mark the cart `CONVERTED`. Any failure rolls all of
 it back (NFR-7).
+
+### `POST /api/orders/:id/payment/confirm`
+
+Request `{ "providerPaymentId": "…" }` — the id the gateway's form returned. The server fetches that
+payment from the gateway with its secret key and checks reference, amount, currency, status and
+single use before marking the payment `PAID`. Returns the order (`200`) with its `payment`, whose
+`status` may be `PAID`, `FAILED` or still `INITIATED` (3-D Secure in progress).
+**Errors:** 422 `PAYMENT_NOT_VERIFIED` · 503 `PAYMENT_PROVIDER_UNAVAILABLE` · 404 (not the customer's order).
 
 ### `GET /api/orders/:id/status`
 
@@ -455,9 +469,10 @@ characters, so it applies from the first character typed.
 | POST | `/api/admin/orders` | A | Place an order for a customer (FR-9.10); 201 with the admin order detail |
 | GET | `/api/admin/orders` | A | `?status=&restaurantId=&from=&to=&q=` |
 | GET | `/api/admin/orders/:id` | A | Full detail incl. the event log |
-| POST | `/api/admin/orders/:id/force-cancel` | A | T2/T4/T6/T8/T10, reason mandatory |
+| POST | `/api/admin/orders/:id/force-cancel` | A | T2/T4/T6/T8/T10, reason mandatory; refunds a paid card order after commit |
+| POST | `/api/admin/payments/:id/refund` | A | Retry a failed card refund (spec-11); audited as `PAYMENT_REFUND_RETRIED`; `409 PAYMENT_NOT_REFUNDABLE` unless `REFUND_FAILED` |
 | GET | `/api/admin/orders/unassigned` | A | The FR-7.4 backlog |
-| GET | `/api/admin/orders/stuck` | A | Orders sitting too long in one status (operational, added during build) |
+| GET | `/api/admin/orders/stuck` | A | Orders sitting too long in one status (operational, added during build); also `REFUND_FAILED` card orders |
 | GET | `/api/admin/reviews` | A | `?status=&restaurantId=&q=` |
 | POST | `/api/admin/reviews/:id/hide` | A | `{ reason }`; recomputes aggregates |
 | POST | `/api/admin/reviews/:id/restore` | A | |
@@ -548,6 +563,16 @@ reviews together (`kind` = `ORDER` \| `SIGNUP` \| `REVIEW`), newest first.
 when there are no reviews.
 
 ---
+
+## 10a. Payments — `/api/payments` (spec-11)
+
+| Method | Route | Auth | Purpose |
+|--------|-------|------|---------|
+| GET | `/api/payments/config` | C | `{ cardEnabled, provider, currency }` — whether to offer the card option |
+| POST | `/api/payments/webhooks/moyasar` | none (secret token) | Gateway webhook; body `secret_token` must equal `MOYASAR_WEBHOOK_SECRET`; the named payment is re-fetched and verified; always `200` for a recognised-or-ignored call, `401` bad token, `404` when no secret is configured |
+
+The gateway sits behind a provider interface and the currency is configuration, so these routes
+and the DTOs carry no gateway-specific fields; another provider adds its own webhook route only.
 
 ## 11. Utility
 

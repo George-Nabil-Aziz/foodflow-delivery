@@ -12,13 +12,22 @@ import * as orders from '../modules/orders/index.js';
  * different - nothing has been made yet.
  */
 export async function orderTimeoutJob({ limit = 50 } = {}) {
+  // A card order's clock starts when it is paid, not when it was placed, and
+  // an unpaid one is not the restaurant's to answer at all (paymentTimeoutJob
+  // deals with it).
   const { rows } = await knex.raw(
     `
-    SELECT id FROM orders
-    WHERE status = 'PENDING' AND placed_at < now() - (? || ' minutes')::interval
-    ORDER BY placed_at ASC LIMIT ?
+    SELECT o.id FROM orders o
+    LEFT JOIN payments p ON p.order_id = o.id
+    WHERE o.status = 'PENDING'
+      AND CASE
+            WHEN o.payment_method = 'CARD'
+              THEN p.status = 'PAID' AND p.paid_at < now() - (? || ' minutes')::interval
+            ELSE o.placed_at < now() - (? || ' minutes')::interval
+          END
+    ORDER BY o.placed_at ASC LIMIT ?
     `,
-    [config.orderAcceptTimeoutMinutes, limit],
+    [config.orderAcceptTimeoutMinutes, config.orderAcceptTimeoutMinutes, limit],
   );
 
   let cancelled = 0;

@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
-import { addressApi, orderApi } from '../../services/api.js';
+import { addressApi, orderApi, paymentApi } from '../../services/api.js';
 import { useCartStore } from '../../stores/cart.store.js';
 import { useUiStore } from '../../stores/ui.store.js';
 import { formatMoney } from '../../utils/money.js';
@@ -21,9 +21,13 @@ const customerNote = ref('');
 const loading = ref(true);
 const placing = ref(false);
 const checkoutError = ref(null);
+const paymentMethod = ref('CASH_ON_DELIVERY');
+const cardEnabled = ref(false);
 
 onMounted(async () => {
   try {
+    // A failing config call just hides the card option; cash always works.
+    paymentApi.config().then((res) => { cardEnabled.value = res.data.cardEnabled; }).catch(() => {});
     const [cartRes, addressRes] = await Promise.all([cart.load(), addressApi.list()]);
     addresses.value = addressRes.data;
     selectedAddressId.value = addresses.value.find((a) => a.isDefault)?.id ?? addresses.value[0]?.id ?? null;
@@ -56,6 +60,8 @@ function messageFor(err) {
     }
     case 'RESTAURANT_UNAVAILABLE':
       return t('This restaurant stopped accepting orders. Your cart has been kept.');
+    case 'CARD_PAYMENTS_UNAVAILABLE':
+      return t('Card payments are not available right now. Choose cash on delivery.');
     case 'RESOURCE_NOT_FOUND':
       return t('That delivery address is no longer available. Choose another.');
     default:
@@ -71,11 +77,15 @@ async function placeOrder() {
     const { data } = await orderApi.checkout({
       addressId: selectedAddressId.value,
       customerNote: customerNote.value || undefined,
-      paymentMethod: 'CASH_ON_DELIVERY',
+      paymentMethod: paymentMethod.value,
     });
     cart.reset();
     await cart.load().catch(() => {});
-    ui.toastSuccess(t('Order {number} placed', { number: data.orderNumber }));
+    const isCard = data.paymentMethod === 'CARD';
+    ui.toastSuccess(isCard
+      ? t('Order {number} created. Complete the payment to send it to the restaurant.', { number: data.orderNumber })
+      : t('Order {number} placed', { number: data.orderNumber }));
+    // A card order goes straight to its page, where the payment form waits.
     router.push({ name: 'order-detail', params: { id: data.id } });
   } catch (err) {
     checkoutError.value = messageFor(err);
@@ -138,15 +148,26 @@ async function placeOrder() {
 
         <div class="card p-4">
           <h2 class="font-semibold text-slate-900">{{ t('Payment') }}</h2>
-          <label class="mt-3 flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <input type="radio" checked disabled class="mt-1">
-            <span class="text-sm">
-              <span class="font-medium text-slate-900">{{ t('Cash on delivery') }}</span>
-              <span class="block text-slate-600">
-                {{ t('Card payments are not available in this version. Pay the driver when your order arrives.') }}
+          <div class="mt-3 space-y-2">
+            <label class="flex cursor-pointer items-start gap-3 rounded-lg border p-3"
+                   :class="paymentMethod === 'CASH_ON_DELIVERY' ? 'border-brand-500 bg-brand-50' : 'border-slate-200'">
+              <input v-model="paymentMethod" type="radio" value="CASH_ON_DELIVERY" class="mt-1">
+              <span class="text-sm">
+                <span class="font-medium text-slate-900">{{ t('Cash on delivery') }}</span>
+                <span class="block text-slate-600">{{ t('Pay the driver when your order arrives.') }}</span>
               </span>
-            </span>
-          </label>
+            </label>
+            <label v-if="cardEnabled" class="flex cursor-pointer items-start gap-3 rounded-lg border p-3"
+                   :class="paymentMethod === 'CARD' ? 'border-brand-500 bg-brand-50' : 'border-slate-200'">
+              <input v-model="paymentMethod" type="radio" value="CARD" class="mt-1">
+              <span class="text-sm">
+                <span class="font-medium text-slate-900">{{ t('Card') }}</span>
+                <span class="block text-slate-600">
+                  {{ t('Pay now with a credit or debit card. The restaurant receives your order once the payment succeeds.') }}
+                </span>
+              </span>
+            </label>
+          </div>
         </div>
       </section>
 

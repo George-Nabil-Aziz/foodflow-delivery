@@ -4,6 +4,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: false,
+    // Enables the Moyasar webhook route so it can be exercised (fake provider).
+    env: { MOYASAR_WEBHOOK_SECRET: 'whsec_test_secret' },
     setupFiles: ['./tests/setup.js'],
     globalSetup: ['./tests/globalSetup.js'],
     include: ['tests/**/*.test.js'],

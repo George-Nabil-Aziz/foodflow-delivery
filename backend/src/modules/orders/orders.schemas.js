@@ -13,6 +13,11 @@ export const checkoutSchema = z.object({
   paymentMethod: z.enum(PAYMENT_METHODS).default('CASH_ON_DELIVERY'),
 });
 
+/** The gateway payment id the browser got back after paying. Only a pointer: the gateway is asked. */
+export const confirmPaymentSchema = z.object({
+  providerPaymentId: z.string().trim().min(1).max(100),
+});
+
 export const customerCancelSchema = z.object({
   reason: z.enum(CANCELLATION_REASONS).default('CUSTOMER_CHANGED_MIND'),
 });

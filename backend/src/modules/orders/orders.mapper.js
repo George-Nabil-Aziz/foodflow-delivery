@@ -49,9 +49,10 @@ const baseOrder = (row) => ({
 });
 
 /** Customer view: their own order, plus the driver's name once en route. */
-export function toCustomerOrderDto(row, { items = [], events = [], driver = null } = {}) {
+export function toCustomerOrderDto(row, { items = [], events = [], driver = null, payment = null } = {}) {
   return {
     ...baseOrder(row),
+    payment,
     restaurant: {
       id: row.restaurant_id,
       name: row.restaurant_name_snapshot,
@@ -85,9 +86,10 @@ export function toRestaurantOrderDto(row, { items = [], events = [] } = {}) {
 }
 
 /** Admin view: everything, including both parties and the full event log. */
-export function toAdminOrderDto(row, { items = [], events = [] } = {}) {
+export function toAdminOrderDto(row, { items = [], events = [], payment = null } = {}) {
   return {
     ...baseOrder(row),
+    payment,
     customer: {
       id: row.customer_user_id,
       fullName: row.customer_full_name,
@@ -127,6 +129,8 @@ export function toOrderSummaryDto(row) {
     status: row.status,
     dispatchState: row.dispatch_state,
     totalAmount: row.total_amount,
+    paymentMethod: row.payment_method,
+    paymentStatus: row.payment_status ?? null,
     itemCount: Number(row.item_count ?? 0),
     placedAt: row.placed_at,
     restaurant: { id: row.restaurant_id, name: row.restaurant_name_snapshot },

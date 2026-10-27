@@ -26,6 +26,16 @@ export async function cancelMine(req, res) {
   res.json(ok(order, { requestId: req.id }));
 }
 
+export async function confirmPayment(req, res) {
+  const { id } = req.validated.params;
+  const order = await service.confirmPayment(req.user.id, id, req.validated.body.providerPaymentId);
+  res.json(ok(order, { requestId: req.id }));
+}
+
+export async function simulatePayment(req, res) {
+  res.json(ok(await service.simulatePayment(req.user.id, req.validated.params.id), { requestId: req.id }));
+}
+
 /* -------------------------------------------------------- restaurant side */
 
 export async function listForRestaurant(req, res) {
