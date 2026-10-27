@@ -36,6 +36,24 @@ const schema = z
     // working correctly. Never below 1, so limits can only be relaxed for a
     // test environment, never tightened into a surprise.
     RATE_LIMIT_MULTIPLIER: z.coerce.number().min(1).default(1),
+    // Notification transports. All optional: with none set, notifications are
+    // recorded and logged only (the `log` transport), so dev and tests need no
+    // accounts. Empty strings count as unset so a blank .env line is harmless.
+    SMTP_HOST: z.string().optional(),
+    SMTP_PORT: z.coerce.number().int().positive().default(587),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASS: z.string().optional(),
+    SMTP_FROM: z.string().optional(),
+    SMTP_SECURE: z
+      .union([z.boolean(), z.string()])
+      .default(false)
+      .transform((v) => v === true || v === 'true'),
+    TWILIO_ACCOUNT_SID: z.string().optional(),
+    TWILIO_AUTH_TOKEN: z.string().optional(),
+    TWILIO_FROM: z.string().optional(),
+    NOTIFY_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(4),
+    NOTIFY_RETRY_BASE_SECONDS: z.coerce.number().int().positive().default(60),
+    NOTIFY_RECIPIENT_HOURLY_LIMIT: z.coerce.number().int().positive().default(20),
     SEED_ADMIN_EMAIL: z.string().email().default('sayed.hanafy@foodflow.com'),
     SEED_ADMIN_PASSWORD: z.string().min(8).default('Admin123!seed'),
     SEED_USER_PASSWORD: z.string().min(8).default('Passw0rd!seed'),
@@ -94,6 +112,24 @@ export function parseConfig(env = process.env) {
     runJobs: v.RUN_JOBS,
     jobIntervalScale: v.JOB_INTERVAL_SCALE,
     rateLimitMultiplier: v.RATE_LIMIT_MULTIPLIER,
+    notifications: Object.freeze({
+      smtp: Object.freeze({
+        host: v.SMTP_HOST || null,
+        port: v.SMTP_PORT,
+        user: v.SMTP_USER || null,
+        pass: v.SMTP_PASS || null,
+        from: v.SMTP_FROM || v.SMTP_USER || 'FoodFlow <no-reply@foodflow.local>',
+        secure: v.SMTP_SECURE,
+      }),
+      twilio: Object.freeze({
+        accountSid: v.TWILIO_ACCOUNT_SID || null,
+        authToken: v.TWILIO_AUTH_TOKEN || null,
+        from: v.TWILIO_FROM || null,
+      }),
+      maxAttempts: v.NOTIFY_MAX_ATTEMPTS,
+      retryBaseSeconds: v.NOTIFY_RETRY_BASE_SECONDS,
+      recipientHourlyLimit: v.NOTIFY_RECIPIENT_HOURLY_LIMIT,
+    }),
     seed: Object.freeze({
       adminEmail: v.SEED_ADMIN_EMAIL,
       adminPassword: v.SEED_ADMIN_PASSWORD,

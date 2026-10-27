@@ -5,14 +5,18 @@ import { dispatchJob } from './dispatch.job.js';
 import { offerExpiryJob } from './offerExpiry.job.js';
 import { orderTimeoutJob } from './orderTimeout.job.js';
 import { unassignedEscalationJob } from './unassignedEscalation.job.js';
+import { notificationRetryJob } from './notificationRetry.job.js';
 
-export { dispatchJob, offerExpiryJob, orderTimeoutJob, unassignedEscalationJob, runLocked };
+export {
+  dispatchJob, offerExpiryJob, orderTimeoutJob, unassignedEscalationJob, notificationRetryJob, runLocked,
+};
 
 const REGISTRY = [
   { name: 'dispatch', intervalMs: 20_000, fn: dispatchJob },
   { name: 'offerExpiry', intervalMs: 15_000, fn: offerExpiryJob },
   { name: 'orderTimeout', intervalMs: 60_000, fn: orderTimeoutJob },
   { name: 'unassignedEscalation', intervalMs: 60_000, fn: unassignedEscalationJob },
+  { name: 'notificationRetry', intervalMs: 30_000, fn: notificationRetryJob },
 ];
 
 let timers = [];

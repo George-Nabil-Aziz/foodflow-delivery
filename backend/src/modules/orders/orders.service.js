@@ -111,13 +111,30 @@ export async function adminPlaceOrder(adminUserId, input, trx) {
   return trx ? run(trx) : withTransaction(run);
 }
 
+/**
+ * Tells the restaurant owner (SMS + email) and the customer (email) that an
+ * order was placed. Recipients are resolved from the order itself.
+ */
 export async function notifyNewOrder(order) {
   // Outside the transaction: a failing notification must not roll back a
   // placed order, and a transaction must not wait on I/O it does not control.
+  const payload = {
+    orderId: order.id,
+    orderNumber: order.order_number,
+    restaurantId: order.restaurant_id,
+    total: order.total_amount,
+  };
+  await notify({ template: 'NEW_ORDER', payload });
+  await notify({ template: 'ORDER_PLACED', payload });
+}
+
+/** Customer-facing status messages, sent after the status change committed. */
+export async function notifyStatusChange(order, toStatus) {
+  const template = { OUT_FOR_DELIVERY: 'ORDER_OUT_FOR_DELIVERY', CANCELLED: 'ORDER_CANCELLED' }[toStatus];
+  if (!template) return;
   await notify({
-    userId: null,
-    template: 'NEW_ORDER',
-    payload: { orderId: order.id, orderNumber: order.order_number, restaurantId: order.restaurant_id },
+    template,
+    payload: { orderId: order.id, orderNumber: order.order_number, reason: order.cancellation_reason },
   });
 }
 
@@ -206,7 +223,7 @@ async function insertOrder({ customerUserId, restaurant, lines, addressId, custo
  * than aspirational.
  */
 export async function transition(orderId, toStatus, actor, { reason, note, scope } = {}) {
-  return withTransaction(async (trx) => {
+  const updated = await withTransaction(async (trx) => {
     const order = await repo.findByIdForUpdate(orderId, trx);
     if (!order) throw new NotFoundError('RESOURCE_NOT_FOUND');
 
@@ -245,6 +262,8 @@ export async function transition(orderId, toStatus, actor, { reason, note, scope
     await applySideEffects(order, updated, toStatus, trx);
     return updated;
   });
+  await notifyStatusChange(updated, toStatus);
+  return updated;
 }
 
 /** Side effects, all inside the same transaction as the status change. */
