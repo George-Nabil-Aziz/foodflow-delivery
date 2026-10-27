@@ -729,6 +729,18 @@ export async function seed(knex) {
     price_seen_at_add: '420.00',
   });
 
+  /* ------------------------------------------------------- favourites */
+
+  // Sara has a shortlist, so the Favourites page and the filled hearts have
+  // something to show. One restaurant that cannot take orders right now is
+  // included to show the "unavailable" state. The favourites tables are emptied
+  // by the cascades from users and restaurants above.
+  const saraId = byEmail['sara.idris@gmail.com'].id;
+  const favouriteRestaurants = [bySlug['olive-grill'], bySlug['pasta-house'], bySlug['dawn-bakery']].filter(Boolean);
+  await knex('favourite_restaurants').insert(favouriteRestaurants.map((r) => ({ user_id: saraId, restaurant_id: r.id })));
+  await knex('favourite_items').insert(['Truffle Pasta', 'Mixed Grill'].map(item).filter(Boolean)
+    .map((i) => ({ user_id: saraId, food_item_id: i.id })));
+
   /* ---------------------------------------------------- discount codes */
 
   const createdBy = byEmail[config.seed.adminEmail].id;

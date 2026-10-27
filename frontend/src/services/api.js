@@ -32,6 +32,15 @@ export const discoveryApi = {
   cuisines: () => http.get('/cuisines'),
 };
 
+/** Customers only. PUT and DELETE are idempotent. */
+export const favouriteApi = {
+  list: () => http.get('/favourites'),
+  addRestaurant: (id) => http.put(`/favourites/restaurants/${id}`),
+  removeRestaurant: (id) => http.delete(`/favourites/restaurants/${id}`),
+  addItem: (id) => http.put(`/favourites/items/${id}`),
+  removeItem: (id) => http.delete(`/favourites/items/${id}`),
+};
+
 export const cartApi = {
   get: () => http.get('/cart'),
   addItem: (body, { replace = false } = {}) =>
@@ -73,6 +82,7 @@ export const restaurantApi = {
   setAcceptingOrders: (isAcceptingOrders) =>
     http.patch('/restaurant/accepting-orders', { isAcceptingOrders }),
   stats: () => http.get('/restaurant/stats'),
+  analytics: (days) => http.get('/restaurant/analytics', { params: { days } }),
   categories: () => http.get('/restaurant/categories'),
   createCategory: (body) => http.post('/restaurant/categories', body),
   updateCategory: (id, body) => http.patch(`/restaurant/categories/${id}`, body),

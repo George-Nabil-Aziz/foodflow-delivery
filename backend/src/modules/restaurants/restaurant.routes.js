@@ -13,6 +13,8 @@ import { ordersController as rawOrdersCtrl } from '../orders/index.js';
 const ordersCtrl = wrapAll(rawOrdersCtrl);
 import { reviewsController as rawReviewsCtrl } from '../reviews/index.js';
 const reviewsCtrl = wrapAll(rawReviewsCtrl);
+import { analyticsController as rawAnalyticsCtrl, analyticsQuery } from '../analytics/index.js';
+const analyticsCtrl = wrapAll(rawAnalyticsCtrl);
 import {
   updateRestaurantSchema,
   replaceHoursSchema,
@@ -101,6 +103,7 @@ restaurantRouter.patch(
 restaurantRouter.use(requireApprovedRestaurant);
 
 restaurantRouter.get('/stats', ctrl.getStats);
+restaurantRouter.get('/analytics', validate({ query: analyticsQuery }), analyticsCtrl.get);
 
 // Orders. Each transition is its own action endpoint (ADR-011), so the role
 // guard lives in the router and `reject` can require a reason while `accept`

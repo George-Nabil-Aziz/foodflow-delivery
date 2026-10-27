@@ -11,6 +11,7 @@ import EmptyState from '../../components/shared/EmptyState.vue';
 import ErrorState from '../../components/shared/ErrorState.vue';
 import { cuisineStyle } from '../../utils/cuisine.js';
 import FoodItemCard from '../../components/customer/FoodItemCard.vue';
+import FavouriteButton from '../../components/customer/FavouriteButton.vue';
 import SwitchRestaurantDialog from '../../components/customer/SwitchRestaurantDialog.vue';
 import { t } from '../../i18n/index.js';
 
@@ -77,10 +78,14 @@ onMounted(load);
                 {{ t(cuisineStyle(restaurant.cuisineType).label) }}
               </p>
             </div>
-            <span v-if="!restaurant.isOrderable"
-                  class="rounded-full border border-slate-400 bg-slate-100 px-3 py-1 text-sm text-slate-800">
-              {{ t(UNAVAILABLE_REASON_LABEL[restaurant.unavailableReason] || 'Not available') }}
-            </span>
+            <div class="flex items-center gap-2">
+              <span v-if="!restaurant.isOrderable"
+                    class="rounded-full border border-slate-400 bg-slate-100 px-3 py-1 text-sm text-slate-800">
+                {{ t(UNAVAILABLE_REASON_LABEL[restaurant.unavailableReason] || 'Not available') }}
+              </span>
+              <FavouriteButton v-if="restaurant.isFavourite !== undefined" kind="restaurant"
+                               :id="restaurant.id" :name="restaurant.name" :favourite="restaurant.isFavourite" />
+            </div>
           </div>
 
           <p v-if="restaurant.description" class="mt-3 text-slate-700">{{ restaurant.description }}</p>

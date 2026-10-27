@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { authenticateOptional } from '../../middleware/authenticate.js';
 import { validate } from '../../middleware/validate.js';
 import { wrapAll } from '../../shared/http/asyncHandler.js';
 import { idParam, paginationQuery } from '../../shared/validation/common.js';
@@ -6,7 +7,6 @@ import * as rawCtrl from './discovery.controller.js';
 const ctrl = wrapAll(rawCtrl);
 import { reviewsController as rawReviewsCtrl } from '../reviews/index.js';
 const reviewsCtrl = wrapAll(rawReviewsCtrl);
-import { authenticateOptional } from '../../middleware/authenticate.js';
 import { listRestaurantsQuery, searchQuery, zoneQuery } from './discovery.schemas.js';
 
 /**
@@ -29,7 +29,7 @@ restaurantsPublicRouter.get(
   validate({ params: idParam, query: zoneQuery }),
   ctrl.getRestaurant,
 );
-restaurantsPublicRouter.get('/:id/menu', validate({ params: idParam }), ctrl.getMenu);
+restaurantsPublicRouter.get('/:id/menu', authenticateOptional, validate({ params: idParam }), ctrl.getMenu);
 restaurantsPublicRouter.get(
   '/:id/reviews',
   validate({ params: idParam, query: paginationQuery }),

@@ -7,6 +7,7 @@ import * as restaurants from '../restaurants/index.js';
 import { toPublicRestaurantDto, dayOfWeek, minutesOfDay } from '../restaurants/index.js';
 import * as menu from '../menu/index.js';
 import * as users from '../users/index.js';
+import * as favourites from '../favourites/index.js';
 
 /**
  * The customer's delivery point for annotating restaurants (spec-18 FR-18.3):
@@ -14,6 +15,9 @@ import * as users from '../users/index.js';
  */
 const browsingPoint = (user, addressId) =>
   (user?.role === 'CUSTOMER' ? users.getBrowsingAddress(user.id, addressId) : null);
+
+/** Only a signed-in customer gets favourite flags; anyone else browses as before. */
+const viewerOf = (user) => (user?.role === 'CUSTOMER' ? user.id : null);
 
 
 
@@ -58,6 +62,23 @@ function applyOpenNow(query, now) {
     });
 }
 
+/**
+ * Adds `isFavourite` to a list of DTOs for a signed-in customer, with one query
+ * for the whole list. With no viewer the DTOs are returned untouched, so
+ * anonymous responses keep exactly their old shape (BR-FV6).
+ */
+async function markRestaurants(dtos, viewerId) {
+  if (!viewerId || !dtos.length) return dtos;
+  const mine = await favourites.restaurantIdsAmong(viewerId, dtos.map((d) => d.id));
+  return dtos.map((d) => ({ ...d, isFavourite: mine.has(d.id) }));
+}
+
+async function markItems(items, viewerId) {
+  if (!viewerId || !items.length) return items;
+  const mine = await favourites.itemIdsAmong(viewerId, items.map((i) => i.id));
+  return items.map((i) => ({ ...i, isFavourite: mine.has(i.id) }));
+}
+
 export async function listRestaurants(query, user) {
   const { limit, offset, page } = toLimitOffset(query);
   const now = new Date();
@@ -96,21 +117,30 @@ export async function listRestaurants(query, user) {
       ...restaurants.deliveryZoneFields(r, point),
     })),
   );
-  return { data, meta: paginationMeta({ page, limit, total: rows[0]?.total_count ?? 0 }) };
+  return {
+    data: await markRestaurants(data, viewerOf(user)),
+    meta: paginationMeta({ page, limit, total: rows[0]?.total_count ?? 0 }),
+  };
 }
 
 export async function getRestaurant(id, user, addressId) {
-  return restaurants.getPublicRestaurant(id, await browsingPoint(user, addressId));
+  const dto = await restaurants.getPublicRestaurant(id, await browsingPoint(user, addressId));
+  const [marked] = await markRestaurants([dto], viewerOf(user));
+  return marked;
 }
 
-export async function getMenu(id) {
+export async function getMenu(id, user) {
+  const viewerId = viewerOf(user);
   // A non-ACTIVE restaurant's menu is not browsable, even by direct id.
   const restaurant = await knex('restaurants')
     .where({ id, status: 'ACTIVE' })
     .whereNull('deleted_at')
     .first();
   if (!restaurant) throw new NotFoundError('RESOURCE_NOT_FOUND');
-  return menu.getMenuForRestaurant(id, { publicOnly: true });
+  const categories = await menu.getMenuForRestaurant(id, { publicOnly: true });
+  if (!viewerId) return categories;
+  const mine = await favourites.itemIdsAmong(viewerId, categories.flatMap((c) => c.items.map((i) => i.id)));
+  return categories.map((c) => ({ ...c, items: c.items.map((i) => ({ ...i, isFavourite: mine.has(i.id) })) }));
 }
 
 /**
@@ -120,6 +150,7 @@ export async function getMenu(id) {
  */
 export async function search({ q, limit = 10, addressId }, user) {
   const point = await browsingPoint(user, addressId);
+  const viewerId = viewerOf(user);
   const pattern = `%${escapeLikePattern(q)}%`;
   const now = new Date();
 
@@ -176,7 +207,10 @@ export async function search({ q, limit = 10, addressId }, user) {
     }),
   );
 
-  return { restaurants: restaurantDtos, foodItems: itemDtos };
+  return {
+    restaurants: await markRestaurants(restaurantDtos, viewerId),
+    foodItems: await markItems(itemDtos, viewerId),
+  };
 }
 
 /** Only cuisines that actually have an active restaurant: offering a filter

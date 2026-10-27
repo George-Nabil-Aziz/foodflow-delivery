@@ -11,7 +11,7 @@ export async function getRestaurant(req, res) {
 }
 
 export async function getMenu(req, res) {
-  res.json(ok(await service.getMenu(req.validated.params.id), { requestId: req.id }));
+  res.json(ok(await service.getMenu(req.validated.params.id, req.user), { requestId: req.id }));
 }
 
 export async function search(req, res) {

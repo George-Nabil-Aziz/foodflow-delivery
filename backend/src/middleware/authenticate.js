@@ -33,12 +33,13 @@ export async function authenticate(req, _res, next) {
   }
 }
 
-/** Optional authentication for endpoints that behave differently when signed in. */
-export async function authenticateOptional(req, _res, next) {
+/**
+ * Optional authentication for public endpoints that behave differently when
+ * signed in. A missing, expired or invalid token (or a suspended account) is
+ * not an error here: the caller simply browses as an anonymous visitor.
+ */
+export function authenticateOptional(req, res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) return next();
-  // `authenticate` reports failures through its callback rather than throwing,
-  // so an invalid or expired token must be dropped here: a public page should
-  // behave as anonymous, not fail, because of a stale token.
-  await authenticate(req, _res, () => next());
+  return authenticate(req, res, () => next());
 }
