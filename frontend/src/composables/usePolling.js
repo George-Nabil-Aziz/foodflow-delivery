@@ -8,8 +8,9 @@ import { onUnmounted, ref } from 'vue';
  * backend blip does not become a request storm, and always clears its timer on
  * unmount - including on the error path.
  *
- * This composable is the seam where WebSockets replace polling later: only this
- * file changes.
+ * `useLiveUpdates` builds on this: it `suspend()`s the timer while the
+ * server-sent-events stream is delivering, and `resume()`s it as the fallback
+ * when the stream drops.
  */
 export function usePolling(fetcher, options = {}) {
   const {
@@ -28,6 +29,7 @@ export function usePolling(fetcher, options = {}) {
   let timer = null;
   let failures = 0;
   let disposed = false;
+  let suspended = false;
 
   const clear = () => {
     if (timer) clearTimeout(timer);
@@ -36,7 +38,7 @@ export function usePolling(fetcher, options = {}) {
 
   function schedule() {
     clear();
-    if (disposed || stopped.value) return;
+    if (disposed || stopped.value || suspended) return;
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
     const delay = failures >= failureThreshold ? backoffMs : intervalMs;
     timer = setTimeout(tick, delay);
@@ -65,7 +67,7 @@ export function usePolling(fetcher, options = {}) {
   }
 
   function onVisibilityChange() {
-    if (disposed || stopped.value) return;
+    if (disposed || stopped.value || suspended) return;
     if (document.visibilityState === 'visible') tick();
     else clear();
   }
@@ -79,6 +81,20 @@ export function usePolling(fetcher, options = {}) {
     disposed = false;
     if (immediate) tick();
     else schedule();
+  };
+
+  /** Stops the timer without ending the poll (something else keeps data fresh). */
+  const suspend = () => {
+    suspended = true;
+    clear();
+  };
+
+  /** Back to polling; fetches now if the tab is visible. */
+  const resume = () => {
+    if (!suspended) return;
+    suspended = false;
+    if (disposed || stopped.value) return;
+    if (typeof document === 'undefined' || document.visibilityState === 'visible') tick();
   };
 
   const stop = () => {
@@ -96,5 +112,5 @@ export function usePolling(fetcher, options = {}) {
 
   onUnmounted(dispose);
 
-  return { data, error, loading, stopped, start, stop, refresh: tick, dispose };
+  return { data, error, loading, stopped, start, stop, suspend, resume, refresh: tick, dispose };
 }
