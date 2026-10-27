@@ -241,6 +241,8 @@ All routes: role `CUSTOMER`, scoped to the caller's active cart.
 | POST | `/api/cart/items` | C | Add an item (`?replace=true` to switch restaurant) |
 | PATCH | `/api/cart/items/:itemId` | C +own | Set quantity 1–20 |
 | DELETE | `/api/cart/items/:itemId` | C +own | Remove a line |
+| POST | `/api/cart/discount` | C | Apply a discount code (`{ code }`) to the cart |
+| DELETE | `/api/cart/discount` | C | Remove the applied code |
 | DELETE | `/api/cart` | C | Empty the cart |
 
 ### `GET /api/cart`
@@ -260,8 +262,10 @@ All routes: role `CUSTOMER`, scoped to the caller's active cart.
         "unitPrice": "18.00", "quantity": 1, "lineTotal": "18.00",
         "isAvailable": false, "issues": ["ITEM_UNAVAILABLE"] }
     ],
-    "totals": { "subtotal": "134.00", "deliveryFee": "12.00",
-                "taxAmount": "20.10", "total": "166.10" },
+    "totals": { "subtotal": "134.00", "discountAmount": "13.40", "deliveryFee": "12.00",
+                "taxAmount": "18.09", "total": "150.69" },
+    "discount": { "code": "SAVE10", "type": "PERCENT", "value": "10.00", "amount": "13.40" },
+    "discountIssue": null,
     "issues": ["ITEM_UNAVAILABLE"],
     "canCheckout": false,
     "meetsMinimum": true
@@ -271,6 +275,30 @@ All routes: role `CUSTOMER`, scoped to the caller's active cart.
 
 `unitPrice` is the **live** menu price (ADR-008). `canCheckout` is the
 server's verdict; the client must not re-derive it.
+
+`totals.discountAmount` is `"0.00"` and `discount` is `null` without a code.
+Tax is charged on the discounted subtotal and the total is
+`subtotal − discountAmount + deliveryFee + taxAmount` (BR-DC6). A stored code
+that no longer qualifies is returned as
+`discountIssue: { code, discountCode, message, details }`, is not priced, and
+sets `canCheckout` to `false`.
+
+### `POST /api/cart/discount`
+
+```jsonc
+{ "code": "save10" }   // trimmed, matched case-insensitively
+```
+
+Returns the full cart, as `GET /api/cart`, with the code applied. The code is
+judged against the cart as it is now; a refusal leaves the cart unchanged.
+Checkout judges it again (BR-DC8). `DELETE /api/cart/discount` removes it and
+returns the cart.
+
+**Errors (all 422):** `CART_EMPTY` · `DISCOUNT_CODE_INVALID` ·
+`DISCOUNT_CODE_EXPIRED` (`details[].startsAt` or `endsAt`) ·
+`DISCOUNT_CODE_NOT_APPLICABLE` (another restaurant, or under the code's minimum
+with `required`, `actual`, `shortfall`) · `DISCOUNT_CODE_LIMIT_REACHED` ·
+`VALIDATION_ERROR`.
 
 An empty cart returns `200` with `items: []` and a `null` restaurant — never
 404. A customer without a cart row gets the same shape; the row is created
@@ -342,10 +370,19 @@ retries with `?replace=true`, which clears and rebinds in one transaction
   } }
 ```
 
+A code applied to the cart (`POST /api/cart/discount`) is used and re-validated
+inside this transaction; the request body does not change. An order carries
+`discountAmount` (`"0.00"` without a code) and `discountCode` (`null` without
+one) in every order payload, and its total is
+`subtotal − discountAmount + deliveryFee + taxAmount`. The restaurant minimum is
+checked on the subtotal before the discount.
+
 **Errors:** 422 `CART_EMPTY` · 422 `CART_HAS_ISSUES` (with the offending lines in
 `details`) · 422 `BELOW_MINIMUM_ORDER` (with `required` and `actual`) · 422
-`RESTAURANT_UNAVAILABLE` (closed between cart and checkout) · 404 (address not
-owned) · 429.
+`RESTAURANT_UNAVAILABLE` (closed between cart and checkout) · 422
+`DISCOUNT_CODE_INVALID` / `_EXPIRED` / `_NOT_APPLICABLE` / `_LIMIT_REACHED` (the
+code on the cart stopped qualifying; no order is created and the cart stays
+`ACTIVE`) · 404 (address not owned) · 429.
 
 The whole operation is one transaction: lock the cart → re-validate items and
 restaurant → compute totals → insert `orders` + `order_items` + the initial
@@ -461,6 +498,13 @@ characters, so it applies from the first character typed.
 | GET | `/api/admin/reviews` | A | `?status=&restaurantId=&q=` |
 | POST | `/api/admin/reviews/:id/hide` | A | `{ reason }`; recomputes aggregates |
 | POST | `/api/admin/reviews/:id/restore` | A | |
+| GET | `/api/admin/discount-codes` | A | `?status=&q=` (one of `ACTIVE`, `INACTIVE`, `EXPIRED`, `SCHEDULED`; `q` 1–60), with usage statistics |
+| POST | `/api/admin/discount-codes` | A | Create a code (FR-11.1); 201 |
+| GET | `/api/admin/discount-codes/:id` | A | One code with statistics |
+| PUT | `/api/admin/discount-codes/:id` | A | Edit everything except `code` |
+| POST | `/api/admin/discount-codes/:id/deactivate` | A | `{ reason }` |
+| POST | `/api/admin/discount-codes/:id/reactivate` | A | |
+| DELETE | `/api/admin/discount-codes/:id` | A | `{ reason }`; soft delete |
 | GET | `/api/admin/audit-logs` | A | `?entityType=&entityId=&adminId=` |
 
 ### `POST /api/admin/users`
@@ -497,8 +541,12 @@ created through `POST /api/admin/drivers`, because they also need a vehicle.
 // request — as at checkout, no prices (BR-O5)
 { "customerUserId": "…", "restaurantId": "…", "addressId": "…",
   "items": [ { "foodItemId": "…", "quantity": 2, "notes": "No onions" } ],
-  "customerNote": "Ring the bell twice" }
+  "customerNote": "Ring the bell twice", "discountCode": "SAVE10" }   // discountCode optional
 ```
+
+`discountCode` is judged by the same rules as a customer's code (BR-DC8); a
+refused code is the matching `422 DISCOUNT_CODE_*` and no order or audit row is
+written. The `ORDER_PLACED` audit metadata records the code and amount.
 
 `items` holds 1–50 lines, quantity 1–20 each, with no item listed twice. The
 response is 201 with the same payload as `GET /api/admin/orders/:id`. The
@@ -513,6 +561,38 @@ goes out after commit.
 restaurant; address not the customer's) · 422 `UNPROCESSABLE` (customer not
 `ACTIVE`) · 422 `RESTAURANT_UNAVAILABLE` · 422 `ITEM_UNAVAILABLE` · 422
 `BELOW_MINIMUM_ORDER` · 422 `VALIDATION_ERROR`.
+
+### `POST /api/admin/discount-codes`
+
+```jsonc
+// request
+{ "code": "welcome20", "description": "New customers", "type": "PERCENT", "value": 20,
+  "maxDiscountAmount": 30, "minSubtotal": 50, "restaurantId": null,
+  "startsAt": "2026-11-01T00:00:00Z", "endsAt": "2026-12-01T00:00:00Z",
+  "usageLimit": 500, "perCustomerLimit": 1 }
+```
+
+```jsonc
+// 201 — also the shape of GET /:id, PUT /:id and each row of the list
+{ "success": true,
+  "data": { "id": "…", "code": "WELCOME20", "description": "New customers",
+            "type": "PERCENT", "value": "20.00", "maxDiscountAmount": "30.00",
+            "minSubtotal": "50.00", "restaurant": null,
+            "startsAt": "…", "endsAt": "…", "usageLimit": 500, "perCustomerLimit": 1,
+            "isActive": true, "state": "ACTIVE",
+            "stats": { "usageCount": 0, "totalDiscount": "0.00" }, "createdAt": "…" } }
+```
+
+`code` is 3–30 letters, digits, `-` or `_`, stored upper-case, and cannot be
+changed by `PUT`. `PUT` takes every other field (`type` and `value` required).
+`state` is derived from `isActive` and the dates. `stats` counts orders carrying
+the code that are not cancelled. Audited as `DISCOUNT_CODE_CREATED`,
+`_UPDATED`, `_DEACTIVATED`, `_REACTIVATED` and `_DELETED`, each in the
+transaction that makes the change.
+
+**Errors:** 409 `CONFLICT` (name taken, any case) · 404 (unknown or deleted id) ·
+422 `VALIDATION_ERROR` (percentage over 100, a cap on a fixed amount, end not
+after start, limit under 1, unknown restaurant).
 
 ### `GET /api/admin/stats`
 
