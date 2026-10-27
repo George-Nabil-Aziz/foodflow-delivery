@@ -8,6 +8,7 @@ import {
 } from '../../shared/errors/AppError.js';
 import { toLimitOffset, paginationMeta } from '../../shared/http/pagination.js';
 import { config } from '../../config/index.js';
+import { notify } from '../../shared/notifications.js';
 import * as auth from '../auth/index.js';
 import * as users from '../users/index.js';
 import * as restaurants from '../restaurants/index.js';
@@ -421,6 +422,9 @@ export async function createDriver(adminUserId, input) {
     return { user, profile };
   });
 
+  // A welcome notice only: the password is shown to the admin once and never sent (BR-AD8).
+  await notify({ userId: result.user.id, template: 'DRIVER_CREATED', payload: { role: 'DRIVER' } });
+
   return {
     user: {
       id: result.user.id, email: result.user.email, fullName: result.user.full_name,
@@ -499,6 +503,9 @@ export async function createAccount(adminUserId, input) {
     return { user, restaurant };
   });
 
+  // A welcome notice only: the password is shown to the admin once and never sent (BR-AD8).
+  await notify({ userId: result.user.id, template: 'ACCOUNT_CREATED', payload: { role: result.user.role } });
+
   return {
     user: {
       id: result.user.id, email: result.user.email, fullName: result.user.full_name,
@@ -560,14 +567,16 @@ export const listUnassigned = orders.listUnassigned;
 export const listStuck = orders.listStuck;
 
 export async function forceCancelOrder(adminUserId, orderId, { reason, note }) {
-  return withTransaction(async (trx) => {
-    const updated = await orders.adminForceCancel(adminUserId, orderId, { reason, note }, trx);
+  const updated = await withTransaction(async (trx) => {
+    const cancelled = await orders.adminForceCancel(adminUserId, orderId, { reason, note }, trx);
     await audit(
       { adminUserId, action: 'ORDER_FORCE_CANCELLED', entityType: 'order', entityId: orderId, metadata: { reason, note } },
       trx,
     );
-    return { id: updated.id, status: updated.status, cancellationReason: updated.cancellation_reason };
+    return cancelled;
   });
+  await orders.notifyStatusChange(updated, 'CANCELLED');
+  return { id: updated.id, status: updated.status, cancellationReason: updated.cancellation_reason };
 }
 
 /** Only an active customer can have an order placed for them. */
