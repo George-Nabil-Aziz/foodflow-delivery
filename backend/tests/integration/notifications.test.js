@@ -253,3 +253,78 @@ describe('other templates', () => {
     expect(sent).toHaveLength(0);
   });
 });
+
+describe('preferred language', () => {
+  const setLanguage = (user, lang) => knex('users').where({ id: user.id }).update({ preferred_language: lang });
+
+  it('sends an Arabic user the Arabic email and SMS, and an English user English', async () => {
+    const customer = await makeUser({ role: 'CUSTOMER', email: 'sara@example.com', phone: '01012345678' });
+    const address = await makeAddress(customer);
+    const r = await makeStockedRestaurant();
+    await knex('users').where({ id: r.owner.id }).update({
+      email: 'owner@example.com', phone: '01199887766', preferred_language: 'ar',
+    });
+    await request(app).post('/api/cart/items').set(authHeader(customer))
+      .send({ foodItemId: r.main.id, quantity: 1 });
+    const res = await request(app).post('/api/orders').set(authHeader(customer))
+      .send({ addressId: address.id, paymentMethod: 'CASH_ON_DELIVERY' });
+    await settled();
+    const n = res.body.data.orderNumber;
+
+    // Arabic owner: both channels in Arabic.
+    const ownerMail = sent.find((m) => m.to === 'owner@example.com');
+    expect(ownerMail.subject).toBe(`طلب جديد رقم ${n}`);
+    expect(ownerMail.html).toContain('dir="rtl"');
+    const ownerSms = sent.find((m) => m.name === 'twilio');
+    expect(ownerSms.to).toBe('+201199887766');
+    expect(ownerSms.text).toContain('طلب جديد');
+
+    // English customer (the default): English.
+    const custMail = sent.find((m) => m.to === 'sara@example.com');
+    expect(custMail.subject).toBe(`We received your order #${n}`);
+  });
+
+  it('uses the language at send time, so a change applies to the next message', async () => {
+    const customer = await makeUser({ email: 'sara@example.com' });
+    const { restaurant } = await makeStockedRestaurant();
+    const order = await makeOrder({ customer, restaurant });
+    await setLanguage(customer, 'ar');
+    await notify({ template: 'ORDER_PLACED', payload: { orderId: order.id, orderNumber: order.order_number } });
+    await settled();
+    expect(sent.find((m) => m.to === 'sara@example.com').subject).toContain('تم استلام طلبك');
+  });
+});
+
+describe('GET/PATCH /api/me preferredLanguage', () => {
+  it('defaults to en, saves ar, and returns it from GET', async () => {
+    const user = await makeUser();
+    const before = await request(app).get('/api/me').set(authHeader(user));
+    expect(before.body.data.user.preferredLanguage).toBeNull(); // not chosen yet
+
+    const patch = await request(app).patch('/api/me').set(authHeader(user)).send({ preferredLanguage: 'ar' });
+    expect(patch.status).toBe(200);
+    expect(patch.body.data.user.preferredLanguage).toBe('ar');
+
+    const after = await request(app).get('/api/me').set(authHeader(user));
+    expect(after.body.data.user.preferredLanguage).toBe('ar');
+    expect((await knex('users').where({ id: user.id }).first()).preferred_language).toBe('ar');
+  });
+
+  it('rejects an unknown language with 422', async () => {
+    const user = await makeUser();
+    const res = await request(app).patch('/api/me').set(authHeader(user)).send({ preferredLanguage: 'fr' });
+    expect(res.status).toBe(422);
+    expect((await knex('users').where({ id: user.id }).first()).preferred_language).toBeNull();
+  });
+
+  it('is stored from registration and returned in the session user', async () => {
+    const res = await request(app).post('/api/auth/register').send({
+      email: 'new@example.com', password: 'Passw0rd!long', fullName: 'New Person',
+      phone: '01012345678', preferredLanguage: 'ar',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.data.user.preferredLanguage).toBe('ar');
+    const login = await request(app).post('/api/auth/login').send({ email: 'new@example.com', password: 'Passw0rd!long' });
+    expect(login.body.data.user.preferredLanguage).toBe('ar');
+  });
+});

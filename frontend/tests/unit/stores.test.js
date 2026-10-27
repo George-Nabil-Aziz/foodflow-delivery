@@ -199,3 +199,63 @@ describe('money formatting', () => {
     expect(formatMoney(null)).toBe('EGP 0.00');
   });
 });
+
+describe('preferred language', () => {
+  it('saves a language switch for a signed-in user without waiting on the network', async () => {
+    const { authApi } = await import('@/services/api.js');
+    const update = vi.spyOn(authApi, 'updateMe').mockReturnValue(new Promise(() => {}));
+    const auth = useAuthStore();
+    auth.setSession({ user: { id: 'u1', role: 'CUSTOMER', preferredLanguage: 'en' }, accessToken: 'a', refreshToken: 'r' });
+
+    auth.saveLanguage('ar');
+    expect(update).toHaveBeenCalledWith({ preferredLanguage: 'ar' });
+    expect(auth.user.preferredLanguage).toBe('ar');
+  });
+
+  it('swallows a failed save and does nothing for a visitor', async () => {
+    const { authApi } = await import('@/services/api.js');
+    const update = vi.spyOn(authApi, 'updateMe').mockRejectedValue(new Error('offline'));
+    const auth = useAuthStore();
+    auth.saveLanguage('ar');
+    expect(update).not.toHaveBeenCalled();
+
+    auth.setSession({ user: { id: 'u1', role: 'CUSTOMER' }, accessToken: 'a', refreshToken: 'r' });
+    expect(() => auth.saveLanguage('ar')).not.toThrow();
+    await Promise.resolve();
+  });
+
+  it('applies the session language on login and sends the current locale on register', async () => {
+    const { authApi } = await import('@/services/api.js');
+    const { locale, setLocale } = await import('@/i18n/index.js');
+    setLocale('en');
+    vi.spyOn(authApi, 'login').mockResolvedValue({
+      data: { user: { id: 'u1', role: 'CUSTOMER', preferredLanguage: 'ar' }, accessToken: 'a', refreshToken: 'r' },
+    });
+    const auth = useAuthStore();
+    await auth.login({ email: 'a@b.c', password: 'x' });
+    expect(locale.value).toBe('ar');
+
+    const register = vi.spyOn(authApi, 'register').mockResolvedValue({
+      data: { user: { id: 'u2', role: 'CUSTOMER', preferredLanguage: 'ar' }, accessToken: 'a', refreshToken: 'r' },
+    });
+    await auth.register({ email: 'n@b.c' });
+    expect(register).toHaveBeenCalledWith({ email: 'n@b.c', preferredLanguage: 'ar' });
+    setLocale('en');
+  });
+
+  it('keeps the browsing language, and saves it, for a user who never chose one', async () => {
+    const { authApi } = await import('@/services/api.js');
+    const { locale, setLocale } = await import('@/i18n/index.js');
+    setLocale('ar');
+    const update = vi.spyOn(authApi, 'updateMe').mockResolvedValue({});
+    vi.spyOn(authApi, 'login').mockResolvedValue({
+      data: { user: { id: 'u1', role: 'CUSTOMER', preferredLanguage: null }, accessToken: 'a', refreshToken: 'r' },
+    });
+    const auth = useAuthStore();
+    await auth.login({ email: 'a@b.c', password: 'x' });
+
+    expect(locale.value).toBe('ar');
+    expect(update).toHaveBeenCalledWith({ preferredLanguage: 'ar' });
+    setLocale('en');
+  });
+});

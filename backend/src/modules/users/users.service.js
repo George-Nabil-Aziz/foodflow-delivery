@@ -39,6 +39,7 @@ export async function updateProfile(userId, patch) {
   const columns = {};
   if (patch.fullName !== undefined) columns.full_name = patch.fullName;
   if (patch.phone !== undefined) columns.phone = patch.phone;
+  if (patch.preferredLanguage !== undefined) columns.preferred_language = patch.preferredLanguage;
   const row = await repo.updateProfile(userId, columns);
   if (!row) throw new NotFoundError('RESOURCE_NOT_FOUND');
   return toUserDto(row);

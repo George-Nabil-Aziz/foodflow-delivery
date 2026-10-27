@@ -3,12 +3,13 @@ import {
   latitude, longitude, optionalTrimmed, phone, trimmedString,
 } from '../../shared/validation/common.js';
 
-/** Only name and phone. email, role and status are absent by design, so they
+/** Only name, phone and preferred language. email, role and status are absent by design, so they
  *  are stripped rather than blocklisted (BR-A9, ADR-005). */
 export const updateProfileSchema = z
   .object({
     fullName: trimmedString(2, 100).optional(),
     phone: phone.optional(),
+    preferredLanguage: z.enum(['en', 'ar']).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'At least one field must be provided' });
 

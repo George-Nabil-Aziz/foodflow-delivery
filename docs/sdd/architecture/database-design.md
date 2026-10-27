@@ -283,6 +283,7 @@ erDiagram
 | `phone` | text | no | E.164-ish |
 | `role` | user_role | no | Immutable after creation (BR-A3, ADR-005) |
 | `status` | user_status | no | default `ACTIVE`. BR-A5 |
+| `preferred_language` | text | yes | `chk_users_preferred_language` (`en`, `ar`). Language of notifications and of the web app after sign-in; NULL = not chosen yet, sent in English, and filled in by the web app from the language the user is browsing in (spec-13; migration 013) |
 | `email_verified_at` | timestamptz | yes | Column reserved; verification is a future enhancement |
 | `last_login_at` | timestamptz | yes | |
 | `created_at` / `updated_at` | timestamptz | no | |
@@ -555,6 +556,7 @@ Knex migrations, one per logical change, named
 11. `010_payments` (card payments, spec-11): `CARD` and `PAYMENT_TIMEOUT` enum values, `payment_status`, `payments`
 12. `011_discounts.js`: `discount_codes`, `order_discounts`, `orders.discount_amount` with the rewritten `chk_orders_totals`, `carts.discount_code_id` (existing orders get a discount of 0)
 13. `012_notification_delivery` (spec-13): delivery `status`, `attempts`, `last_error`, `recipient`, `next_attempt_at` and `dedupe_key` on `notifications`
+14. `013_user_preferred_language` (spec-13): `users.preferred_language` (`en`/`ar`, nullable, check-constrained)
 
 Migrations never contain business logic and are never edited after being applied
 to a shared environment — corrections ship as new migrations.

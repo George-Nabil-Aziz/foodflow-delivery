@@ -44,9 +44,8 @@ const toRecipient = (row) =>
     email: row.email,
     phone: row.phone,
     fullName: row.full_name,
-    // No language preference is stored yet; when one is, this is the only line
-    // that changes.
-    lang: 'en',
+    // The user's own choice; templates fall back to English for anything else.
+    lang: row.preferred_language ?? 'en',
   };
 
 /** An active, non-deleted user by id, or null. */
@@ -55,7 +54,7 @@ export async function loadUser(userId, db = knex) {
   const row = await db('users')
     .where({ id: userId, status: 'ACTIVE' })
     .whereNull('deleted_at')
-    .first('id', 'email', 'phone', 'full_name');
+    .first('id', 'email', 'phone', 'full_name', 'preferred_language');
   return toRecipient(row) ?? null;
 }
 

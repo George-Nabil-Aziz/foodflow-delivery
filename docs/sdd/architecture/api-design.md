@@ -44,7 +44,8 @@
   "fullName": "Sara Idris",
   "phone": "+966501234567",
   "role": "CUSTOMER",              // CUSTOMER | RESTAURANT only
-  "restaurantName": "Olive Grill"  // required when role = RESTAURANT
+  "restaurantName": "Olive Grill", // required when role = RESTAURANT
+  "preferredLanguage": "ar"        // optional, en | ar; language of notifications (none = not chosen yet)
 }
 ```
 
@@ -95,7 +96,7 @@ for the user (FR-1.6). **Errors:** 401 `INVALID_CREDENTIALS` · 422.
 | Method | Route | Auth | Purpose |
 |--------|-------|------|---------|
 | GET | `/api/me` | 🔓 | Current user + role-specific profile block |
-| PATCH | `/api/me` | 🔓 | Update `fullName`, `phone` |
+| PATCH | `/api/me` | 🔓 | Update `fullName`, `phone`, `preferredLanguage` (`en` | `ar`) |
 | GET | `/api/addresses` | C | List own addresses |
 | POST | `/api/addresses` | C | Create an address |
 | PATCH | `/api/addresses/:id` | C +own | Update |
@@ -104,7 +105,8 @@ for the user (FR-1.6). **Errors:** 401 `INVALID_CREDENTIALS` · 422.
 
 `GET /api/me` returns `{ user, restaurant? , driverProfile? }` — the extra block
 depends on role, so a client never needs a second call to learn whether its
-restaurant is approved.
+restaurant is approved. `user` includes `preferredLanguage` (`en` | `ar`, or `null` until the user has
+chosen one, which notifications treat as English), the language notifications are sent in; it is also in the register and login `user`.
 
 **Errors:** 404 `RESOURCE_NOT_FOUND` on another user's address · 422 · 409 if an
 address is referenced by an active order and a hard delete is attempted (BR-A8;

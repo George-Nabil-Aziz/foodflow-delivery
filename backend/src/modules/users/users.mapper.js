@@ -5,6 +5,7 @@ export const toUserDto = (u) => ({
   phone: u.phone,
   role: u.role,
   status: u.status,
+  preferredLanguage: u.preferred_language,
   createdAt: u.created_at,
 });
 

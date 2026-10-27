@@ -62,7 +62,7 @@ export async function allocateSlug(name, trx) {
  * unrecoverable through the API.
  */
 export async function register(input, context = {}) {
-  const { email, password, fullName, phone, role, restaurantName } = input;
+  const { email, password, fullName, phone, role, restaurantName, preferredLanguage } = input;
 
   if (role !== 'CUSTOMER' && role !== 'RESTAURANT') {
     throw new ForbiddenError('FORBIDDEN_ROLE', {
@@ -88,6 +88,7 @@ export async function register(input, context = {}) {
         full_name: fullName,
         phone,
         role,
+        preferred_language: preferredLanguage ?? null,
         status: 'ACTIVE',
       })
       .returning('*');

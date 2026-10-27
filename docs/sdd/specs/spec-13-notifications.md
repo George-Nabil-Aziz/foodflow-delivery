@@ -117,8 +117,13 @@ awaits those tasks, for tests and graceful shutdown.
 One place (`recipients.js`): a `userId`, or a role-target — `ORDER_CUSTOMER`,
 `ORDER_RESTAURANT_OWNER` — applied to an order id. Phones are normalised to
 E.164 from the format the app validates (`01012345678` → `+201012345678`);
-a number that cannot be normalised makes that channel `SKIPPED`. Language is
-English until a user preference exists; it is a single line in `toRecipient`.
+a number that cannot be normalised makes that channel `SKIPPED`. The recipient's `lang` is
+the user's `preferred_language` (`en` or `ar`; NULL, not chosen yet, falls back to `en`), read in
+`toRecipient`; it is read again when the message is sent, so a change applies to
+anything not yet delivered. Users set it with `PATCH /api/me`, the web app saves
+it when the language is switched, and registration may supply it. At sign-in a
+saved language is applied to the app; a user with none gets the language they
+are browsing in saved, so signing in never switches the screen back to English.
 
 ### Transports
 
@@ -186,7 +191,7 @@ Blank values count as unset. Secrets are read only through the config module.
 - Two replicas: the advisory lock plus the atomic claim prevent double sends.
 - Process restart between insert and send: recovered by the retry job after five minutes.
 - Seed and demo users have placeholder numbers; with no credentials nothing is ever sent to them.
-- Arabic copy is selected only when a language preference exists; today everything is English.
+- A user with no stored preference gets English (the column default); an unrecognised language falls back to English in `render`.
 
 ## Related Stories / Dependencies
 

@@ -11,6 +11,8 @@ export const registerSchema = z.object({
   // surfaces loudly.
   role: z.enum(['CUSTOMER', 'RESTAURANT', 'DRIVER', 'ADMIN']).default('CUSTOMER'),
   restaurantName: trimmedString(2, 120).optional(),
+  // The language the visitor was browsing in, so the first email matches it.
+  preferredLanguage: z.enum(['en', 'ar']).optional(),
 });
 
 export const loginSchema = z.object({

@@ -26,8 +26,7 @@ per-recipient cap; the template × channel matrix in
 
 **Out:** push and WebSocket delivery, provider receipts and webhooks, marketing
 email, notification preferences, unsubscribe links, an in-app inbox UI. Also out:
-choosing a recipient's language — every message is English today, because no
-language preference is stored yet.
+a per-channel or per-template language; there is one `preferred_language` per user.
 
 ## Actors
 
@@ -49,7 +48,7 @@ Implements spec-13: FR-13.1 – FR-13.10.
 2. Email goes through SMTP when `SMTP_HOST` is set; SMS through Twilio when `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_FROM` are all set; otherwise the `log` transport is used.
 3. A new order notifies the restaurant owner (SMS and email) and the customer (email). A card order is announced only once the payment succeeds, not at checkout.
 4. Each template defines its channels and recipient: `ORDER_PLACED` (customer, email), `NEW_ORDER` (owner, SMS and email), `ORDER_OUT_FOR_DELIVERY` (customer, SMS), `ORDER_CANCELLED` (customer, email), `NEW_OFFER` (driver, in-app), `DRIVER_CREATED` and `ACCOUNT_CREATED` (the new user, email).
-5. Every template renders in English and Arabic; email carries text and HTML, SMS one short text.
+5. Every template renders in English and Arabic; email carries text and HTML, SMS one short text. The language is the recipient's `preferred_language` (English while it is not set), changed with `PATCH /api/me`, saved when a signed-in user switches language in the app, and optionally set at registration.
 6. Sending happens after the triggering transaction commits and in the background; a failure is recorded on the row and never reaches the caller.
 7. Every row records `status` (`QUEUED`, `SENT`, `FAILED`, `SKIPPED`), `attempts`, `last_error` and the resolved `recipient`; `sent_at` is set only when delivery actually succeeds.
 8. A retry job resends due `FAILED` rows with exponential backoff, up to `NOTIFY_MAX_ATTEMPTS`, and recovers rows that were recorded but never sent.
@@ -130,6 +129,15 @@ Then the customer receives an ORDER_CANCELLED email
 Given an admin creates a driver
 Then the driver receives a welcome email, and neither the message nor any
   notifications row contains the initial password
+
+Given the restaurant owner's preferred language is Arabic and the customer's is English
+When a customer places an order
+Then the owner's NEW_ORDER email and SMS are in Arabic and the customer's
+  ORDER_PLACED email is in English
+
+Given a signed-in user
+When they PATCH /api/me with preferredLanguage "ar"
+Then GET /api/me returns it, and an unknown value such as "fr" is rejected with 422
 
 Given a driver is offered a delivery
 Then a NEW_OFFER row exists on the IN_APP channel with status SENT and no
@@ -225,4 +233,4 @@ line and user-provided text is HTML-escaped in the email body.
 - Unit (`notificationTemplates.test.js`): every template renders in English and Arabic on every channel, with SMS at most 160 characters and `dir` set for the language; unknown language falls back to English; HTML escapes user strings while the text body does not; subjects are one line; account messages carry no password; phone normalisation and address-per-channel; email masking; the Twilio request shape and error mapping with a mocked `fetch`.
 - Integration (`notifications.test.js`, transports injected, no network): recipient resolution including suspended and deleted users; a placed order recording the owner's SMS and email and the customer's email; a duplicate trigger stored once; the log transport yielding `SKIPPED`; a failing transport yielding `FAILED` while the order is created; a channel skipped without an address; the retry job resending a due row, ignoring one not yet due, backing off exponentially and stopping at the cap; the hourly cap; recovery of an orphaned `QUEUED` row; the out-for-delivery SMS; the force-cancel email; the driver welcome email without the password; and the in-app row with no transport call.
 - Unit: `tests/unit/notificationTemplates.test.js` covers the `smtp` transport with nodemailer mocked (server, auth, sender, one connection reused, no auth without a user, a send failure passed up). The card-order path is covered in `cardPayments.test.js` (the restaurant is notified once, on payment).
-- Not covered by a test today: Arabic delivery end to end (every recipient is English).
+- Integration (`notifications.test.js`): Arabic email and SMS for an `ar` user and English for an `en` user; the language read at send time; `PATCH /api/me` saving `preferredLanguage`, `GET /api/me` returning it, an unknown value rejected with 422; registration storing it. Frontend (`stores.test.js`): switching language while signed in calls `PATCH /api/me` without waiting, a session's `preferredLanguage` is applied, and a user who never chose one keeps the browsing language, which is saved.

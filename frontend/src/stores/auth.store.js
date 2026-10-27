@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { authApi } from '../services/api.js';
 import { configureHttp } from '../services/http.js';
+import { locale, setLocale } from '../i18n/index.js';
 
 const STORAGE_KEY = 'foodflow.session';
 
@@ -40,6 +41,16 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /**
+   * Once signed in, a language the user saved wins over this browser's. One
+   * never chosen (null) is filled in from the language they are browsing in,
+   * so signing in never switches the screen back to English.
+   */
+  function syncLanguage(u) {
+    if (u?.preferredLanguage) setLocale(u.preferredLanguage);
+    else if (u) saveLanguage(locale.value);
+  }
+
   function setSession(payload) {
     user.value = payload.user ?? user.value;
     restaurant.value = payload.restaurant ?? restaurant.value ?? null;
@@ -47,6 +58,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (payload.accessToken) accessToken.value = payload.accessToken;
     if (payload.refreshToken) refreshToken.value = payload.refreshToken;
     persist();
+    if (payload.user) syncLanguage(payload.user);
   }
 
   function clear() {
@@ -68,6 +80,7 @@ export const useAuthStore = defineStore('auth', () => {
       if (raw) {
         const saved = JSON.parse(raw);
         user.value = saved.user ?? null;
+        if (user.value?.preferredLanguage) setLocale(user.value.preferredLanguage);
         restaurant.value = saved.restaurant ?? null;
         driverProfile.value = saved.driverProfile ?? null;
         accessToken.value = saved.accessToken ?? null;
@@ -118,9 +131,20 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function register(payload) {
-    const { data } = await authApi.register(payload);
+    const { data } = await authApi.register({ ...payload, preferredLanguage: locale.value });
     setSession(data);
     return data;
+  }
+
+  /**
+   * Saves the language the user just switched to. Fire-and-forget: the switch
+   * is already applied and must not wait on, or fail with, the network.
+   */
+  function saveLanguage(lang) {
+    if (!isAuthenticated.value) return;
+    user.value = { ...user.value, preferredLanguage: lang };
+    persist();
+    authApi.updateMe({ preferredLanguage: lang }).catch(() => {});
   }
 
   async function logout() {
@@ -143,6 +167,6 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     user, restaurant, driverProfile, accessToken, refreshToken,
     isAuthenticated, role,
-    restore, setSession, clear, login, register, logout, loadMe, performRefresh,
+    restore, setSession, clear, login, register, saveLanguage, logout, loadMe, performRefresh,
   };
 });
