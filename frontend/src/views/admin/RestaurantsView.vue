@@ -86,6 +86,7 @@ const detailFields = computed(() => {
     ...(r.rejectionReason ? [{ label: t('Rejection reason'), value: r.rejectionReason }] : []),
     { label: t('Cuisine'), value: r.cuisineType && enumText(r.cuisineType) },
     { label: t('City'), value: r.city },
+    { label: t('Delivery radius'), value: r.deliveryRadiusKm != null ? t('{n} km', { n: Number(r.deliveryRadiusKm) }) : null },
     { label: t('Accepting orders'), value: r.isAcceptingOrders ? t('Yes') : t('No') },
     { label: t('Available items'), value: r.availableItemCount },
     { label: t('Rating'), value: ratingText(r) },

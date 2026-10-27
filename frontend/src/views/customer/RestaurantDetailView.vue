@@ -85,6 +85,15 @@ onMounted(load);
 
           <p v-if="restaurant.description" class="mt-3 text-slate-700">{{ restaurant.description }}</p>
 
+          <!-- Not just a disabled button: say why, and what to do about it. -->
+          <p v-if="restaurant.deliversToAddress === false" role="alert"
+             class="mt-3 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-900">
+            <strong>{{ t("Doesn't deliver to your address") }}</strong>
+            {{ t('Your address is {distance} km away and this restaurant delivers within {radius} km. Choose another address or restaurant.', {
+              distance: restaurant.distanceKm, radius: Number(restaurant.deliveryRadiusKm),
+            }) }}
+          </p>
+
           <dl class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
             <div>
 <dt class="text-slate-500">{{ t('Rating') }}</dt>
@@ -98,6 +107,7 @@ onMounted(load);
             <div><dt class="text-slate-500">{{ t('Delivery') }}</dt><dd class="font-medium">{{ formatMoney(restaurant.deliveryFee) }}</dd></div>
             <div><dt class="text-slate-500">{{ t('Minimum') }}</dt><dd class="font-medium">{{ formatMoney(restaurant.minimumOrderAmount) }}</dd></div>
             <div><dt class="text-slate-500">{{ t('Prep time') }}</dt><dd class="font-medium">{{ t('{n} min', { n: restaurant.avgPreparationMinutes }) }}</dd></div>
+            <div><dt class="text-slate-500">{{ t('Delivers within') }}</dt><dd class="font-medium">{{ t('{n} km', { n: Number(restaurant.deliveryRadiusKm) }) }}</dd></div>
           </dl>
         </div>
       </header>
@@ -116,6 +126,7 @@ onMounted(load);
             <div class="mt-3 space-y-3">
               <FoodItemCard v-for="item in category.items" :key="item.id" :item="item"
                             :restaurant-orderable="restaurant.isOrderable"
+                            :deliverable="restaurant.deliversToAddress !== false"
                             :adding="adding === item.id" @add="add" />
             </div>
           </div>

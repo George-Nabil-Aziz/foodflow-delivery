@@ -6,7 +6,8 @@ import * as rawCtrl from './discovery.controller.js';
 const ctrl = wrapAll(rawCtrl);
 import { reviewsController as rawReviewsCtrl } from '../reviews/index.js';
 const reviewsCtrl = wrapAll(rawReviewsCtrl);
-import { listRestaurantsQuery, searchQuery } from './discovery.schemas.js';
+import { authenticateOptional } from '../../middleware/authenticate.js';
+import { listRestaurantsQuery, searchQuery, zoneQuery } from './discovery.schemas.js';
 
 /**
  * Public discovery. No authentication: requiring a login to see what the
@@ -14,8 +15,20 @@ import { listRestaurantsQuery, searchQuery } from './discovery.schemas.js';
  */
 export const restaurantsPublicRouter = Router();
 
-restaurantsPublicRouter.get('/', validate({ query: listRestaurantsQuery }), ctrl.listRestaurants);
-restaurantsPublicRouter.get('/:id', validate({ params: idParam }), ctrl.getRestaurant);
+// Optional sign-in: a customer's address annotates each restaurant with whether
+// it delivers there (spec-18). Anonymous requests are answered exactly as before.
+restaurantsPublicRouter.get(
+  '/',
+  authenticateOptional,
+  validate({ query: listRestaurantsQuery }),
+  ctrl.listRestaurants,
+);
+restaurantsPublicRouter.get(
+  '/:id',
+  authenticateOptional,
+  validate({ params: idParam, query: zoneQuery }),
+  ctrl.getRestaurant,
+);
 restaurantsPublicRouter.get('/:id/menu', validate({ params: idParam }), ctrl.getMenu);
 restaurantsPublicRouter.get(
   '/:id/reviews',
@@ -24,7 +37,7 @@ restaurantsPublicRouter.get(
 );
 
 export const searchRouter = Router();
-searchRouter.get('/', validate({ query: searchQuery }), ctrl.search);
+searchRouter.get('/', authenticateOptional, validate({ query: searchQuery }), ctrl.search);
 
 export const cuisinesRouter = Router();
 cuisinesRouter.get('/', ctrl.listCuisines);

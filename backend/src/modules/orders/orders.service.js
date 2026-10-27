@@ -266,6 +266,21 @@ async function insertOrder(
     });
   }
 
+  // The delivery zone is enforced here and only here for orders, so checkout
+  // and the admin "make an order" path cannot disagree (spec-18 BR-DZ3).
+  const address = await users.getAddressForOrder(customerUserId, addressId, trx);
+  const zone = restaurants.checkDeliveryZone(restaurant, address.snapshot);
+  if (!zone.deliversToAddress) {
+    throw new ValidationError('OUTSIDE_DELIVERY_ZONE', {
+      details: [{
+        field: 'addressId',
+        issue: `This restaurant delivers within ${zone.radiusKm} km and this address is ${zone.distanceKm} km away.`,
+        distanceKm: zone.distanceKm,
+        radiusKm: zone.radiusKm,
+      }],
+    });
+  }
+
   // The minimum above is on the pre-discount subtotal; the code is validated
   // (and its row locked) here, then priced by the same computeTotals (BR-DC5).
   const discount = discountCode
@@ -274,8 +289,6 @@ async function insertOrder(
     )
     : null;
   if (discount) totals = computeTotals({ ...pricing, discount });
-
-  const address = await users.getAddressForOrder(customerUserId, addressId, trx);
 
   const created = await repo.insertOrderWithUniqueNumber(
     {

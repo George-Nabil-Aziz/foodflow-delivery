@@ -304,11 +304,12 @@ Indexes: `uq_users_email`; `idx_users_role_status (role, status) WHERE deleted_a
 `owner_user_id` → `users(id)` `ON DELETE RESTRICT`, **UNIQUE** (BR-R1). Columns
 as in the ERD plus `description`, `phone`, `email`, `logo_url`,
 `cover_image_url`, `address_line1`, `city`, `district`, `latitude`,
-`longitude`, `approved_at`, `approved_by_user_id`, `rejection_reason`,
-`deleted_at`.
+`longitude`, `delivery_radius_km` (spec-18), `approved_at`, `approved_by_user_id`,
+`rejection_reason`, `deleted_at`.
 
-- Checks: `chk_restaurants_delivery_fee (delivery_fee >= 0)`, `chk_restaurants_min_order (minimum_order_amount >= 0)`, `chk_restaurants_prep (avg_preparation_minutes BETWEEN 5 AND 180)`, `chk_restaurants_rating (rating_average BETWEEN 0 AND 5)`.
+- Checks: `chk_restaurants_delivery_fee (delivery_fee >= 0)`, `chk_restaurants_min_order (minimum_order_amount >= 0)`, `chk_restaurants_prep (avg_preparation_minutes BETWEEN 5 AND 180)`, `chk_restaurants_rating (rating_average BETWEEN 0 AND 5)`, `chk_restaurants_delivery_radius (delivery_radius_km BETWEEN 1 AND 30)`.
 - Indexes: `uq_restaurants_owner`, `uq_restaurants_slug`, `idx_restaurants_browse (status, is_accepting_orders) WHERE deleted_at IS NULL`, `idx_restaurants_cuisine (cuisine_type)`, `idx_restaurants_rating (rating_average DESC)`, `idx_restaurants_name_trgm GIN (name gin_trgm_ops)`.
+- `delivery_radius_km NUMERIC(4,1) NOT NULL DEFAULT 8` (migration 016, spec-18): the restaurant delivers to addresses within this great-circle distance of its own `latitude`/`longitude`. Not indexed: the distance is computed in the application for the rows a page returns. A restaurant or address without coordinates cannot be measured and is allowed (spec-18 BR-DZ4).
 - `ON DELETE RESTRICT` on the owner is deliberate: a restaurant must never be orphaned, and owners are soft-deleted anyway.
 
 ### `restaurant_hours`
@@ -557,6 +558,7 @@ Knex migrations, one per logical change, named
 12. `011_discounts.js`: `discount_codes`, `order_discounts`, `orders.discount_amount` with the rewritten `chk_orders_totals`, `carts.discount_code_id` (existing orders get a discount of 0)
 13. `012_notification_delivery` (spec-13): delivery `status`, `attempts`, `last_error`, `recipient`, `next_attempt_at` and `dedupe_key` on `notifications`
 14. `013_user_preferred_language` (spec-13): `users.preferred_language` (`en`/`ar`, nullable, check-constrained)
+15. `016_delivery_zones` (spec-18): `restaurants.delivery_radius_km` (`NUMERIC(4,1)`, default 8, check 1–30)
 
 Migrations never contain business logic and are never edited after being applied
 to a shared environment — corrections ship as new migrations.

@@ -40,7 +40,8 @@ export function useAddToCart(router) {
         conflictOpen.value = true;
         return;
       }
-      if (err.code === 'ITEM_UNAVAILABLE' || err.code === 'RESTAURANT_UNAVAILABLE') {
+      if (err.code === 'ITEM_UNAVAILABLE' || err.code === 'RESTAURANT_UNAVAILABLE'
+        || err.code === 'OUTSIDE_DELIVERY_ZONE') {
         ui.toastError(err.details?.[0]?.issue ?? err.message);
         return;
       }

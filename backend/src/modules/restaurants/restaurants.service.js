@@ -7,6 +7,7 @@ import {
 import { knex } from '../../shared/db/knex.js';
 import * as repo from './restaurants.repository.js';
 import { computeOrderability, dayOfWeek } from './orderability.js';
+import { checkDeliveryZone } from './deliveryZone.js';
 import { toOwnerRestaurantDto, toPublicRestaurantDto, toHoursDto } from './restaurants.mapper.js';
 
 /** Resolves and caches orderability for a restaurant row. */
@@ -57,6 +58,7 @@ const PROFILE_COLUMNS = {
   addressLine1: 'address_line1', city: 'city', district: 'district',
   latitude: 'latitude', longitude: 'longitude', deliveryFee: 'delivery_fee',
   minimumOrderAmount: 'minimum_order_amount', avgPreparationMinutes: 'avg_preparation_minutes',
+  deliveryRadiusKm: 'delivery_radius_km',
 };
 
 /**
@@ -115,13 +117,33 @@ export async function getOwnerStats(ownerUserId) {
   };
 }
 
-/** Public detail. A non-ACTIVE restaurant is 404, not a redacted record. */
-export async function getPublicRestaurant(id) {
+/**
+ * The zone fields a public restaurant carries when the viewer has an address
+ * (spec-18 FR-18.3). Without one, nothing is added: anonymous browsing is
+ * unchanged.
+ */
+export function deliveryZoneFields(restaurant, point) {
+  if (!point) return {};
+  const zone = checkDeliveryZone(restaurant, point);
+  return {
+    deliversToAddress: zone.deliversToAddress,
+    distanceKm: zone.distanceKm,
+    zoneChecked: zone.checked,
+  };
+}
+
+/** Public detail. A non-ACTIVE restaurant is 404, not a redacted record.
+ *  `point` is the viewer's delivery address, when they have one. */
+export async function getPublicRestaurant(id, point) {
   const restaurant = await repo.findActiveById(id);
   if (!restaurant) throw new NotFoundError('RESOURCE_NOT_FOUND');
   const orderability = await orderabilityFor(restaurant);
   const hours = await repo.findHours(id);
-  return { ...toPublicRestaurantDto(restaurant, orderability), hours: toHoursDto(hours) };
+  return {
+    ...toPublicRestaurantDto(restaurant, orderability),
+    ...deliveryZoneFields(restaurant, point),
+    hours: toHoursDto(hours),
+  };
 }
 
 /* --------------------------------------------- called by the admin module */

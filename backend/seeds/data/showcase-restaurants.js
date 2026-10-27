@@ -138,6 +138,10 @@ export function showcaseRestaurants() {
         fee: money(15 + (i % 6) * 5),
         min: money(75 + (i % 5) * 25),
         prep: 15 + (i % 6) * 5,
+        // A wide zone for most, so seeded customers can order almost anywhere
+        // in Greater Cairo; every fourth is a small neighbourhood kitchen, so
+        // the "does not deliver to your address" state is easy to find.
+        radius: i % 4 === 3 ? 6 : 20,
         // One in twelve is paused, so "not accepting orders" shows up in the
         // listing as it would on a real evening.
         accepting: i % 12 !== 11,

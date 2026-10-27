@@ -30,6 +30,8 @@ export const updateRestaurantSchema = z.object({
   deliveryFee: moneyAmount({ min: 0, max: 999.99 }).optional(),
   minimumOrderAmount: moneyAmount({ min: 0, max: 9999.99 }).optional(),
   avgPreparationMinutes: z.coerce.number().int().min(5).max(180).optional(),
+  // One decimal (the column is NUMERIC(4,1)); the bounds mirror its CHECK.
+  deliveryRadiusKm: z.coerce.number().min(1).max(30).transform((v) => Math.round(v * 10) / 10).optional(),
 });
 
 const timeString = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'must be HH:mm');
