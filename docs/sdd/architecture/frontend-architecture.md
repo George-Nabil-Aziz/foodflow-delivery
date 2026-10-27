@@ -10,40 +10,40 @@ frontend/
 │   ├── main.js
 │   ├── App.vue
 │   ├── router/
-│   │   ├── index.js            # router instance + global guards
+│   │   ├── index.js            # router instance, homeFor(role) and the global guard
+│   │   ├── routes.public.js
 │   │   ├── routes.customer.js
 │   │   ├── routes.restaurant.js
 │   │   ├── routes.driver.js
-│   │   ├── routes.admin.js
-│   │   └── guards.js           # requiresAuth / requiresRole / requiresGuest
+│   │   └── routes.admin.js
 │   ├── layouts/
-│   │   ├── PublicLayout.vue    # header + footer, no sidebar
-│   │   ├── CustomerLayout.vue  # header with cart badge
-│   │   ├── DashboardLayout.vue # sidebar shell reused by restaurant/driver/admin
+│   │   ├── SiteLayout.vue      # public pages: DashboardLayout for a signed-in customer, else PublicLayout
+│   │   ├── PublicLayout.vue    # header + footer, no sidebar (guests and other roles)
+│   │   ├── CustomerLayout.vue  # wraps DashboardLayout for the customer's own pages
+│   │   ├── DashboardLayout.vue # sidebar shell for every signed-in role
 │   │   └── AuthLayout.vue      # centered card
 │   ├── views/
-│   │   ├── public/   { HomeView, LoginView, RegisterView, NotFoundView, ForbiddenView }
-│   │   ├── customer/ { RestaurantListView, RestaurantDetailView, CartView,
-│   │   │               CheckoutView, MyOrdersView, OrderDetailView, OrderTrackingView,
-│   │   │               ProfileView, AddressesView, MyReviewsView }
-│   │   ├── restaurant/{ DashboardView, ProfileView, HoursView, CategoriesView,
-│   │   │               MenuItemsView, IncomingOrdersView, OrderDetailView, OrderHistoryView }
+│   │   ├── public/   { HomeView, LandingView, LoginView, RegisterView, NotFoundView, ForbiddenView }
+│   │   ├── customer/ { DiscoverView, RestaurantListView, RestaurantDetailView, CartView,
+│   │   │               CheckoutView, MyOrdersView, OrderDetailView, ProfileView,
+│   │   │               AddressesView, AddressCreateView, MyReviewsView }
+│   │   ├── restaurant/{ DashboardView, ProfileView, HoursView, CategoriesView, CategoryFormView,
+│   │   │               MenuItemsView, IncomingOrdersView, OrderDetailView }
 │   │   ├── driver/   { DashboardView, OffersView, ActiveDeliveryView,
 │   │   │               DeliveryHistoryView, ProfileView }
-│   │   └── admin/    { DashboardView, UserListView, RestaurantsView, DriversView,
-│   │                   OrdersView, ReviewsView, StatisticsView }
+│   │   └── admin/    { DashboardView, AttentionView, UserListView, AccountCreateView,
+│   │                   RestaurantsView, DriversView, DriverCreateView, OrdersView,
+│   │                   OrderCreateView, ReviewsView }
 │   ├── components/
-│   │   ├── shared/   { AppButton, AppInput, AppSelect, AppModal, AppCard, AppBadge,
-│   │   │               AppPagination, AppSpinner, EmptyState, ErrorState, ConfirmDialog,
-│   │   │               StarRating, MoneyAmount, StatusBadge, ToastHost }
-│   │   ├── customer/ { RestaurantCard, RestaurantFilters, MenuCategorySection,
-│   │   │               FoodItemCard, CartLineItem, CartSummary, AddressPicker,
-│   │   │               OrderTimeline, OrderCard, ReviewForm }
-│   │   ├── restaurant/{ IncomingOrderCard, OrderActionBar, CategoryForm, MenuItemForm,
-│   │   │               MenuItemTable, HoursEditor, AcceptingOrdersToggle }
-│   │   ├── driver/   { OfferCard, DeliveryStepper, DeliveryAddressPanel, AvailabilityToggle }
-│   │   └── admin/    { StatTile, UserTable, RestaurantApprovalCard, OrderTable,
-│   │                   ReviewModerationRow }
+│   │   ├── shared/   { AppButton, AppInput, AppPagination, AppSpinner, EmptyState, ErrorState,
+│   │   │               ConfirmDialog, DetailsDialog, StarRating, RatingStars, MoneyAmount,
+│   │   │               StatusBadge, AccountStatusBadge, DeletedBadge, PageTitle, FilterBar,
+│   │   │               FilterSearch, FilterSelect, BrandLogo, MenuButton, MobileDrawer,
+│   │   │               SignOutButton, LanguageToggle, ThemeToggle, BackToTop, DevAccounts,
+│   │   │               ToastHost }
+│   │   ├── customer/ { RestaurantCard, FoodItemCard, OrderTimeline, SearchAutocomplete,
+│   │   │               SwitchRestaurantDialog }
+│   │   └── admin/    { OrderDetailsDialog }
 │   ├── composables/
 │   │   ├── useApi.js           # request state: loading/error/data, cancellation
 │   │   ├── usePagination.js
@@ -165,7 +165,7 @@ knows more.
 ## 4. Routing and guards
 
 ```js
-// router/guards.js
+// router/index.js
 router.beforeEach((to) => {
   const auth = useAuthStore();
   if (to.meta.requiresGuest && auth.isAuthenticated) return homeFor(auth.role);
@@ -175,15 +175,53 @@ router.beforeEach((to) => {
 });
 ```
 
-Each role owns a route subtree with its own layout and a `meta.roles` gate:
+Each role owns a route subtree with a `meta.roles` gate:
 
 | Prefix | Layout | Roles |
 |--------|--------|-------|
-| `/` , `/restaurants/*`, `/login`, `/register` | Public / Auth | — |
-| `/account/*`, `/cart`, `/checkout`, `/orders/*` | CustomerLayout | CUSTOMER |
+| `/`, `/restaurants`, `/restaurants/:id` | SiteLayout | — |
+| `/login`, `/register` | AuthLayout | — (guests only) |
+| `/account/*`, `/cart`, `/checkout`, `/orders/*` | CustomerLayout (→ DashboardLayout) | CUSTOMER |
 | `/restaurant/*` | DashboardLayout | RESTAURANT |
 | `/driver/*` | DashboardLayout | DRIVER |
 | `/admin/*` | DashboardLayout | ADMIN |
+
+**One shell for every signed-in role.** `DashboardLayout` is the sidebar shell
+of all four roles, the customer included. Its header holds only the user's name
+and role, the language and theme toggles and sign-out; all navigation is in the
+sidebar (a `MobileDrawer` opened by `MenuButton` below `md`). The customer's
+sidebar is Home, Restaurants, My orders, Cart (with the item count), Profile,
+Addresses and My reviews; `CustomerLayout` now only wraps `DashboardLayout`.
+
+**`SiteLayout`** serves the public routes. It renders `DashboardLayout` for a
+signed-in customer, so browsing restaurants keeps their sidebar, and
+`PublicLayout` for a guest or any other role.
+
+**Active sidebar item.** An item stays highlighted on every page under it: the
+current path is compared by prefix with the item's path, because routes such as
+`/admin/orders/new` are siblings of `/admin/orders`, not children, and
+RouterLink's own active class would miss them. A section root (Dashboard, Home)
+matches only exactly, plus the route names in its `also` list: "Needs
+attention" (`admin-attention`) under the admin Dashboard, `checkout` under Cart.
+
+**Forms on their own page.** Creating or editing a record opens a page rather
+than an inline form or modal: `/restaurant/categories/new` and
+`/restaurant/categories/:id/edit` (`CategoryFormView`),
+`/account/addresses/new` (`AddressCreateView`; opened as
+`?from=checkout` it returns to checkout after saving),
+`/admin/customers/new`, `/admin/admins/new`, `/admin/restaurants/new`
+(`AccountCreateView`), `/admin/drivers/new` (`DriverCreateView`) and
+`/admin/orders/new` (`OrderCreateView`). Each list reaches its form through the
+"Add …" action in its `FilterBar`.
+
+**Admin lists.** `PageTitle` shows the list's total beside its title.
+`FilterSelect` is a styled listbox built to the ARIA pattern, not a native
+`<select>`, because it shows each choice's count in brackets. A row's name or
+order number opens `DetailsDialog` or `OrderDetailsDialog`, a popup with
+everything about the record. `AccountStatusBadge` colours a restaurant's or
+driver's status the same on both lists: active green, pending amber, suspended
+red, rejected grey.
+`RatingStars` shows a rating as lit stars, not "n/5".
 
 A wrong-role visit renders an explicit **403 view** rather than redirecting.
 Silent redirects make "why did that link do nothing?" unanswerable; a 403 page
@@ -224,7 +262,7 @@ does not know about still lands on the right input.
 ## 7. Responsiveness and accessibility
 
 - Tailwind, mobile-first. Breakpoints `sm 640 / md 768 / lg 1024 / xl 1280`. Verified at 360, 768 and 1440 px (NFR-13).
-- Layout patterns: the dashboard sidebar collapses to a bottom nav under `md`; data tables become stacked cards under `md`; the cart is a page on mobile and a sticky side panel from `lg`.
+- Layout patterns: the dashboard sidebar becomes a drawer behind a menu button under `md`; data tables become stacked cards under `md`; the cart is a page on mobile and a sticky side panel from `lg`.
 - Accessibility (NFR-14): semantic landmarks, every input has a `<label>`, visible focus rings retained, modals trap focus and restore it on close, icon-only buttons carry `aria-label`, order status changes announce through an `aria-live="polite"` region, star ratings are a radio group operable by keyboard, and status is never communicated by color alone — `StatusBadge` always pairs a color with text.
 
 ## 8. Testing

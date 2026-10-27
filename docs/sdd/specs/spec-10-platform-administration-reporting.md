@@ -1,6 +1,6 @@
 # Spec 10 — Platform Administration & Reporting
 
-**Status:** Approved · **Owner:** Platform Ops · **Covers:** FR-9.1 – FR-9.6
+**Status:** Approved · **Owner:** Platform Ops · **Covers:** FR-9.1 – FR-9.11
 
 ## Objective
 
@@ -12,11 +12,13 @@ recorded.
 ## Scope
 
 **In scope**
-- User, restaurant and driver management: list, search, approve, reject, suspend, reactivate.
+- User, restaurant and driver management: list, search, approve, reject, suspend, reactivate, soft delete and restore.
 - Driver account creation (the only path — ADR-006).
+- Customer, admin and restaurant-owner account creation, a customer optionally with a first delivery address.
 - Order oversight, the unassigned backlog, and force-cancel.
+- Placing an order on a customer's behalf ("Make an order").
 - Review moderation (hide/restore) with aggregate recomputation.
-- Platform statistics.
+- Platform statistics, today's numbers, 30-day leaderboards and a recent-activity feed.
 - `admin_audit_logs` for every mutation.
 - The admin dashboard and its screens.
 
@@ -38,11 +40,13 @@ access and audited write access.
 | FR-9.2 | Approve, reject, suspend and reactivate restaurants and drivers |
 | FR-9.3 | Suspension revokes refresh tokens immediately and blocks existing access tokens |
 | FR-9.4 | View any order; force-cancel an active one with a mandatory reason |
-| FR-9.5 | Platform statistics: orders by status, GMV, account counts, top restaurants, unassigned backlog, average delivery time |
+| FR-9.5 | Platform statistics: orders by status, GMV, account counts, unassigned backlog, average delivery time; today's numbers (orders, new customers, reviews, delivered, cancelled, in progress) and the 30-day average rating; 30-day top restaurants, drivers, customers and items, the top-rated restaurants; and a feed of the latest order events, sign-ups and reviews |
 | FR-9.6 | Every admin mutation writes an `admin_audit_logs` row |
 | FR-9.7 | Create driver accounts with an initial password the driver is told to change |
 | FR-9.8 | Hide and restore reviews, recomputing aggregates |
 | FR-9.9 | A dedicated view of stuck orders: unassigned past 15 minutes, `PENDING` past the timeout, `OUT_FOR_DELIVERY` past 90 minutes |
+| FR-9.10 | Place an order on an active customer's behalf, from a restaurant and items the admin picks, to one of the customer's saved addresses, paid cash on delivery |
+| FR-9.11 | Create customer, admin and restaurant-owner accounts with a one-time initial password; a customer may be given a first delivery address, a restaurant owner gets their restaurant |
 
 ## Business Rules
 
@@ -55,9 +59,11 @@ access and audited write access.
 | BR-AD5 | Rejecting a restaurant requires a reason, stored in `rejection_reason` and shown to the owner | Otherwise the owner has no path to fixing it |
 | BR-AD6 | Force-cancel requires a reason and obeys the §7.3 table via the normal transition service | Admins get more permitted transitions, not a bypass |
 | BR-AD7 | An admin cannot suspend or delete their own account | Service check → `422`; locking the last admin out is unrecoverable |
-| BR-AD8 | Admins are never given plaintext access to passwords; a created driver gets a generated initial password returned **once** in the creation response | It is shown to the admin to relay, never stored in readable form |
+| BR-AD8 | Admins are never given plaintext access to passwords; a created driver or account gets a generated initial password returned **once** in the creation response | It is shown to the admin to relay, never stored in readable form |
 | BR-AD9 | GMV counts `DELIVERED` orders only | Counting cancelled orders as revenue would make the metric a lie |
 | BR-AD10 | Approving a restaurant requires it to have at least one available food item | Approving an empty restaurant puts a dead listing in front of customers |
+| BR-AD11 | An admin-placed order obeys checkout's rules: the customer is an `ACTIVE` CUSTOMER, the restaurant is orderable, every item is orderable and belongs to that restaurant, the minimum order applies, and the address is the customer's own. It is always `CASH_ON_DELIVERY`, the customer's cart is left untouched, and prices are computed on the server | `orders.adminPlaceOrder` writes through `insertOrder`, the function checkout uses, so BR-O1..O7 hold for both; the first `order_status_events` row has `actor_role = ADMIN` and the admin's id |
+| BR-AD12 | An account created by an admin is `ACTIVE`; a restaurant created with it starts `PENDING_APPROVAL`; a customer's address becomes their default (BR-A7) and is written in the same transaction as the account | Going live stays its own audited decision (BR-AD10), as for drivers |
 
 ## Data Requirements
 
@@ -86,10 +92,10 @@ The full route table is in
 | Group | Routes |
 |-------|--------|
 | Statistics | `GET /api/admin/stats` |
-| Users | `GET /users`, `GET /users/:id`, `POST /users/:id/suspend`, `POST /users/:id/reactivate` |
-| Drivers | `POST /drivers`, `GET /drivers`, `POST /drivers/:id/approve`, `POST /drivers/:id/suspend` |
-| Restaurants | `GET /restaurants`, `POST /restaurants/:id/approve`, `/reject`, `/suspend`, `/reactivate` |
-| Orders | `GET /orders`, `GET /orders/:id`, `GET /orders/unassigned`, `POST /orders/:id/force-cancel` |
+| Users | `GET /users`, `POST /users`, `GET /users/:id`, `GET /users/:id/addresses`, `POST /users/:id/suspend`, `POST /users/:id/reactivate`, `DELETE /users/:id`, `POST /users/:id/restore` |
+| Drivers | `POST /drivers`, `GET /drivers`, `POST /drivers/:id/approve`, `POST /drivers/:id/suspend`, `DELETE /drivers/:id`, `POST /drivers/:id/restore` |
+| Restaurants | `GET /restaurants`, `POST /restaurants/:id/approve`, `/reject`, `/suspend`, `/reactivate`, `DELETE /restaurants/:id`, `POST /restaurants/:id/restore` |
+| Orders | `POST /orders`, `GET /orders`, `GET /orders/:id`, `GET /orders/unassigned`, `GET /orders/stuck`, `POST /orders/:id/force-cancel` |
 | Reviews | `GET /reviews`, `POST /reviews/:id/hide`, `POST /reviews/:id/restore` |
 | Audit | `GET /audit-logs` |
 
@@ -109,15 +115,47 @@ The driver profile starts `PENDING_APPROVAL` even though an admin created it, so
 approval stays an explicit, audited second step rather than a side effect of
 typing a name.
 
+```jsonc
+// POST /api/admin/users — role CUSTOMER | ADMIN | RESTAURANT
+{ "role": "CUSTOMER", "email": "sara@example.com", "fullName": "Sara Ibrahim", "phone": "+966500000000",
+  "address": { "label": "Home", "line1": "King Fahd Rd 12", "city": "Riyadh" } }
+
+// 201 — restaurant is { id, name, status: "PENDING_APPROVAL" } for a RESTAURANT account
+{ "success": true,
+  "data": { "user": { "id": "…", "email": "sara@example.com", "role": "CUSTOMER", "status": "ACTIVE" },
+            "restaurant": null,
+            "initialPassword": "k3Rf-9xQa-Lm2P" } }
+```
+
+`restaurantName` is required for RESTAURANT; `address` (the shape of
+`POST /api/addresses`) is accepted for CUSTOMER only. Audited as `USER_CREATED`.
+
+```jsonc
+// POST /api/admin/orders — no prices, as at checkout (BR-O5)
+{ "customerUserId": "…", "restaurantId": "…", "addressId": "…",
+  "items": [ { "foodItemId": "…", "quantity": 2, "notes": "No onions" } ],
+  "customerNote": "Ring the bell twice" }
+```
+
+Returns 201 with the admin order detail (`GET /orders/:id`). The order and its
+`ORDER_PLACED` audit row commit in one transaction; the `NEW_ORDER`
+notification is sent after commit, as at checkout. `GET /users/:id/addresses`
+lists the customer's saved addresses for the page to choose from.
+
 ## Frontend Requirements
 
-- `admin/DashboardView` — `StatTile` row (today's orders, GMV, active restaurants, active drivers, unassigned backlog), an orders-by-status breakdown, and an alert strip for pending approvals and stuck orders. Anything needing action links straight to it.
-- `admin/UserListView` (the Customers and Admins pages) — table with status filter and search, a detail drawer, and suspend/reactivate with a mandatory reason dialog.
-- `admin/RestaurantsView` — a pending-approval queue first (that is the daily job), each card showing the profile, hours and menu item count with approve/reject inline; plus a full list with status filters.
-- `admin/DriversView` — create-driver form, pending approvals, and an active roster with live availability.
-- `admin/OrdersView` — filters by status, restaurant and date range; a stuck-orders tab; a detail view showing the full `order_status_events` timeline with actor names; force-cancel behind a reason dialog and a typed confirmation.
-- `admin/ReviewsView` — moderation queue with the comment, the order context and hide/restore.
-- `admin/StatisticsView` — the numbers over 7/30/90-day ranges.
+- `admin/DashboardView` — refreshed every 30 seconds while open. A "Needs attention" button with the count of pending restaurants, pending drivers, the unassigned backlog and stuck orders, opening `admin/AttentionView`, where each item links to where it is handled. Then a row of today's tiles (orders, GMV, in progress now, drivers on delivery of active drivers, delivered, cancelled, new customers, reviews); a live activity feed of order events, sign-ups and reviews, where an order number opens `OrderDetailsDialog`; orders by status and a platform card (customers, active restaurants and drivers, 30-day GMV, 30-day average rating, average delivery time); and last the 30-day leaderboards: top restaurants, drivers, customers and items, and the top-rated restaurants.
+- `admin/UserListView` (the Customers and Admins pages, one per role) — `PageTitle` with the total, a `FilterSelect` status filter (All, Active, Suspended, Deleted, each with its count in brackets) and search; the name opens `DetailsDialog`, a popup with everything about the account. Suspend, reactivate, delete and restore, the destructive ones with a mandatory reason dialog. "Add a customer" / "Add an admin" opens `AccountCreateView`.
+- `admin/AccountCreateView` — "Add a customer / an admin / a restaurant" on a page of its own (`/admin/customers/new`, `/admin/admins/new`, `/admin/restaurants/new`): name, email and phone, the restaurant name for a restaurant, and for a customer an optional delivery address (street and city at least) that becomes their default. The initial password is shown once, with the email, after creation.
+- `admin/RestaurantsView` — the restaurants list with a counted status filter, approve/reject/suspend/reactivate, delete and restore, and "Add a restaurant"; the name opens `DetailsDialog`.
+- `admin/DriversView` — the drivers list with counted status filters, approve/suspend, delete and restore; "Add a driver" opens `admin/DriverCreateView`, the create-driver form on its own page.
+- `admin/OrdersView` — `PageTitle` with the total; one `FilterSelect` holding every status and the two dispatch queues (waiting for a driver, stuck), each with its count; search. The order number opens `OrderDetailsDialog`. The row action reads "Cancel"; it calls force-cancel behind a reason dialog. "Make an order" opens `OrderCreateView`.
+- `admin/OrderCreateView` — "Make an order" (`/admin/orders/new`): search and choose an active customer, pick one of their saved addresses (the default preselected; a customer with none cannot be ordered for), search and choose an orderable restaurant, set quantities on its menu (up to 20 each), add a note, and place the order. It is cash on delivery and the totals come from the server; the order number and total are confirmed on the page.
+- `admin/ReviewsView` — the moderation list as a table: rating as `RatingStars`, the comment, the restaurant, hide/restore; a counted status filter and search. A row opens `DetailsDialog`, and the order number opens `OrderDetailsDialog`.
+
+On every admin list, `AccountStatusBadge` colours a restaurant's or driver's
+status the same way: active green, pending amber, suspended red, rejected grey;
+`RatingStars` shows a rating as lit stars rather than "n/5".
 
 Destructive actions (suspend, reject, force-cancel) always use `ConfirmDialog`
 with a required reason and a named consequence — "This will cancel order
@@ -158,7 +196,9 @@ is worse than a slow one.
 |-------|------|
 | `reason` (suspend, reject, hide, force-cancel) | Required, 5–300 chars |
 | Driver creation | Email (unique), `fullName` 2–100, phone, `vehicleType` enum, `vehiclePlate` 2–20 |
-| List filters | `role`, `status`, `availability` from enums; `q` 2–60; `from`/`to` ISO dates with `from ≤ to` |
+| Account creation | `role` ∈ {CUSTOMER, ADMIN, RESTAURANT}; email (unique), `fullName` 2–100, phone; `restaurantName` 2–100, required for RESTAURANT; `address` as `POST /api/addresses`, CUSTOMER only |
+| Placing an order | `customerUserId`, `restaurantId`, `addressId` UUIDs; `items` 1–50, each `foodItemId` UUID, `quantity` 1–20, `notes` ≤200, no item twice; `customerNote` ≤500 |
+| List filters | `role`, `status`, `availability` from enums; `q` 1–60 on every list; `from`/`to` ISO dates with `from ≤ to` |
 | Pagination | `page` ≥1, `limit` 1–100 |
 | `:id` | UUID |
 
@@ -180,8 +220,13 @@ is the point of the role — but:
 | Suspending oneself | `422` |
 | Force-cancelling a `DELIVERED` or already-`CANCELLED` order | `409 INVALID_ORDER_TRANSITION` — terminal states are terminal, even for admins |
 | Missing reason | `422` |
-| Duplicate driver email | `409 EMAIL_ALREADY_REGISTERED` |
+| Duplicate driver or account email | `409 EMAIL_ALREADY_REGISTERED` |
 | Approving an already-`ACTIVE` restaurant | `409` with the current status |
+| Placing an order for a user who is missing or not a CUSTOMER | `404` |
+| Placing an order for a customer who is not `ACTIVE` | `422 UNPROCESSABLE` |
+| Placing an order with an item of another restaurant, or another customer's address | `404` |
+| Placing an order at a restaurant that cannot take one, or with an unavailable item | `422 RESTAURANT_UNAVAILABLE` / `422 ITEM_UNAVAILABLE` |
+| Placing an order below the restaurant's minimum | `422 BELOW_MINIMUM_ORDER` |
 
 ## Testing Requirements
 
@@ -199,6 +244,7 @@ Integration — the `admin.integration` suite. Required:
 - Create a driver → the account exists as `PENDING_APPROVAL`, the returned initial password works for login, and it is not recoverable from any later response.
 - Force-cancel an active order → the order is `CANCELLED` with `cancelled_by = ADMIN`, an event row is written, the driver is released, and the assignment is cancelled.
 - Hide a review → it leaves the public list and the aggregate drops; restore reverses both (BR-V7).
+- Place an order for a customer (`adminPlaceOrder.test.js`) → priced on the server, first event attributed to the admin (`actor_role = ADMIN`), one `ORDER_PLACED` audit row; the customer's cart is untouched; an item of another restaurant, an unavailable item and a short order are refused; another customer's address and a suspended customer are refused; non-admins get 403.
 - **Every mutating admin endpoint writes exactly one audit row** — a table-driven test over the route list, so a new admin endpoint without auditing fails.
 - Non-admin roles get 403 on every `/api/admin/*` route.
 

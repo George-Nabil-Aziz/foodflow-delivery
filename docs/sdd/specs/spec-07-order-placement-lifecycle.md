@@ -14,6 +14,7 @@ converge here.
 **In scope**
 - `orders`, `order_items`, `order_status_events` tables.
 - Checkout: cart → order snapshot, server-computed totals.
+- The order-writing function shared with an admin placing an order for a customer (FR-9.10, spec-10).
 - The state machine and all ten transitions.
 - Customer order history, detail, tracking and cancellation.
 - Restaurant order queue and the accept/reject/prepare/ready actions.
@@ -30,6 +31,10 @@ admin force-cancel UI (spec-10; the transition itself is here), payments
 All four, each with a distinct and non-overlapping set of permitted transitions
 ([master-sdd §7.3](../master-sdd.md#73-order-state-machine)), plus `SYSTEM` for
 the accept timeout.
+
+An order is placed by its customer at checkout, or by an admin on the
+customer's behalf (FR-9.10). Both go through the same rules; only the actor of
+the first event differs.
 
 ## Functional Requirements
 
@@ -50,7 +55,9 @@ the accept timeout.
 ## Business Rules
 
 BR-O1 – BR-O10 from [master-sdd §7.5](../master-sdd.md#75-order--pricing-rules)
-and the full §7.3 transition table are normative.
+and the full §7.3 transition table are normative. BR-O1 – BR-O7 apply equally to
+an order an admin places (`POST /api/admin/orders`, BR-AD11), because it is
+written by the same function as checkout.
 
 | ID | Rule | Enforcement |
 |----|------|-------------|
@@ -93,6 +100,7 @@ The constraints that make G2 and G3 structural rather than aspirational:
 | POST | `/api/restaurant/orders/:id/start-preparing` | 🔓 | R +own | T3 |
 | POST | `/api/restaurant/orders/:id/ready` | 🔓 | R +own | T5 |
 | POST | `/api/restaurant/orders/:id/cancel` | 🔓 | R +own | T4 / T6 |
+| POST | `/api/admin/orders` | 🔓 | A | create → `PENDING` (spec-10, FR-9.10) |
 | POST | `/api/admin/orders/:id/force-cancel` | 🔓 | A | T2/T4/T6/T8/T10 |
 
 Driver transitions T7 and T9 are routed under `/api/driver` and specified in
@@ -138,6 +146,28 @@ notify(restaurant, 'NEW_ORDER')        -- after commit, never inside it
 Notification is deliberately outside the transaction: a failing notification must
 not roll back a paid-for order, and a transaction must not wait on I/O it does
 not control.
+
+From the pricing step to the first event, the steps live in one function,
+`insertOrder` in `orders.service.js`. Checkout calls it with the cart's lines
+and actor `CUSTOMER`. `adminPlaceOrder` calls it for an admin placing an order
+for a customer (spec-10, FR-9.10):
+
+```text
+BEGIN                                            -- the admin module's transaction
+  customer must be an ACTIVE CUSTOMER            → 404 / 422
+  restaurants.assertOrderable(restaurantId)      → 422 RESTAURANT_UNAVAILABLE
+  for each item: menu.assertItemOrderable(id)    → 404 / 422 ITEM_UNAVAILABLE
+    item of another restaurant                   → 404
+  insertOrder(..., paymentMethod CASH_ON_DELIVERY, actor ADMIN)
+    -- totals, BELOW_MINIMUM_ORDER, the customer's address (404 if not theirs),
+    -- snapshots, order number, INSERT order_status_events(null → PENDING, actor ADMIN)
+  audit(ORDER_PLACED)
+COMMIT
+notifyNewOrder(order)                            -- after commit, as at checkout
+```
+
+The customer's cart is not read or changed. The first event's `actor_user_id`
+is the admin's id, so the timeline shows who placed the order.
 
 ### Transition service
 

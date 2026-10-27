@@ -368,6 +368,9 @@ sold well", and it is allowed to go null.
 Append-only audit (FR-6.4). `order_id` `ON DELETE CASCADE`, `from_status`
 (nullable for the creation event), `to_status`, `actor_user_id` (nullable for
 `SYSTEM`), `actor_role`, `reason`, `note`, `created_at`.
+The creation event (`null → PENDING`) names whoever placed the order: the
+customer at checkout (`CUSTOMER`), or the admin who placed it on the
+customer's behalf (`ADMIN`, FR-9.10).
 Index `idx_status_events_order (order_id, created_at)`.
 
 ### `delivery_assignments`

@@ -425,19 +425,22 @@ customer: { displayName: "Sara I." } }` — BR-V8.
 ## 10. Admin — `/api/admin`
 
 Role `ADMIN`. Every mutation writes an `admin_audit_logs` row in the same
-transaction (FR-9.6).
+transaction (FR-9.6). Every list's `q` is a free-text search of 1–60
+characters, so it applies from the first character typed.
 
 | Method | Route | Auth | Purpose |
 |--------|-------|------|---------|
 | GET | `/api/admin/stats` | A | Platform statistics |
 | GET | `/api/admin/users` | A | `?role=&status=&q=&deleted=` (`include` \| `only`), paginated |
+| POST | `/api/admin/users` | A | Create a CUSTOMER, ADMIN or RESTAURANT account (FR-9.11); returns a one-time `initialPassword` (BR-AD8) |
 | GET | `/api/admin/users/:id` | A | User detail + activity summary |
+| GET | `/api/admin/users/:id/addresses` | A | An active customer's saved addresses, for placing an order (FR-9.10) |
 | POST | `/api/admin/users/:id/suspend` | A | `{ reason }`; revokes sessions |
 | POST | `/api/admin/users/:id/reactivate` | A | |
 | DELETE | `/api/admin/users/:id` | A | `{ reason }`; soft delete of a CUSTOMER or ADMIN; revokes sessions |
 | POST | `/api/admin/users/:id/restore` | A | Clears `deleted_at`; status unchanged |
 | POST | `/api/admin/drivers` | A | Create a driver account (BR-A4, ADR-006) |
-| GET | `/api/admin/drivers` | A | `?status=&availability=&deleted=` (`include` \| `only`) |
+| GET | `/api/admin/drivers` | A | `?status=&availability=&q=&deleted=` (`include` \| `only`) |
 | POST | `/api/admin/drivers/:id/approve` | A | `PENDING_APPROVAL → ACTIVE` |
 | POST | `/api/admin/drivers/:id/suspend` | A | `{ reason }` |
 | DELETE | `/api/admin/drivers/:id` | A | `{ reason }`; soft delete; sets OFFLINE; refused during an active delivery |
@@ -449,15 +452,67 @@ transaction (FR-9.6).
 | POST | `/api/admin/restaurants/:id/reactivate` | A | → `ACTIVE` |
 | DELETE | `/api/admin/restaurants/:id` | A | `{ reason }`; soft-deletes the restaurant and its owner; refused with orders in progress |
 | POST | `/api/admin/restaurants/:id/restore` | A | Restores the restaurant and its owner; status unchanged |
-| GET | `/api/admin/orders` | A | `?status=&restaurantId=&from=&to=` |
+| POST | `/api/admin/orders` | A | Place an order for a customer (FR-9.10); 201 with the admin order detail |
+| GET | `/api/admin/orders` | A | `?status=&restaurantId=&from=&to=&q=` |
 | GET | `/api/admin/orders/:id` | A | Full detail incl. the event log |
 | POST | `/api/admin/orders/:id/force-cancel` | A | T2/T4/T6/T8/T10, reason mandatory |
 | GET | `/api/admin/orders/unassigned` | A | The FR-7.4 backlog |
 | GET | `/api/admin/orders/stuck` | A | Orders sitting too long in one status (operational, added during build) |
-| GET | `/api/admin/reviews` | A | `?status=&restaurantId=` |
+| GET | `/api/admin/reviews` | A | `?status=&restaurantId=&q=` |
 | POST | `/api/admin/reviews/:id/hide` | A | `{ reason }`; recomputes aggregates |
 | POST | `/api/admin/reviews/:id/restore` | A | |
 | GET | `/api/admin/audit-logs` | A | `?entityType=&entityId=&adminId=` |
+
+### `POST /api/admin/users`
+
+```jsonc
+// request; restaurantName is required for RESTAURANT, address is for CUSTOMER only
+{ "role": "CUSTOMER", "email": "sara@example.com", "fullName": "Sara Ibrahim", "phone": "+966500000000",
+  "address": { "label": "Home", "line1": "King Fahd Rd 12", "city": "Riyadh", "district": "Al Olaya" } }
+```
+
+```jsonc
+// 201
+{ "success": true,
+  "data": {
+    "user": { "id": "…", "email": "sara@example.com", "fullName": "Sara Ibrahim",
+              "phone": "+966500000000", "role": "CUSTOMER", "status": "ACTIVE" },
+    "restaurant": null,
+    "initialPassword": "k3Rf-9xQa-Lm2P"
+  } }
+```
+
+`address` has the shape of `POST /api/addresses`. It becomes the customer's
+default and is written in the same transaction as the account. A RESTAURANT
+account also creates its restaurant, which starts `PENDING_APPROVAL` and is
+returned as `{ id, name, status }`. Audited as `USER_CREATED`. Drivers are
+created through `POST /api/admin/drivers`, because they also need a vehicle.
+
+**Errors:** 409 `EMAIL_ALREADY_REGISTERED` · 422 `VALIDATION_ERROR`
+(`restaurantName` missing for RESTAURANT, `address` on a non-customer).
+
+### `POST /api/admin/orders`
+
+```jsonc
+// request — as at checkout, no prices (BR-O5)
+{ "customerUserId": "…", "restaurantId": "…", "addressId": "…",
+  "items": [ { "foodItemId": "…", "quantity": 2, "notes": "No onions" } ],
+  "customerNote": "Ring the bell twice" }
+```
+
+`items` holds 1–50 lines, quantity 1–20 each, with no item listed twice. The
+response is 201 with the same payload as `GET /api/admin/orders/:id`. The
+order is always `CASH_ON_DELIVERY` and the customer's cart is not touched. It
+is written by the same function as checkout (`insertOrder`), so totals,
+snapshots, the delivery fee and the order number follow BR-O1..O7. The first
+`order_status_events` row has `actor_role = ADMIN` and the admin's id. The
+`ORDER_PLACED` audit row commits with the order; the `NEW_ORDER` notification
+goes out after commit.
+
+**Errors:** 404 (customer missing or not a CUSTOMER; item missing or of another
+restaurant; address not the customer's) · 422 `UNPROCESSABLE` (customer not
+`ACTIVE`) · 422 `RESTAURANT_UNAVAILABLE` · 422 `ITEM_UNAVAILABLE` · 422
+`BELOW_MINIMUM_ORDER` · 422 `VALIDATION_ERROR`.
 
 ### `GET /api/admin/stats`
 
@@ -468,15 +523,29 @@ transaction (FR-9.6).
                 "READY_FOR_PICKUP": 4, "OUT_FOR_DELIVERY": 9, "DELIVERED": 92, "CANCELLED": 6 } },
     "gmv": { "today": "18420.50", "last30Days": "512300.75" },
     "accounts": { "customers": 2140, "activeRestaurants": 37, "pendingRestaurants": 4,
-                  "activeDrivers": 22, "driversOnDelivery": 9 },
+                  "activeDrivers": 22, "driversOnDelivery": 9, "pendingDrivers": 1 },
+    "today": { "newCustomers": 12, "reviews": 9, "delivered": 92, "cancelled": 6, "inProgress": 44 },
+    "averageRating30d": 4.31,
     "topRestaurants": [ { "id": "…", "name": "Olive Grill", "orders": 31, "gmv": "3980.00" } ],
+    "topDrivers": [ { "id": "…", "name": "Omar K.", "deliveries": 58, "ratingAverage": "4.80", "ratingCount": 41 } ],
+    "topCustomers": [ { "id": "…", "name": "Sara I.", "orders": 9, "spent": "1240.50" } ],
+    "topRated": [ { "id": "…", "name": "Olive Grill", "ratingAverage": "4.90", "ratingCount": 120 } ],
+    "topItems": [ { "name": "Mixed Grill", "restaurant": "Olive Grill", "quantity": 74 } ],
+    "activity": [ { "kind": "ORDER", "at": "2026-09-22T18:04:11.201Z", "refId": "…",
+                    "ref": "FF-20260922-4K9P2M", "detail": "CONFIRMED", "subject": "Olive Grill", "rating": null } ],
     "unassignedBacklog": 2,
     "averageDeliveryMinutes": 38
   } }
 ```
 
 GMV counts `DELIVERED` orders only — counting cancelled orders as revenue would
-make the number a lie.
+make the number a lie. The leaderboards `topRestaurants`, `topDrivers`,
+`topCustomers` and `topItems` cover `DELIVERED` orders of the last 30 days,
+five rows each. `topRated` lists active restaurants with at least three
+reviews. `activity` is the 20 most recent order status events, sign-ups and
+reviews together (`kind` = `ORDER` \| `SIGNUP` \| `REVIEW`), newest first.
+`averageRating30d` is the mean restaurant rating of the last 30 days, `null`
+when there are no reviews.
 
 ---
 

@@ -97,10 +97,11 @@ Full payloads in [api-design §2–3](../architecture/api-design.md#2-authentica
 ## Frontend Requirements
 
 - `auth` Pinia store: `user`, `accessToken`, `refreshToken`, `role`, `restaurant`/`driverProfile`, `isAuthenticated`; persists to `localStorage`; restores on boot; clears on logout or failed refresh.
-- Views: `LoginView`, `RegisterView` (role selector: "I want to order" / "I run a restaurant"), `ProfileView`, `AddressesView`, `ForbiddenView`.
+- Views: `LoginView`, `RegisterView` (role selector: "I want to order" / "I run a restaurant"), `ProfileView`, `AddressesView`, `AddressCreateView`, `ForbiddenView`.
 - Router guards `requiresAuth` / `requiresRole` / `requiresGuest`, and `homeFor(role)` post-login redirect honouring `?redirect=`.
 - **Single-flight refresh** in the Axios interceptor — mandatory, because single-use refresh tokens plus concurrent 401s would otherwise trip reuse detection and log the user out ([frontend-architecture §3](../architecture/frontend-architecture.md#3-http-layer)).
-- Address form with a "set as default" control; the list shows exactly one default badge.
+- The address form is a page of its own, `AddressCreateView` at `/account/addresses/new`, reached from "Add an address" on `AddressesView`. Opened from checkout (`?from=checkout`), saving returns to checkout so the order can go on; otherwise it returns to the address list. A customer's first address becomes their default automatically.
+- `AddressesView` lists the addresses with exactly one default badge and a "Make default" action on the others.
 
 ## Backend Requirements
 

@@ -43,21 +43,23 @@ financial reporting and payouts (non-goals); tiered admin permissions
 
 ## Functional Requirements
 
-Implements spec-10: FR-9.1 – FR-9.9.
+Implements spec-10: FR-9.1 – FR-9.11.
 
 1. List, filter and search users, restaurants and drivers.
 2. Approve, reject, suspend and reactivate restaurants and drivers.
 3. Suspension revokes refresh tokens immediately and blocks existing access tokens.
 4. View any order; force-cancel an active one with a mandatory reason.
-5. Platform statistics: orders by status, GMV, account counts, top restaurants, unassigned backlog, average delivery time.
+5. Platform statistics: orders by status, GMV, account counts, unassigned backlog, average delivery time; today's numbers and the 30-day average rating; 30-day leaderboards (restaurants, drivers, customers, items, top rated) and a recent-activity feed.
 6. Every mutation writes an `admin_audit_logs` row in the same transaction.
 7. Create driver accounts with a one-time initial password.
 8. Hide and restore reviews, recomputing aggregates.
 9. A stuck-order view: unassigned past 15 minutes, `PENDING` past the timeout, `OUT_FOR_DELIVERY` past 90 minutes.
+10. Place an order on an active customer's behalf, to one of their saved addresses, paid cash on delivery.
+11. Create customer, admin and restaurant-owner accounts with a one-time initial password; a customer may start with a default delivery address.
 
 ## Business Rules
 
-BR-AD1 – BR-AD10 from [spec-10](../specs/spec-10-platform-administration-reporting.md#business-rules).
+BR-AD1 – BR-AD12 from [spec-10](../specs/spec-10-platform-administration-reporting.md#business-rules).
 
 The ones that shape behaviour most: an admin cannot suspend their own account
 (BR-AD7 — locking the last admin out is unrecoverable); a driver holding an
@@ -135,17 +137,51 @@ Given I am an admin performing a destructive action
 When I open the confirmation dialog
 Then it names the specific consequence and requires a reason before the confirm
   button is enabled
+
+Given an active customer with a saved address and an item in their cart
+When I place an order for them at an orderable restaurant with two dishes
+Then I receive 201 with the order, PENDING and CASH_ON_DELIVERY, its totals
+  computed by the server, its first status event attributed to me with actor
+  role ADMIN, one ORDER_PLACED audit row, and their cart left as it was
+
+Given I place an order for a customer with an item of another restaurant
+Then I receive 404 and no order is written
+
+Given I place an order whose subtotal is below the restaurant's minimum
+Then I receive 422 BELOW_MINIMUM_ORDER
+
+Given I place an order for a customer with another customer's address
+Then I receive 404
+
+Given a customer is suspended
+When I try to place an order for them
+Then I receive 422 — only an active customer can have an order placed for them
+
+Given I am an admin
+When I create a CUSTOMER account with a delivery address
+Then I receive 201 with the account, ACTIVE, and an initial password shown only
+  this once, the address is saved as their default in the same transaction,
+  and one USER_CREATED audit row is written
+
+Given I create an ADMIN or RESTAURANT account with an address
+Then I receive 422 — an address is for a customer only
+
+Given I create a RESTAURANT account
+Then its restaurant is created PENDING_APPROVAL, and going live stays a separate
+  approval
 ```
 
 ## API Impact
 
 New (completing the group in
 [api-design §10](../architecture/api-design.md#10-admin--apiadmin)):
-`GET /api/admin/stats`; `GET /api/admin/users`, `GET /api/admin/users/:id`,
+`GET /api/admin/stats`; `GET /api/admin/users`, `POST /api/admin/users`,
+`GET /api/admin/users/:id`, `GET /api/admin/users/:id/addresses`,
 `POST /api/admin/users/:id/{suspend,reactivate}`;
 `POST /api/admin/restaurants/:id/{suspend,reactivate}`;
-`GET /api/admin/orders`, `GET /api/admin/orders/:id`,
-`GET /api/admin/orders/unassigned`,
+`DELETE` and `POST …/restore` for users, drivers and restaurants;
+`POST /api/admin/orders`, `GET /api/admin/orders`, `GET /api/admin/orders/:id`,
+`GET /api/admin/orders/{unassigned,stuck}`,
 `POST /api/admin/orders/:id/force-cancel`;
 `GET /api/admin/reviews`, `POST /api/admin/reviews/:id/{hide,restore}`;
 `GET /api/admin/audit-logs`.
@@ -158,11 +194,14 @@ code) and `notifications`. Adds `idx_orders_delivered_at … WHERE status =
 
 ## Frontend Impact
 
-`admin/DashboardView` with a `StatTile` row, an orders-by-status breakdown and
-an alert strip for pending approvals and stuck orders; `UsersView`,
-`RestaurantsView`, `DriversView`, `OrdersView`, `ReviewsView`,
-`StatisticsView`; `UserTable`, `OrderTable`, `ReviewModerationRow`,
-`RestaurantApprovalCard`.
+`admin/DashboardView` with today's tiles, a live activity feed, orders by
+status, the platform numbers and the 30-day leaderboards, and a "Needs
+attention" link to `AttentionView`; `UserListView` (Customers, Admins),
+`RestaurantsView`, `DriversView`, `OrdersView`, `ReviewsView`; the create pages
+`AccountCreateView`, `DriverCreateView` and `OrderCreateView`; the shared
+`FilterSelect`, `PageTitle`, `AccountStatusBadge`, `RatingStars`,
+`DetailsDialog` and `OrderDetailsDialog`. Details in
+[spec-10](../specs/spec-10-platform-administration-reporting.md#frontend-requirements).
 
 Every destructive action uses `ConfirmDialog` with a required reason and a named
 consequence — "This will cancel order FF-20260922-4K9P2M and release the
@@ -180,8 +219,10 @@ status-changing code path and G3 would stop being true.
 ## Validation
 
 `reason` required and 5–300 characters for suspend, reject, hide and
-force-cancel; list filters from enums; `q` 2–60; `from`/`to` ISO dates with
-`from ≤ to`; pagination; UUID path params.
+force-cancel; list filters from enums; `q` 1–60; `from`/`to` ISO dates with
+`from ≤ to`; pagination; UUID path params. Placing an order: 1–50 items,
+quantity 1–20, no item twice. Creating an account: `restaurantName` for a
+RESTAURANT, `address` for a CUSTOMER only.
 
 ## Error Cases
 
@@ -192,7 +233,10 @@ force-cancel; list filters from enums; `q` 2–60; `from`/`to` ISO dates with
 | Force-cancelling a terminal order | `409 INVALID_ORDER_TRANSITION` |
 | Missing reason | `422` |
 | Approving an already-`ACTIVE` restaurant | `409` with the current status |
-| Duplicate driver email | `409 EMAIL_ALREADY_REGISTERED` |
+| Duplicate driver or account email | `409 EMAIL_ALREADY_REGISTERED` |
+| Placing an order for a suspended customer | `422` |
+| Placing an order with another restaurant's item or another customer's address | `404` |
+| Placing an order below the minimum | `422 BELOW_MINIMUM_ORDER` |
 | Non-admin on any admin route | `403 FORBIDDEN_ROLE` |
 
 ## Security Considerations

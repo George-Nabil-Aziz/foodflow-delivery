@@ -199,8 +199,12 @@ Requirement IDs (`FR-x.y`) are referenced by specs, stories and test names.
 - **FR-9.2** Admins approve, reject, suspend and reactivate restaurants and drivers.
 - **FR-9.3** Suspending an account immediately revokes its refresh tokens and blocks its access tokens.
 - **FR-9.4** Admins view any order and force-cancel a stuck active order with a mandatory reason.
-- **FR-9.5** Admins see platform statistics: order counts by status, GMV, active restaurants/drivers, top restaurants, unassigned-order backlog.
+- **FR-9.5** Admins see platform statistics: order counts by status, GMV, active restaurants/drivers, unassigned-order backlog, average delivery time; today's numbers and the 30-day average rating; 30-day top restaurants, drivers, customers and items, the top-rated restaurants; and a recent-activity feed.
 - **FR-9.6** Every admin mutation is written to `admin_audit_logs`.
+- **FR-9.10** Admins place an order on an active customer's behalf, to one of the customer's saved addresses, paid cash on delivery, under the same rules as checkout.
+- **FR-9.11** Admins create customer, admin and restaurant-owner accounts with a one-time initial password; a customer may start with a default delivery address.
+
+FR-9.7 – FR-9.9 (driver creation, review moderation, stuck orders) are detailed in spec-10.
 
 ### FR-10 Platform Foundation — [spec-01](specs/spec-01-platform-foundation-api-contract.md)
 - **FR-10.1** All API responses use one envelope ([§14](#14-error-handling)).
@@ -435,7 +439,8 @@ Summary; detail in [architecture/frontend-architecture.md](architecture/frontend
 - **Vue 3** `<script setup>` SFCs, **Vite**, **Vue Router 4**, **Pinia**, **Axios**, **Tailwind CSS**.
 - Structure: `src/{router,layouts,views,components,composables,stores,services,utils,i18n}`, with `views/` and `components/` split by role (`customer/`, `restaurant/`, `driver/`, `admin/`, `shared/`).
 - **Global Pinia stores only where state is genuinely shared:** `auth` (session, user, role), `cart` (badge count + contents), `ui` (toasts, global loading). Everything else — restaurant lists, order lists, menus — is **local view state loaded through composables** (`useRestaurants`, `useOrders`, `useOrderPolling`). Server data is not hoarded in global state.
-- Route guards: `requiresAuth`, `requiresRole`, `requiresGuest`. Each role has its own layout and route subtree; a wrong-role visit renders a 403 view rather than a blank redirect loop.
+- Route guards: `requiresAuth`, `requiresRole`, `requiresGuest`. Each role has its own route subtree; a wrong-role visit renders a 403 view rather than a blank redirect loop.
+- Layouts: every signed-in role, the customer included, uses `DashboardLayout`, a sidebar shell whose header holds only the name, role, language, theme and sign-out. The public pages use `SiteLayout`, which renders `DashboardLayout` for a signed-in customer and `PublicLayout` for everyone else. Create and edit forms are pages of their own.
 - A single Axios instance attaches the access token, refreshes once on 401 with a request queue, and maps envelope errors to typed client errors.
 
 ---

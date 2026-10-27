@@ -104,7 +104,8 @@ number (BR-F3).
 
 ## Frontend Requirements
 
-- `restaurant/CategoriesView` — list with drag-to-reorder (persisting via the bulk order endpoint), inline create/edit, an active switch, and a delete that explains the non-empty rule before the API has to.
+- `restaurant/CategoriesView` — the list in display order, an active switch on every row, an Edit link per row, and a delete that explains the non-empty rule before the API has to. It no longer edits inline: "New category" and Edit open `restaurant/CategoryFormView`.
+- `restaurant/CategoryFormView` — "New category" (`/restaurant/categories/new`) and "Edit category" (`/restaurant/categories/:id/edit`) on a page of their own: name, description and display order (a new category defaults to the end of the menu). Saving returns to the Categories page. There is no single-category endpoint, so an edit finds its category in the list.
 - `restaurant/MenuItemsView` — table grouped by category, filters by category and availability, search by name, and a **prominent availability switch on every row**: "we ran out of this" is the single most frequent menu action, and it must never require opening a form.
 - `MenuItemForm` — modal with image URL and preview; price input constrained to 2 decimals; category select limited to the owner's own categories.
 - Optimistic availability toggle with rollback and a toast on failure.
