@@ -8,6 +8,7 @@ import {
 } from '../helpers/factories.js';
 import { transition } from '../../src/modules/orders/index.js';
 import { dispatchJob } from '../../src/jobs/dispatch.job.js';
+import { offerExpiryJob } from '../../src/jobs/offerExpiry.job.js';
 import { publishAfterCommit, subscribe } from '../../src/shared/events/index.js';
 import { stop as stopStreams, heartbeat, connectionCount, MAX_CONNECTIONS_PER_USER } from '../../src/modules/events/events.hub.js';
 
@@ -209,6 +210,70 @@ describe('event delivery and scoping', () => {
     expect(eventsOf(cust, 'order.updated')).toEqual([
       expect.objectContaining({ orderId: order.id }),
     ]);
+  });
+
+  it('tells only the offered driver when their offer expires', async () => {
+    const customer = await makeUser();
+    const address = await makeAddress(customer);
+    const r = await makeStockedRestaurant();
+    const order = await makeOrder({ customer, restaurant: r.restaurant, address, status: 'CONFIRMED', dispatchState: 'UNASSIGNED' });
+    const near = await makeDriver();
+    const far = await makeDriver({ latitude: 24.9, longitude: 46.9 });
+    await dispatchJob();
+    await knex('delivery_assignments').where({ order_id: order.id }).update({ expires_at: new Date(Date.now() - 1000) });
+
+    const nearStream = await openStream(near.user);
+    const farStream = await openStream(far.user);
+    const cust = await openStream(customer);
+    const kitchen = await openStream(r.owner);
+    await offerExpiryJob();
+    await tick();
+
+    expect(eventsOf(nearStream, 'offer.expired')).toEqual([
+      expect.objectContaining({ orderId: order.id }),
+    ]);
+    expect(eventsOf(farStream, 'offer.expired')).toHaveLength(0);
+    expect(eventsOf(cust, 'offer.expired')).toHaveLength(0);
+    expect(eventsOf(kitchen, 'offer.expired')).toHaveLength(0);
+  });
+
+  it('withdraws an open offer from its driver when the order is cancelled', async () => {
+    const customer = await makeUser();
+    const address = await makeAddress(customer);
+    const r = await makeStockedRestaurant();
+    const order = await makeOrder({ customer, restaurant: r.restaurant, address, status: 'CONFIRMED', dispatchState: 'UNASSIGNED' });
+    const near = await makeDriver();
+    const far = await makeDriver({ latitude: 24.9, longitude: 46.9 });
+    await dispatchJob();
+
+    const nearStream = await openStream(near.user);
+    const farStream = await openStream(far.user);
+    const res = await request(app).post(`/api/orders/${order.id}/cancel`).set(authHeader(customer)).send({});
+    expect(res.status).toBe(200);
+    await tick();
+
+    expect(eventsOf(nearStream, 'offer.withdrawn')).toEqual([
+      expect.objectContaining({ orderId: order.id }),
+    ]);
+    expect(eventsOf(farStream, 'offer.withdrawn')).toHaveLength(0);
+  });
+
+  it('connects a restaurant owner whose restaurant is soft-deleted but sends them no restaurant events', async () => {
+    const owner = await makeUser({ role: 'RESTAURANT' });
+    const { restaurant } = await makeStockedRestaurant({ owner });
+    const customer = await makeUser();
+    const address = await makeAddress(customer);
+    const order = await makeOrder({ customer, restaurant, address, status: 'PENDING' });
+    await knex('restaurants').where({ id: restaurant.id }).update({ deleted_at: knex.fn.now() });
+
+    const kitchen = await openStream(owner);
+    expect(kitchen.status).toBe(200);
+    const mine = await openStream(customer);
+    await transition(order.id, 'CONFIRMED', { id: owner.id, role: 'RESTAURANT' }, { scope: { restaurantId: restaurant.id } });
+    await tick();
+
+    expect(eventsOf(mine, 'order.status')).toHaveLength(1);
+    expect(eventsOf(kitchen, 'order.status')).toHaveLength(0);
   });
 });
 

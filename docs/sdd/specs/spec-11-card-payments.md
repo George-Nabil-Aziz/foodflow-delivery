@@ -82,7 +82,7 @@ and an admin sees and retries it.
 | FR-11.6 | A card order whose payment is not completed within `PAYMENT_TIMEOUT_MINUTES` is cancelled by SYSTEM with reason `PAYMENT_TIMEOUT` |
 | FR-11.7 | When a `PAID` card order becomes `CANCELLED` by any actor, the full amount is refunded after the cancellation commits and the outcome is recorded on the payment |
 | FR-11.8 | A failed refund is recorded (`REFUND_FAILED`, with the gateway's message), shown in the admin order detail and listed in "stuck" orders with reason `REFUND_FAILED` |
-| FR-11.9 | An admin can retry a failed refund with `POST /api/admin/payments/:id/refund`; the attempt is audited whatever its outcome |
+| FR-11.9 | An admin can retry a failed refund with `POST /api/admin/payments/:id/refund`; the retry claims only from `REFUND_FAILED`, and the attempt is audited (action `PAYMENT_REFUND_RETRIED`) whatever its outcome |
 | FR-11.10 | The customer order page and the admin order dialog show a clear payment state: awaiting payment, paid, failed, refund in progress, refunded, refund failed |
 
 ## Business Rules
@@ -109,6 +109,7 @@ Migration `010_payments.js`. Full detail in [database-design §4](../architectur
 - `payment_method` gains `CARD`; `cancellation_reason` gains `PAYMENT_TIMEOUT`.
 - New enum `payment_status`: `INITIATED`, `PAID`, `FAILED`, `REFUNDING`, `REFUNDED`, `REFUND_FAILED`.
 - New table `payments` — one row per card order (`uq_payments_order`): `order_id`, `customer_user_id`, `provider`, `provider_payment_id`, `amount numeric(10,2)`, `currency`, `status`, `refunded_amount`, `failure_message`, `refund_error`, `refund_attempts`, `refund_started_at`, `paid_at`, `refunded_at`, `metadata jsonb`, timestamps.
+- Constraints: `chk_payments_provider` (`provider` is `moyasar` or `fake`), `chk_payments_amount` (`amount > 0`) and `chk_payments_refund` (`refunded_amount` between 0 and `amount`).
 - `orders` gains **no** column. Payment state is read from `payments`.
 
 Payment status machine:
@@ -149,11 +150,11 @@ Order DTOs gain `payment` (customer: status, amount, currency, refunded amount, 
 
 Module `modules/payments/` — `payments.service.js`, `payments.repository.js`, `payments.mapper.js`, `payments.routes.js`, `providers/`. Public interface via `index.js` only.
 
-**Provider interface** (`providers/index.js`): `name`, `publishableKey`, `fetchPayment(id)`, `refund(id, amount)`, `verifyWebhook(body)`, `webhookPaymentId(body)`. Amounts are decimal strings; adapters convert to their gateway's minor unit. `fetchPayment` returns `{ id, status: paid|failed|pending|refunded, amount, currency, reference, message }` or `null`. Adapters: `moyasar` (Basic auth with `MOYASAR_SECRET_KEY`, 10 s timeout, `ProviderError` on any transport or non-2xx failure) and `fake` (in-memory, deterministic; `fakeControls` seeds payments and scripts refund failures; used in tests and whenever keys are missing). In `NODE_ENV=test` the fake adapter is always selected, whatever keys are in the environment, so the suite never touches the network.
+**Provider interface** (`providers/index.js`): `name`, `publishableKey`, `fetchPayment(id)`, `refund(id, amount)`, `verifyWebhook(body)`, `webhookPaymentId(body)`. Amounts are decimal strings; adapters convert to their gateway's minor unit. `fetchPayment` returns `{ id, status: paid|failed|pending|refunded, amount, currency, reference, refundedAmount, message }` or `null`. Adapters: `moyasar` (Basic auth with `MOYASAR_SECRET_KEY`, 10 s timeout, `ProviderError` on any transport or non-2xx failure) and `fake` (in-memory, deterministic; `fakeControls` seeds payments and scripts refund failures; used in tests and whenever keys are missing). In `NODE_ENV=test` the fake adapter is always selected, whatever keys are in the environment, so the suite never touches the network.
 
 **Orders module** — `checkout` creates the payment in its transaction and skips `notifyNewOrder` for `CARD`; `transition` and the admin force-cancel share one transaction body (`transitionInTransaction`), so the force-cancel is no longer a second status-changing path, and both call `settleCancelled(order)` after commit.
 
-**Jobs** — `paymentTimeoutJob` (FR-11.6) and `refundSweepJob` (PAID payments of CANCELLED orders and abandoned `REFUNDING` attempts), registered next to `orderTimeoutJob`; `orderTimeoutJob` is adjusted per BR-P8.
+**Jobs** — `paymentTimeoutJob` (FR-11.6) cancels, as SYSTEM with reason `PAYMENT_TIMEOUT`, card orders still `PENDING` whose payment is `INITIATED` or `FAILED` and was created more than `PAYMENT_TIMEOUT_MINUTES` (default 15) ago; `refundSweepJob` picks up `PAID` payments of `CANCELLED` orders and `REFUNDING` payments abandoned for more than 5 minutes (it never retries `REFUND_FAILED`, BR-P6). Both are registered next to `orderTimeoutJob`; `orderTimeoutJob` is adjusted per BR-P8.
 
 **Configuration** — `PAYMENT_PROVIDER` (`moyasar`|`fake`, default by keys), `MOYASAR_SECRET_KEY`, `MOYASAR_PUBLISHABLE_KEY`, `MOYASAR_WEBHOOK_SECRET`, `MOYASAR_API_URL`, `PAYMENT_CURRENCY` (default `EGP`), `PAYMENT_TIMEOUT_MINUTES` (default 15).
 
@@ -188,7 +189,8 @@ Module `modules/payments/` — `payments.service.js`, `payments.repository.js`, 
 | Refund call fails | Cancellation stands; payment `REFUND_FAILED` with the message; admin retry available |
 | Admin retry of a payment that is not `REFUND_FAILED` | `409 PAYMENT_NOT_REFUNDABLE`, no audit row |
 | Admin retry fails again | `200` with `outcome: REFUND_FAILED`, audited, still retryable |
-| Webhook with a wrong secret | `401`; with no secret configured, `404` |
+| Webhook with a wrong secret | `401 TOKEN_INVALID`; with no secret configured, `404` |
+| Gateway unreachable during the webhook's re-fetch of the payment | `503 PAYMENT_PROVIDER_UNAVAILABLE` |
 
 ## Testing Requirements
 

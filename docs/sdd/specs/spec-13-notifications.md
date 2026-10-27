@@ -65,10 +65,10 @@ user-editable notification preferences, unsubscribe links, an in-app inbox UI.
 | Template | Trigger | Recipient | Channels |
 |----------|---------|-----------|----------|
 | `ORDER_PLACED` | Checkout, or admin places an order; for a card order, when the payment becomes `PAID` | Customer of the order | Email |
-| `NEW_ORDER` | Same moment | Restaurant owner of the order | SMS + Email |
+| `NEW_ORDER` | Same moment as `ORDER_PLACED`: checkout or admin placement; for a card order, sent from the `payments.onPaid` listener once the payment is `PAID` (never at checkout) | Restaurant owner of the order | SMS + Email |
 | `NEW_OFFER` | Dispatch creates a delivery offer | The offered driver | In-app only (row, status `SENT`) |
 | `ORDER_OUT_FOR_DELIVERY` | Driver picks up (T7) | Customer of the order | SMS |
-| `ORDER_CANCELLED` | Any cancellation: customer, restaurant, system timeout, admin force-cancel | Customer of the order | Email |
+| `ORDER_CANCELLED` | Any cancellation: customer, restaurant, system timeout, admin force-cancel | Customer of the order | Email; the body states a reason only for `ACCEPT_TIMEOUT` and `CUSTOMER_CHANGED_MIND`, any other reason (including a free-text admin reason) is left out |
 | `DRIVER_CREATED` | Admin creates a driver | The new driver | Email (welcome, no password) |
 | `ACCOUNT_CREATED` | Admin creates a customer, restaurant owner or admin | The new user | Email (welcome, no password) |
 
@@ -160,10 +160,10 @@ Blank values count as unset. Secrets are read only through the config module.
 | Failure | Behaviour |
 |---------|-----------|
 | Transport throws or times out | Row `FAILED`, `last_error` set, `next_attempt_at` backed off; the order or account operation is unaffected |
-| Recipient not found / inactive | Row recorded `SKIPPED` ("no recipient") |
-| No email or unusable phone | That channel `SKIPPED` ("no address") |
+| Recipient not found / inactive | Each external-channel row recorded `SKIPPED` (`last_error` "no recipient"); an in-app row is still stored as `SENT`, since it needs no address |
+| No email or unusable phone | That channel `SKIPPED` (`last_error` "recipient has no address for this channel") |
 | Duplicate trigger | Second insert ignored, nothing sent |
-| Hourly cap reached | Row `SKIPPED` ("rate limit") |
+| Hourly cap reached | Row `SKIPPED` (`last_error` "recipient rate limit reached") |
 | Database error while recording | Logged at `warn`; `notify` returns without throwing |
 | Attempts exhausted | Row stays `FAILED`; no further sends |
 

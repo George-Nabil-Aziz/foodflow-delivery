@@ -57,7 +57,7 @@ change to the REST contracts.
 | BR-L4 | Authorization for the data stays in the REST endpoints: an event never widens what a client can read | Clients refetch through existing endpoints |
 | BR-L5 | The access token never appears in a URL | Ticket exchange (below) |
 | BR-L6 | A ticket is single-use, expires in 30 s, and is stored only as a SHA-256 hash | `events.tickets.js` |
-| BR-L7 | Producers publish from the central paths (`insertOrder`, `transition`, `adminForceCancel`, dispatch, accept, decline, expiry, `closeAssignmentsForOrder`), never from controllers | Code structure; controllers have no event code |
+| BR-L7 | Producers publish from the central paths (`insertOrder`, `transitionInTransaction` (shared by `transition` and `adminForceCancel`), dispatch, accept, decline, expiry, `closeAssignmentsForOrder`), never from controllers | Code structure; controllers have no event code |
 | BR-L8 | A failing subscriber or a dropped client never affects the operation that produced the event | `deliverLocal` catches; publishing is fire-and-forget |
 | BR-L9 | The stream is optional: every screen works with it blocked | Polling fallback (FR-14.10) |
 
@@ -95,8 +95,9 @@ between the two calls is refused.
 { "success": true, "data": { "ticket": "o3X…(43 chars)", "expiresInSeconds": 30 } }
 ```
 
-Errors before the stream starts are the normal envelope: `401 TOKEN_MISSING` /
-`TOKEN_INVALID` (missing, forged, used or expired ticket — deliberately
+Errors before the stream starts are the normal envelope: `401 TOKEN_MISSING` on
+`POST /api/events/ticket` without a Bearer token (the general `authenticate` middleware), and `401 TOKEN_INVALID`
+on the stream (missing, forged, used, expired, or malformed ticket — a ticket string shorter than 20 or longer than 100 characters is treated as unknown — deliberately
 indistinguishable), `403 ACCOUNT_SUSPENDED`, `403 FORBIDDEN_ROLE`.
 
 ### Stream format
@@ -150,8 +151,7 @@ plus `shared/events/` (`eventBus.js`, `eventTypes.js`).
 ```text
 orders.insertOrder        → order.created     (checkout and admin placement; not for a card order)
 payments.onPaid listener  → order.created     (a card order, once its payment is PAID)
-orders.transition         → order.status      (the only status-changing path)
-orders.adminForceCancel   → order.status      (the one other writer of orders.status)
+orders.transitionInTransaction → order.status (the only status-changing path; `transition` and `adminForceCancel` both run through it, so force-cancel is not a separate publisher)
 delivery.dispatchOrder    → offer.created
 delivery.acceptOffer      → offer.taken + order.updated
 delivery.declineOffer     → offer.withdrawn
@@ -203,7 +203,8 @@ correct (each process re-checks its own connections; the cap becomes per process
 
 | Situation | Behaviour |
 |-----------|-----------|
-| Missing / forged / used / expired ticket | `401 TOKEN_INVALID`, JSON envelope |
+| Missing / forged / used / expired ticket, or a ticket string shorter than 20 or longer than 100 characters | `401 TOKEN_INVALID`, JSON envelope |
+| `POST /api/events/ticket` without a Bearer token | `401 TOKEN_MISSING` |
 | Suspended user at connect | `403 ACCOUNT_SUSPENDED` |
 | Suspended or deleted while connected | Stream ended at the next heartbeat (≤ 25 s); client's reconnect then gets 403, the HTTP layer signs the user out |
 | Subscriber throws | Logged at `warn`, other subscribers and the producer unaffected |
