@@ -52,6 +52,7 @@ section.**
 | **5 — Fulfilment** | story-08 | The full journey reaches `DELIVERED`; the no-driver case is proven non-destructive |
 | **6 — Trust & operations** | story-09, story-10 | Reviews with live aggregates; the complete admin surface; all E2E scenarios and NFR gates green |
 | **7 — After v1** | story-11, story-12, story-13, story-14 | Card payments with automatic refunds, discount codes, real email and SMS, live updates over SSE; each is independent of the others and builds on the finished v1 |
+| **8 — Ordering and discovery** | story-15, story-16, story-17, story-18 | Item options priced and snapshotted, favourites, owner analytics, delivery zones enforced at checkout; built in parallel and merged together |
 
 Phases are derived from the dependency graph in
 [dependency-map.md](dependency-map.md), not chosen for symmetry. Nine of the ten

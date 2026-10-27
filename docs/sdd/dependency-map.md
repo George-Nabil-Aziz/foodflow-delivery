@@ -189,6 +189,10 @@ concurrently would produce exactly the class of bug the design exists to prevent
 | FR-12 Discount codes | spec-12 | story-12 | discount tests |
 | FR-13 Notifications | spec-13 | story-13 | `notifications.test` |
 | FR-14 Live updates | spec-14 | story-14 | events / SSE tests |
+| FR-15 Item options | spec-15 | story-15 | `itemOptions.test`, `optionSelection.test` |
+| FR-16 Favourites | spec-16 | story-16 | `favourites.test` |
+| FR-17 Restaurant analytics | spec-17 | story-17 | analytics tests |
+| FR-18 Delivery zones | spec-18 | story-18 | `deliveryZones.test`, `deliveryZone.test` |
 | NFR-1 Boundaries | spec-01 | story-01 | lint rule + fixture test |
 | NFR-7 Atomicity | spec-07 | story-06 | `transactional.integration` |
 | NFR-8 Concurrency | spec-07, spec-08 | story-06, story-07, story-08 | `concurrency.integration` |

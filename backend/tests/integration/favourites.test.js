@@ -3,7 +3,7 @@ import request from 'supertest';
 import { app } from '../../src/app.js';
 import { knex, resetDatabase } from '../helpers/db.js';
 import {
-  makeUser, makeDriver, makeRestaurant, makeCategory, makeItem, makeStockedRestaurant, authHeader,
+  makeUser, makeDriver, makeRestaurant, makeCategory, makeItem, makeStockedRestaurant, makeAddress, authHeader,
 } from '../helpers/factories.js';
 
 beforeEach(async () => { await resetDatabase(); });
@@ -248,5 +248,21 @@ describe('favourite flags on discovery (BR-FV6)', () => {
     const asOwner = await request(app).get(`/api/restaurants/${restaurant.id}`).set(authHeader(owner));
     expect(asOwner.status).toBe(200);
     expect(asOwner.body.data).not.toHaveProperty('isFavourite');
+  });
+});
+
+describe('favourites alongside delivery zones (spec-16 with spec-18)', () => {
+  it('annotates one restaurant with both the favourite flag and the zone, in the list and on its page', async () => {
+    const customer = await makeUser();
+    await makeAddress(customer, { latitude: 24.69, longitude: 46.68 }); // about 0.6 km from the factory restaurant
+    const { restaurant } = await makeStockedRestaurant();
+    await put(customer, `/restaurants/${restaurant.id}`).expect(200);
+
+    const listed = await request(app).get('/api/restaurants').set(authHeader(customer));
+    const row = listed.body.data.find((r) => r.id === restaurant.id);
+    expect(row).toMatchObject({ isFavourite: true, deliversToAddress: true, distanceKm: 0.6 });
+
+    const page = await request(app).get(`/api/restaurants/${restaurant.id}`).set(authHeader(customer));
+    expect(page.body.data).toMatchObject({ isFavourite: true, deliversToAddress: true });
   });
 });

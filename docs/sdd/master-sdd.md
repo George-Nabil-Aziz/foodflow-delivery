@@ -232,6 +232,18 @@ FR-9.7 – FR-9.9 (driver creation, review moderation, stuck orders) are detaile
 ### FR-14 Live Updates — [spec-14](specs/spec-14-live-updates.md)
 - Customers, restaurant owners and drivers receive order and offer events over Server-Sent Events, scoped to what each may see; clients refetch through the normal endpoints and fall back to polling when the stream is unavailable.
 
+### FR-15 Item Options — [spec-15](specs/spec-15-item-options.md)
+- Restaurants attach option groups (sizes, extras) with priced options to an item; customers choose them, with a line note, when adding to the cart. The server prices each line from live data and snapshots the choices on the order.
+
+### FR-16 Favourites — [spec-16](specs/spec-16-favourites.md)
+- Customers favourite restaurants and food items, see them on a Favourites page, and see filled hearts in discovery. Entries that stop being orderable stay listed as unavailable.
+
+### FR-17 Restaurant Analytics — [spec-17](specs/spec-17-restaurant-analytics.md)
+- Restaurant owners see their own delivered orders, revenue, average order value, cancellation rate, top items, busiest hours and average preparation time over 7, 30 or 90 days.
+
+### FR-18 Delivery Zones — [spec-18](specs/spec-18-delivery-zones.md)
+- Each restaurant delivers within a radius of its location. Discovery tells a signed-in customer whether a restaurant delivers to their address, and checkout and admin placement refuse an address outside the zone.
+
 ---
 
 ## 6. Non-Functional Requirements
@@ -713,6 +725,10 @@ reviews → the restaurant's rating average updates.
 | [spec-12](specs/spec-12-discount-codes.md) | Discount Codes | story-12 |
 | [spec-13](specs/spec-13-notifications.md) | Notifications | story-13 |
 | [spec-14](specs/spec-14-live-updates.md) | Live Updates | story-14 |
+| [spec-15](specs/spec-15-item-options.md) | Item Options | story-15 |
+| [spec-16](specs/spec-16-favourites.md) | Favourites | story-16 |
+| [spec-17](specs/spec-17-restaurant-analytics.md) | Restaurant Analytics | story-17 |
+| [spec-18](specs/spec-18-delivery-zones.md) | Delivery Zones | story-18 |
 
 ## 19. Stories Index
 

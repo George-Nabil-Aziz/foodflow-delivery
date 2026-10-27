@@ -55,8 +55,8 @@ docs/sdd/
 │   ├── security.md              ← threat model, auth, authorization, ADR-004/005/006/010
 │   └── testing-strategy.md      ← the pyramid, suites, E2E scenarios, gates
 │
-├── specs/    spec-01 … spec-14  ← what each area must do
-├── stories/  story-01 … story-14 ← vertical slices with acceptance criteria
+├── specs/    spec-01 … spec-18  ← what each area must do
+├── stories/  story-01 … story-18 ← vertical slices with acceptance criteria
 │
 ├── implementation-plan.md       ← six phases, TDD task breakdown
 ├── dependency-map.md            ← coverage matrix, graph, parallelization
@@ -84,6 +84,10 @@ docs/sdd/
 | 12 | [Discount Codes](specs/spec-12-discount-codes.md) | Admin-managed codes, cart and checkout pricing, usage limits |
 | 13 | [Notifications](specs/spec-13-notifications.md) | Email (SMTP) and SMS (Twilio) delivery, templates, retries |
 | 14 | [Live Updates](specs/spec-14-live-updates.md) | Server-Sent Events, ticket auth, scoped events, polling fallback |
+| 15 | [Item Options](specs/spec-15-item-options.md) | Option groups and priced options on items, line notes, order snapshots |
+| 16 | [Favourites](specs/spec-16-favourites.md) | Favourite restaurants and items, hearts in discovery, Favourites page |
+| 17 | [Restaurant Analytics](specs/spec-17-restaurant-analytics.md) | Revenue, top items, busiest hours and preparation time for owners |
+| 18 | [Delivery Zones](specs/spec-18-delivery-zones.md) | Per-restaurant delivery radius, discovery annotation, checkout refusal |
 
 ## Stories
 
@@ -103,6 +107,10 @@ docs/sdd/
 | 12 | [Discount Codes](stories/story-12-discount-codes.md) | 7 (after v1) | 05, 06, 10 |
 | 13 | [Notifications (Email & SMS)](stories/story-13-notifications.md) | 7 (after v1) | 06, 07, 08, 10 |
 | 14 | [Live Updates](stories/story-14-live-updates.md) | 7 (after v1) | 06, 07, 08 |
+| 15 | [Item Options](stories/story-15-item-options.md) | 8 | 03, 05, 06 |
+| 16 | [Favourites](stories/story-16-favourites.md) | 8 | 02, 03, 04 |
+| 17 | [Restaurant Analytics](stories/story-17-restaurant-analytics.md) | 8 | 03, 06, 07, 12 |
+| 18 | [Delivery Zones](stories/story-18-delivery-zones.md) | 8 | 03, 04, 06 |
 
 ---
 
@@ -141,8 +149,8 @@ payload rules ([ADR-011](architecture/api-design.md#adr-011-action-endpoints-for
 
 Verified before sign-off:
 
-- ✅ 14 specs, numbered `spec-01`–`spec-14`, no gaps or duplicates. Specs 11–14 were added after v1, each with its own story (story-11 – story-14).
-- ✅ Exactly 14 stories, numbered `story-01`–`story-14`, no gaps or duplicates.
+- ✅ 18 specs, numbered `spec-01`–`spec-18`, no gaps or duplicates. Specs 11–18 were added after v1, each with its own story (story-11 – story-18).
+- ✅ Exactly 18 stories, numbered `story-01`–`story-18`, no gaps or duplicates.
 - ✅ Every spec is implemented by ≥1 story; every story cites ≥1 spec ([coverage matrix](dependency-map.md#1-coverage-matrix)).
 - ✅ Every story has Gherkin acceptance criteria.
 - ✅ All 10 order transitions define actors and guards; illegal transitions are enumerated and tested.
