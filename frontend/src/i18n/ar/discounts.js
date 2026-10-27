@@ -13,6 +13,13 @@ export default {
   'Discount code {code} applied': 'تم تطبيق كود الخصم {code}',
   'you save {amount}': 'توفّر {amount}',
   'Remove code': 'إزالة الكود',
+  // Development-only list under the code field
+  'Development discount codes': 'أكواد خصم للتجربة',
+  'Click one to apply it. Shown in development only.': 'انقر على أحدها لتطبيقه. تظهر في بيئة التطوير فقط.',
+  '10% off, up to 100.00, on 100.00 or more; once per customer': 'خصم 10% بحد أقصى 100.00، على طلب 100.00 أو أكثر؛ مرة واحدة لكل عميل',
+  '50.00 off on 300.00 or more': 'خصم 50.00 على طلب 300.00 أو أكثر',
+  '15% off at Olive Grill only': 'خصم 15% في Olive Grill فقط',
+  'Expired: shows the error': 'منتهي: يعرض رسالة الخطأ',
   'Remove the discount code above or choose another to place your order.':
     'أزل كود الخصم أعلاه أو اختر كودًا آخر لإتمام طلبك.',
 

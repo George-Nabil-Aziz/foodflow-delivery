@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, defineAsyncComponent } from 'vue';
 import { useCartStore } from '../../stores/cart.store.js';
 import { useUiStore } from '../../stores/ui.store.js';
 import { discountErrorText } from '../../utils/discount.js';
@@ -12,6 +12,11 @@ import { t } from '../../i18n/index.js';
  * the amount, the new total and every failure come from the server.
  */
 const props = defineProps({ id: { type: String, default: 'discount-code' } });
+
+const isDev = import.meta.env.DEV;
+const DevDiscountCodes = import.meta.env.DEV
+  ? defineAsyncComponent(() => import('./DevDiscountCodes.vue'))
+  : null;
 
 const cart = useCartStore();
 const ui = useUiStore();
@@ -36,6 +41,12 @@ async function apply() {
   } finally {
     busy.value = false;
   }
+}
+
+/** A development code picked from the list: fill it in and apply it. */
+function applyPicked(value) {
+  code.value = value;
+  apply();
 }
 
 async function remove() {
@@ -82,6 +93,7 @@ async function remove() {
         <AppButton type="submit" variant="secondary" :loading="busy">{{ t('Apply') }}</AppButton>
       </div>
       <p v-if="error" :id="`${props.id}-error`" class="field-error" role="alert">{{ error }}</p>
+      <DevDiscountCodes v-if="isDev" @pick="applyPicked" />
     </form>
   </div>
 </template>
