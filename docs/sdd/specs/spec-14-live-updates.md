@@ -1,6 +1,6 @@
 # Spec 14 — Live Updates (Server-Sent Events)
 
-**Status:** Approved · **Owner:** Platform · **Covers:** FR-13.1 – FR-13.10
+**Status:** Approved · **Owner:** Platform · **Covers:** FR-14.1 – FR-14.10
 
 ## Objective
 
@@ -36,16 +36,16 @@ change to the REST contracts.
 
 | ID | Requirement |
 |----|-------------|
-| FR-13.1 | `POST /api/events/ticket` exchanges a valid access token for a single-use stream ticket |
-| FR-13.2 | `GET /api/events?ticket=…` opens a `text/event-stream` for that user; no other credential is accepted |
-| FR-13.3 | An order's creation and every status change is pushed to its customer, its restaurant and (once assigned) its driver |
-| FR-13.4 | Driver assignment on an order is pushed to its customer and restaurant as `order.updated` |
-| FR-13.5 | Offer creation, expiry, acceptance and withdrawal are pushed to the one driver the offer belongs to |
-| FR-13.6 | The server sends a heartbeat comment about every 25 s and a `retry:` hint on connect |
-| FR-13.7 | A user whose account is suspended or deleted has every open stream closed, and cannot open another |
-| FR-13.8 | A user may hold at most 5 streams; opening a sixth closes the oldest |
-| FR-13.9 | The client keeps one stream per tab, reconnects with backoff and a fresh ticket, pauses while the tab is hidden, and refetches on (re)connect |
-| FR-13.10 | When the stream is not open the three views poll exactly as before, and hand back to the stream when it recovers |
+| FR-14.1 | `POST /api/events/ticket` exchanges a valid access token for a single-use stream ticket |
+| FR-14.2 | `GET /api/events?ticket=…` opens a `text/event-stream` for that user; no other credential is accepted |
+| FR-14.3 | An order's creation and every status change is pushed to its customer, its restaurant and (once assigned) its driver |
+| FR-14.4 | Driver assignment on an order is pushed to its customer and restaurant as `order.updated` |
+| FR-14.5 | Offer creation, expiry, acceptance and withdrawal are pushed to the one driver the offer belongs to |
+| FR-14.6 | The server sends a heartbeat comment about every 25 s and a `retry:` hint on connect |
+| FR-14.7 | A user whose account is suspended or deleted has every open stream closed, and cannot open another |
+| FR-14.8 | A user may hold at most 5 streams; opening a sixth closes the oldest |
+| FR-14.9 | The client keeps one stream per tab, reconnects with backoff and a fresh ticket, pauses while the tab is hidden, and refetches on (re)connect |
+| FR-14.10 | When the stream is not open the three views poll exactly as before, and hand back to the stream when it recovers |
 
 ## Business Rules
 
@@ -59,7 +59,7 @@ change to the REST contracts.
 | BR-L6 | A ticket is single-use, expires in 30 s, and is stored only as a SHA-256 hash | `events.tickets.js` |
 | BR-L7 | Producers publish from the central paths (`insertOrder`, `transition`, `adminForceCancel`, dispatch, accept, decline, expiry, `closeAssignmentsForOrder`), never from controllers | Code structure; controllers have no event code |
 | BR-L8 | A failing subscriber or a dropped client never affects the operation that produced the event | `deliverLocal` catches; publishing is fire-and-forget |
-| BR-L9 | The stream is optional: every screen works with it blocked | Polling fallback (FR-13.10) |
+| BR-L9 | The stream is optional: every screen works with it blocked | Polling fallback (FR-14.10) |
 
 ## Authentication: why a ticket
 
@@ -171,8 +171,8 @@ restaurantId, res }`. `restaurantId` is looked up from `restaurants.owner_user_i
 at connect. On each event the hub writes the frame to every connection for which
 `isAudience(connection, event.audience)` holds. It additionally:
 
-- writes `: ping` to all connections every 25 s, and in the same tick re-reads the status of all connected users in one query, closing the streams of any who are `SUSPENDED` or deleted (FR-13.7; worst-case lag is one heartbeat period);
-- on exceeding 5 streams for a user, ends the oldest (FR-13.8);
+- writes `: ping` to all connections every 25 s, and in the same tick re-reads the status of all connected users in one query, closing the streams of any who are `SUSPENDED` or deleted (FR-14.7; worst-case lag is one heartbeat period);
+- on exceeding 5 streams for a user, ends the oldest (FR-14.8);
 - drops a connection whose write buffer exceeds 1 MB (a client that is not reading);
 - removes a connection on `close`/`error` of the request or response;
 - disables the socket idle timeout for the stream and sets `X-Accel-Buffering: no`;

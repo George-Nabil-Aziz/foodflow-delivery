@@ -55,7 +55,7 @@ docs/sdd/
 │   ├── security.md              ← threat model, auth, authorization, ADR-004/005/006/010
 │   └── testing-strategy.md      ← the pyramid, suites, E2E scenarios, gates
 │
-├── specs/    spec-01 … spec-10  ← what each area must do
+├── specs/    spec-01 … spec-14  ← what each area must do
 ├── stories/  story-01 … story-10 ← vertical slices with acceptance criteria
 │
 ├── implementation-plan.md       ← six phases, TDD task breakdown
@@ -80,6 +80,10 @@ docs/sdd/
 | 08 | [Delivery Assignment & Driver Operations](specs/spec-08-delivery-assignment-driver-operations.md) | Dispatch, offers, pick-up, delivery |
 | 09 | [Reviews & Ratings](specs/spec-09-reviews-ratings.md) | Reviews, aggregates, moderation semantics |
 | 10 | [Platform Administration & Reporting](specs/spec-10-platform-administration-reporting.md) | Accounts, approvals, oversight, statistics, audit |
+| 11 | [Card Payments](specs/spec-11-card-payments.md) | Card checkout through a provider interface, verification, automatic refunds |
+| 12 | [Discount Codes](specs/spec-12-discount-codes.md) | Admin-managed codes, cart and checkout pricing, usage limits |
+| 13 | [Notifications](specs/spec-13-notifications.md) | Email (SMTP) and SMS (Twilio) delivery, templates, retries |
+| 14 | [Live Updates](specs/spec-14-live-updates.md) | Server-Sent Events, ticket auth, scoped events, polling fallback |
 
 ## Stories
 
@@ -133,7 +137,7 @@ payload rules ([ADR-011](architecture/api-design.md#adr-011-action-endpoints-for
 
 Verified before sign-off:
 
-- ✅ Exactly 10 specs, numbered `spec-01`–`spec-10`, no gaps or duplicates.
+- ✅ 14 specs, numbered `spec-01`–`spec-14`, no gaps or duplicates. Specs 11–14 were added after v1 and have no story of their own.
 - ✅ Exactly 10 stories, numbered `story-01`–`story-10`, no gaps or duplicates.
 - ✅ Every spec is implemented by ≥1 story; every story cites ≥1 spec ([coverage matrix](dependency-map.md#1-coverage-matrix)).
 - ✅ Every story has Gherkin acceptance criteria.

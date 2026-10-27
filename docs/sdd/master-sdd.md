@@ -53,10 +53,8 @@ fallback actually implemented.
 
 | Non-goal | Why excluded | v1 fallback |
 |----------|-------------|-------------|
-| Real payment gateway | Requires PCI scope, a merchant account and a settlement model — enormous surface for zero domain learning | `payment_method` enum containing only `CASH_ON_DELIVERY`; the column exists so a gateway can be added without migrating order history |
 | Real-time GPS driver tracking | Needs a streaming transport, map tiles and a mobile client | Status-based tracking: the customer sees the order status timeline, not a moving pin. `driver_profiles` still stores a last-known coordinate for dispatch distance sorting |
-| WebSockets / push notifications | Adds connection-state management across four client roles | Clients poll active-order and incoming-order endpoints on a 10 s interval (`VITE_POLL_INTERVAL_MS`) |
-| Real email / SMS provider | External vendor, cost and deliverability concerns | `NotificationService` writes to a `notifications` table and to stdout; the interface is the real one, only the transport is a stub |
+| Mobile push notifications | Needs native apps and a push service | Email and SMS ([spec-13](specs/spec-13-notifications.md)) and live in-page updates ([spec-14](specs/spec-14-live-updates.md)) |
 | Recommendation engine | Needs traffic and an ML pipeline that does not exist yet | Restaurants are sorted by rating, delivery fee, or name — explicit, deterministic sorts |
 | Complex logistics / route optimization | Multi-order batching and routing is a research problem | Nearest-available-driver dispatch, one active delivery per driver |
 | Microservices | Premature for a single team and one deployable | Modular monolith with enforced boundaries ([ADR-001](architecture/system-architecture.md#adr-001-modular-monolith-over-microservices)) |
@@ -64,6 +62,12 @@ fallback actually implemented.
 | Internationalization | Single-locale product for v1 | English (LTR) only; all user-facing copy centralized in `src/i18n/en.js` so a second locale is additive |
 
 Everything above is tracked in [§24 Future Enhancements](#24-future-enhancements).
+
+**Delivered after v1** (each was a non-goal here before): card payments with
+automatic refunds behind a provider interface ([spec-11](specs/spec-11-card-payments.md)),
+discount codes ([spec-12](specs/spec-12-discount-codes.md)), real email and SMS
+delivery ([spec-13](specs/spec-13-notifications.md)), and live updates over
+Server-Sent Events with polling as the fallback ([spec-14](specs/spec-14-live-updates.md)).
 
 **One deliberate inclusion beyond the suggested minimum:** a `refresh_tokens`
 table and a refresh/logout flow. Rationale: a JWT-only design forces a choice
@@ -213,6 +217,21 @@ FR-9.7 – FR-9.9 (driver creation, review moderation, stuck orders) are detaile
 - **FR-10.4** Configuration comes from validated environment variables; the process refuses to boot on invalid config.
 - **FR-10.5** Every request carries a correlation ID, echoed in the `X-Request-Id` response header and in every log line.
 
+### FR-11 Card Payments — [spec-11](specs/spec-11-card-payments.md)
+- Customers pay by card at checkout through a payment provider; the amount is the server-computed total and the payment is verified with the provider before the order is shown to the restaurant.
+- A paid card order that is cancelled, by any path, is refunded automatically after commit; a failed refund is visible to admins, who can retry it (audited).
+- An unpaid card order is cancelled by `SYSTEM` after `PAYMENT_TIMEOUT_MINUTES`. Admin-placed orders stay cash on delivery.
+
+### FR-12 Discount Codes — [spec-12](specs/spec-12-discount-codes.md)
+- Admins create, edit, deactivate and delete percentage or fixed codes, with optional caps, minimum subtotal, restaurant scope, validity window and usage limits (audited).
+- Customers apply a code to their cart; checkout re-validates it in the same transaction, and the usage limits hold under concurrency.
+
+### FR-13 Notifications — [spec-13](specs/spec-13-notifications.md)
+- Notifications are delivered by email (SMTP) and SMS (Twilio) after commit, never blocking the operation; failures are retried with backoff and capped per recipient. With no provider configured they are logged only.
+
+### FR-14 Live Updates — [spec-14](specs/spec-14-live-updates.md)
+- Customers, restaurant owners and drivers receive order and offer events over Server-Sent Events, scoped to what each may see; clients refetch through the normal endpoints and fall back to polling when the stream is unavailable.
+
 ---
 
 ## 6. Non-Functional Requirements
@@ -353,7 +372,7 @@ were not assigned.
 |----|------|
 | BR-O1 | `order_items` stores `item_name_snapshot`, `item_description_snapshot` and `unit_price` copied at checkout. Renaming, repricing or deleting a food item afterwards leaves historical orders byte-identical. |
 | BR-O2 | `order_items.food_item_id` is `ON DELETE SET NULL` — the link is a convenience, the snapshot is the truth. |
-| BR-O3 | `line_total = unit_price × quantity`; `subtotal = Σ line_total`; `tax_amount = round(subtotal × TAX_RATE, 2)`; `total_amount = subtotal + delivery_fee + tax_amount`. All money is `NUMERIC(10,2)`, never floating point ([ADR-009](architecture/database-design.md#adr-009-numeric102-for-money)). |
+| BR-O3 | `line_total = unit_price × quantity`; `subtotal = Σ line_total`; `tax_amount = round((subtotal − discount_amount) × TAX_RATE, 2)`; `total_amount = subtotal − discount_amount + delivery_fee + tax_amount`. `discount_amount` is 0 without a code and never exceeds the subtotal; a discount never reduces the delivery fee, and the restaurant minimum is judged before it ([spec-12](specs/spec-12-discount-codes.md)). All money is `NUMERIC(10,2)`, never floating point ([ADR-009](architecture/database-design.md#adr-009-numeric102-for-money)). |
 | BR-O4 | `delivery_fee` is snapshotted from the restaurant at checkout. |
 | BR-O5 | The client sends no prices. Any price-like field in a checkout payload is stripped, and its presence is logged as a possible tampering signal. |
 | BR-O6 | The delivery address is snapshotted into `orders.delivery_address_snapshot` (JSONB). Editing the address book never rewrites history. |
@@ -690,6 +709,10 @@ reviews → the restaurant's rating average updates.
 | [spec-08](specs/spec-08-delivery-assignment-driver-operations.md) | Delivery Assignment & Driver Operations | story-07, story-08 |
 | [spec-09](specs/spec-09-reviews-ratings.md) | Reviews & Ratings | story-09, story-10 |
 | [spec-10](specs/spec-10-platform-administration-reporting.md) | Platform Administration & Reporting | story-03, story-08, story-09, story-10 |
+| [spec-11](specs/spec-11-card-payments.md) | Card Payments | — (added after v1) |
+| [spec-12](specs/spec-12-discount-codes.md) | Discount Codes | — (added after v1) |
+| [spec-13](specs/spec-13-notifications.md) | Notifications | — (added after v1) |
+| [spec-14](specs/spec-14-live-updates.md) | Live Updates | — (added after v1) |
 
 ## 19. Stories Index
 
@@ -774,13 +797,13 @@ mishandled and losing customer work (R-03); authorization gaps between roles
 
 ## 24. Future Enhancements
 
-Ordered by expected value, not by difficulty.
+Ordered by expected value, not by difficulty. Items 1, 2, 3 and 5 have since been built (specs 11–14); what remains of them is noted on each.
 
-1. **Payment gateway integration** — card payments and refunds on cancellation. The `payment_method` enum and money columns are already shaped for it.
-2. **WebSocket / SSE live updates** — replace polling for order status, incoming orders and delivery offers. The polling composables are the seam.
-3. **Real notification transports** — email and SMS behind the existing `NotificationService` interface.
+1. ~~**Payment gateway integration**~~ — built in [spec-11](specs/spec-11-card-payments.md). Remaining: a provider for Egypt (the Moyasar adapter takes SAR only), and checking the Moyasar adapter against real test keys.
+2. ~~**WebSocket / SSE live updates**~~ — built in [spec-14](specs/spec-14-live-updates.md). Remaining: an admin stream, and a shared broker (Postgres NOTIFY or Redis) once there is more than one process.
+3. ~~**Real notification transports**~~ — built in [spec-13](specs/spec-13-notifications.md). Remaining: a per-user language preference (Arabic templates exist).
 4. **Live driver GPS tracking** — a map on the customer's tracking screen; `driver_profiles` already carries coordinates.
-5. **Promotions and discount codes** — an `order_discounts` table; totals are already computed server-side in one place.
+5. ~~**Promotions and discount codes**~~ — built in [spec-12](specs/spec-12-discount-codes.md).
 6. **Scheduled orders** — an `orders.scheduled_for` column plus a dispatch delay.
 7. **Distance-based delivery fees and zone management.**
 8. **Restaurant replies to reviews.**

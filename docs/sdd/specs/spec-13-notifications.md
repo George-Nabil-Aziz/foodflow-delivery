@@ -1,6 +1,6 @@
 # Spec 13 — Notifications (Email & SMS Delivery)
 
-**Status:** Approved · **Owner:** Platform · **Covers:** FR-12.1 – FR-12.10 · **Replaces:** the stub transport (master-sdd §3 "Real email / SMS provider", §24 item 3)
+**Status:** Approved · **Owner:** Platform · **Covers:** FR-13.1 – FR-13.10 · **Replaces:** the stub transport (master-sdd §3 "Real email / SMS provider", §24 item 3)
 
 ## Objective
 
@@ -34,16 +34,16 @@ user-editable notification preferences, unsubscribe links, an in-app inbox UI.
 
 | ID | Requirement |
 |----|-------------|
-| FR-12.1 | `notify({ userId?, channel?, template, payload })` keeps its signature. Callers name a user, or omit it and the template's role-target is resolved from `payload.orderId` |
-| FR-12.2 | Email is sent via SMTP (nodemailer); SMS via Twilio; each transport is enabled by its own settings. Without them the `log` transport is used |
-| FR-12.3 | A new order notifies the **restaurant owner** (SMS + email), not an unaddressed row |
-| FR-12.4 | Each template defines its channels and recipient (matrix below) |
-| FR-12.5 | Messages are rendered in the recipient's language (English or Arabic), plain text plus HTML for email, one short text for SMS |
-| FR-12.6 | Sending happens after the triggering transaction commits, in the background; a failure is recorded on the row and never reaches the caller |
-| FR-12.7 | Every row carries a delivery status `QUEUED` / `SENT` / `FAILED` / `SKIPPED`, `attempts`, `last_error` and the resolved `recipient` |
-| FR-12.8 | `FAILED` rows are retried by a background job with exponential backoff up to `NOTIFY_MAX_ATTEMPTS` |
-| FR-12.9 | The same message to the same recipient on the same channel is stored and sent once; external sends are capped per recipient per hour |
-| FR-12.10 | Account-created and driver-created notices are welcome messages that never contain the initial password |
+| FR-13.1 | `notify({ userId?, channel?, template, payload })` keeps its signature. Callers name a user, or omit it and the template's role-target is resolved from `payload.orderId` |
+| FR-13.2 | Email is sent via SMTP (nodemailer); SMS via Twilio; each transport is enabled by its own settings. Without them the `log` transport is used |
+| FR-13.3 | A new order notifies the **restaurant owner** (SMS + email), not an unaddressed row |
+| FR-13.4 | Each template defines its channels and recipient (matrix below) |
+| FR-13.5 | Messages are rendered in the recipient's language (English or Arabic), plain text plus HTML for email, one short text for SMS |
+| FR-13.6 | Sending happens after the triggering transaction commits, in the background; a failure is recorded on the row and never reaches the caller |
+| FR-13.7 | Every row carries a delivery status `QUEUED` / `SENT` / `FAILED` / `SKIPPED`, `attempts`, `last_error` and the resolved `recipient` |
+| FR-13.8 | `FAILED` rows are retried by a background job with exponential backoff up to `NOTIFY_MAX_ATTEMPTS` |
+| FR-13.9 | The same message to the same recipient on the same channel is stored and sent once; external sends are capped per recipient per hour |
+| FR-13.10 | Account-created and driver-created notices are welcome messages that never contain the initial password |
 
 ## Business Rules
 

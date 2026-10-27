@@ -1,6 +1,6 @@
 # Spec 11 — Card Payments & Refunds
 
-**Status:** Draft · **Owner:** Platform · **Covers:** FR-10.1 – FR-10.10 · **Supersedes:** the payment row of master-sdd §3 (Non-Goals) and §24 item 1, once the integrator edits them
+**Status:** Draft · **Owner:** Platform · **Covers:** FR-11.1 – FR-11.10 · **Supersedes:** the payment row of master-sdd §3 (Non-Goals) and §24 item 1, once the integrator edits them
 
 ## Objective
 
@@ -74,16 +74,16 @@ and an admin sees and retries it.
 
 | ID | Requirement |
 |----|-------------|
-| FR-10.1 | Checkout accepts `paymentMethod: CARD`; the order is created with an `INITIATED` payment for the order's server-computed total |
-| FR-10.2 | Card payment is completed with the gateway's hosted form; the customer's browser reports the gateway payment id to `POST /api/orders/:id/payment/confirm` |
-| FR-10.3 | The server verifies the payment with the gateway (reference, amount, currency, status, single use) before marking it `PAID`; a mismatch is rejected and changes nothing |
-| FR-10.4 | A gateway webhook, authenticated by a shared secret, can settle a payment the browser never reported |
-| FR-10.5 | A card order is invisible to its restaurant, and cannot be accepted, until its payment is `PAID`; the restaurant is notified (`NEW_ORDER`) at the moment it is paid, not at checkout |
-| FR-10.6 | A card order whose payment is not completed within `PAYMENT_TIMEOUT_MINUTES` is cancelled by SYSTEM with reason `PAYMENT_TIMEOUT` |
-| FR-10.7 | When a `PAID` card order becomes `CANCELLED` by any actor, the full amount is refunded after the cancellation commits and the outcome is recorded on the payment |
-| FR-10.8 | A failed refund is recorded (`REFUND_FAILED`, with the gateway's message), shown in the admin order detail and listed in "stuck" orders with reason `REFUND_FAILED` |
-| FR-10.9 | An admin can retry a failed refund with `POST /api/admin/payments/:id/refund`; the attempt is audited whatever its outcome |
-| FR-10.10 | The customer order page and the admin order dialog show a clear payment state: awaiting payment, paid, failed, refund in progress, refunded, refund failed |
+| FR-11.1 | Checkout accepts `paymentMethod: CARD`; the order is created with an `INITIATED` payment for the order's server-computed total |
+| FR-11.2 | Card payment is completed with the gateway's hosted form; the customer's browser reports the gateway payment id to `POST /api/orders/:id/payment/confirm` |
+| FR-11.3 | The server verifies the payment with the gateway (reference, amount, currency, status, single use) before marking it `PAID`; a mismatch is rejected and changes nothing |
+| FR-11.4 | A gateway webhook, authenticated by a shared secret, can settle a payment the browser never reported |
+| FR-11.5 | A card order is invisible to its restaurant, and cannot be accepted, until its payment is `PAID`; the restaurant is notified (`NEW_ORDER`) at the moment it is paid, not at checkout |
+| FR-11.6 | A card order whose payment is not completed within `PAYMENT_TIMEOUT_MINUTES` is cancelled by SYSTEM with reason `PAYMENT_TIMEOUT` |
+| FR-11.7 | When a `PAID` card order becomes `CANCELLED` by any actor, the full amount is refunded after the cancellation commits and the outcome is recorded on the payment |
+| FR-11.8 | A failed refund is recorded (`REFUND_FAILED`, with the gateway's message), shown in the admin order detail and listed in "stuck" orders with reason `REFUND_FAILED` |
+| FR-11.9 | An admin can retry a failed refund with `POST /api/admin/payments/:id/refund`; the attempt is audited whatever its outcome |
+| FR-11.10 | The customer order page and the admin order dialog show a clear payment state: awaiting payment, paid, failed, refund in progress, refunded, refund failed |
 
 ## Business Rules
 
@@ -151,7 +151,7 @@ Module `modules/payments/` — `payments.service.js`, `payments.repository.js`, 
 
 **Orders module** — `checkout` creates the payment in its transaction and skips `notifyNewOrder` for `CARD`; `transition` and the admin force-cancel share one transaction body (`transitionInTransaction`), so the force-cancel is no longer a second status-changing path, and both call `settleCancelled(order)` after commit.
 
-**Jobs** — `paymentTimeoutJob` (FR-10.6) and `refundSweepJob` (PAID payments of CANCELLED orders and abandoned `REFUNDING` attempts), registered next to `orderTimeoutJob`; `orderTimeoutJob` is adjusted per BR-P8.
+**Jobs** — `paymentTimeoutJob` (FR-11.6) and `refundSweepJob` (PAID payments of CANCELLED orders and abandoned `REFUNDING` attempts), registered next to `orderTimeoutJob`; `orderTimeoutJob` is adjusted per BR-P8.
 
 **Configuration** — `PAYMENT_PROVIDER` (`moyasar`|`fake`, default by keys), `MOYASAR_SECRET_KEY`, `MOYASAR_PUBLISHABLE_KEY`, `MOYASAR_WEBHOOK_SECRET`, `MOYASAR_API_URL`, `PAYMENT_CURRENCY` (default `EGP`), `PAYMENT_TIMEOUT_MINUTES` (default 15).
 
