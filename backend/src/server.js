@@ -3,6 +3,7 @@ import { config } from './config/index.js';
 import { logger } from './shared/logger.js';
 import { checkDatabase, closeDatabase } from './shared/db/knex.js';
 import { startJobs, stopJobs } from './jobs/index.js';
+import { closeAllStreams } from './modules/events/index.js';
 
 /**
  * Process entry point. Verifies the database before listening: failing at
@@ -26,6 +27,8 @@ async function main() {
   const shutdown = async (signal) => {
     logger.info({ signal }, 'shutting down');
     stopJobs();
+    // Open SSE streams never end on their own, so server.close would wait forever.
+    closeAllStreams();
     server.close(async () => {
       await closeDatabase();
       process.exit(0);

@@ -28,6 +28,24 @@ import * as menu from '../menu/index.js';
 import * as users from '../users/index.js';
 import * as delivery from '../delivery/index.js';
 import { notify } from '../../shared/notifications.js';
+import { publishAfterCommit, EVENT_TYPES } from '../../shared/events/index.js';
+
+/**
+ * Live-update push for an order row (spec-14). Queued on the transaction, so
+ * it goes out only if and when the owner of that transaction commits. The
+ * payload is ids plus the new status; clients refetch through the normal,
+ * authorised endpoints.
+ */
+export function publishOrderEvent(trx, order, type = EVENT_TYPES.ORDER_STATUS) {
+  publishAfterCommit(trx, {
+    type,
+    audience: {
+      userIds: [order.customer_user_id, order.driver_user_id].filter(Boolean),
+      restaurantIds: [order.restaurant_id],
+    },
+    data: { orderId: order.id, status: order.status },
+  });
+}
 
 /* ------------------------------------------------------------------ checkout */
 
@@ -210,6 +228,8 @@ async function insertOrder({ customerUserId, restaurant, lines, addressId, custo
     trx,
   );
 
+  // Checkout and admin placement both come through here, so one hook covers both.
+  publishOrderEvent(trx, created, EVENT_TYPES.ORDER_CREATED);
   return created;
 }
 
@@ -260,6 +280,7 @@ export async function transition(orderId, toStatus, actor, { reason, note, scope
     );
 
     await applySideEffects(order, updated, toStatus, trx);
+    publishOrderEvent(trx, updated);
     return updated;
   });
   await notifyStatusChange(updated, toStatus);
@@ -420,6 +441,7 @@ export async function adminForceCancel(adminUserId, orderId, { reason, note }, t
     );
     await delivery.closeAssignmentsForOrder(orderId, { cancelled: true }, t);
     if (order.driver_user_id) await delivery.releaseDriver(order.driver_user_id, t);
+    publishOrderEvent(t, updated);
     return updated;
   };
   return trx ? run(trx) : withTransaction(run);

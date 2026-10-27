@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import { restaurantApi } from '../../services/api.js';
-import { usePolling } from '../../composables/usePolling.js';
+import { useLiveUpdates } from '../../composables/useLiveUpdates.js';
 import { useUiStore } from '../../stores/ui.store.js';
 import { formatMoney } from '../../utils/money.js';
 import { formatDateTime } from '../../utils/datetime.js';
@@ -22,20 +22,33 @@ const busy = ref(null);
 
 const reasonDialog = ref({ open: false, config: {}, order: null, action: null });
 const previousPendingIds = ref(new Set());
+let primed = false;
 
 async function fetchOrders() {
   const res = await restaurantApi.orders({ scope: scope.value, limit: 50 });
   return res.data;
 }
 
-/** Polls the queue; the composable pauses it while the tab is hidden. */
-const polling = usePolling(fetchOrders, { immediate: false });
+/** Refreshes the queue on a pushed event, or by polling while the stream is
+ *  down; the composable pauses polling while the tab is hidden. Every refresh
+ *  goes through the new-order cue, whatever triggered it. */
+const polling = useLiveUpdates(
+  async () => {
+    const next = await fetchOrders();
+    announceNewOrders(next);
+    return next;
+  },
+  { events: ['order.created', 'order.status', 'order.updated'], immediate: false },
+);
 
 async function load() {
   try {
     const next = await fetchOrders();
     announceNewOrders(next);
     orders.value = next;
+    // Keep the live copy in step, so an action's result is not hidden behind
+    // an older refresh until the next event.
+    polling.data.value = next;
   } catch (err) {
     ui.toastError(err.message);
   } finally {
@@ -48,9 +61,11 @@ async function load() {
 function announceNewOrders(next) {
   const pending = next.filter((o) => o.status === 'PENDING').map((o) => o.id);
   const fresh = pending.filter((id) => !previousPendingIds.value.has(id));
-  if (previousPendingIds.value.size > 0 && fresh.length > 0) {
+  // Not on the first load of a scope: those orders were not "received" just now.
+  if (primed && fresh.length > 0) {
     ui.toastSuccess(t('{count} new order(s) received', { count: fresh.length }));
   }
+  primed = true;
   previousPendingIds.value = new Set(pending);
 }
 
@@ -73,6 +88,7 @@ const grouped = computed(() => {
 function setScope(next) {
   scope.value = next;
   initialLoading.value = true;
+  primed = false;
   polling.stop();
   load().then(() => polling.start());
 }

@@ -12,6 +12,17 @@ import { logger } from '../../shared/logger.js';
 import { notify } from '../../shared/notifications.js';
 import * as repo from './delivery.repository.js';
 import * as restaurants from '../restaurants/index.js';
+import { publishAfterCommit, EVENT_TYPES } from '../../shared/events/index.js';
+
+/** Live push to the one driver an offer belongs to (spec-14). After commit
+ *  only; the payload is ids, the driver refetches the offer list. */
+function publishOffer(trx, type, driverUserId, orderId, extra = {}) {
+  publishAfterCommit(trx, {
+    type,
+    audience: { userIds: [driverUserId] },
+    data: { orderId, ...extra },
+  });
+}
 
 /* ---------------------------------------------------------------- profile */
 
@@ -159,11 +170,15 @@ export async function acceptOffer(driverUserId, assignmentId) {
     );
 
     const orders = await import('../orders/index.js');
-    await orders.assignDriver(assignment.order_id, driverUserId, trx);
+    const assigned = await orders.assignDriver(assignment.order_id, driverUserId, trx);
 
     await repo.updateProfile(
       driverUserId, { availability: 'ON_DELIVERY', last_assigned_at: trx.fn.now() }, trx,
     );
+
+    publishOffer(trx, EVENT_TYPES.OFFER_TAKEN, driverUserId, assignment.order_id);
+    // The customer now has a driver to show; the restaurant sees who is coming.
+    orders.publishOrderEvent(trx, assigned, EVENT_TYPES.ORDER_UPDATED);
 
     return { orderId: assignment.order_id };
   });
@@ -185,6 +200,7 @@ export async function declineOffer(driverUserId, assignmentId, { reason } = {}) 
     // Free the order for the next dispatch tick.
     const orders = await import('../orders/index.js');
     await orders.setDispatchState(assignment.order_id, 'UNASSIGNED', trx);
+    publishOffer(trx, EVENT_TYPES.OFFER_WITHDRAWN, driverUserId, assignment.order_id);
   });
 }
 
@@ -302,6 +318,8 @@ export async function dispatchOrder(order, trx) {
   const orders = await import('../orders/index.js');
   await orders.setDispatchState(order.id, 'OFFERED', trx);
 
+  publishOffer(trx, EVENT_TYPES.OFFER_CREATED, candidate.user_id, order.id);
+
   await notify({
     userId: candidate.user_id,
     template: 'NEW_OFFER',
@@ -314,6 +332,7 @@ export async function expireOffer(assignment, trx) {
   await repo.updateAssignment(assignment.id, { status: 'EXPIRED' }, trx);
   const orders = await import('../orders/index.js');
   await orders.setDispatchState(assignment.order_id, 'UNASSIGNED', trx);
+  publishOffer(trx, EVENT_TYPES.OFFER_EXPIRED, assignment.driver_user_id, assignment.order_id);
   logger.info({ assignmentId: assignment.id }, 'offer expired');
 }
 
@@ -337,7 +356,10 @@ export async function releaseDriver(driverUserId, trx) {
 }
 
 export async function closeAssignmentsForOrder(orderId, { cancelled }, trx) {
+  // An order cancelled while an offer is still open: that driver's list changes.
+  const open = cancelled ? await repo.listOfferedForOrder(orderId, trx) : [];
   await repo.closeForOrder(orderId, cancelled ? 'CANCELLED' : 'COMPLETED', trx);
+  for (const offer of open) publishOffer(trx, EVENT_TYPES.OFFER_WITHDRAWN, offer.driver_user_id, orderId);
 }
 
 /** Recomputes the driver rating aggregate from source. */

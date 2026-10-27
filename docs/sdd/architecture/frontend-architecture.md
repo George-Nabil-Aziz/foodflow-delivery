@@ -51,6 +51,7 @@ frontend/
 │   │   ├── useMenu.js
 │   │   ├── useOrders.js
 │   │   ├── useOrderPolling.js  # 10 s poll with visibility-aware pause
+│   │   ├── useLiveUpdates.js   # SSE-driven refetch with polling fallback (spec-14)
 │   │   ├── useDriverOffers.js
 │   │   ├── useAdminStats.js
 │   │   ├── useConfirm.js
@@ -232,20 +233,38 @@ A restaurant owner whose restaurant is `PENDING_APPROVAL` reaches
 instead of its content, while profile and hours stay editable — matching the
 server-side guard in [api-design §5](api-design.md#5-restaurant-self-service--apirestaurant).
 
-## 5. Polling
+## 5. Live updates and polling
 
-`useOrderPolling(orderId)` hits `GET /api/orders/:id/status` every
-`VITE_POLL_INTERVAL_MS` (default 10 000), and:
+Order status, the restaurant's incoming orders and the driver's offers are
+**pushed** over one server-sent-events stream per tab
+([spec-14](../specs/spec-14-live-updates.md)), with polling as the automatic
+fallback.
 
-- pauses when `document.visibilityState === 'hidden'` and resumes with an immediate fetch;
-- stops permanently once the status is terminal (`DELIVERED` / `CANCELLED`);
-- backs off to 30 s after three consecutive failures, so a backend blip does not turn into a request storm;
-- clears its interval in `onUnmounted` — always, including on the error path.
+- `services/liveStream.js` owns the single `EventSource`. It authenticates with a
+  single-use 30 s ticket from `POST /api/events/ticket` (the access token never
+  enters a URL), reconnects with capped exponential backoff and a fresh ticket,
+  closes while the tab is hidden, and emits a `resync` on every (re)connect
+  because missed events are not replayed.
+- `useLiveUpdates(fetcher, { events, filter, ...pollingOptions })` wraps
+  `usePolling`. While the stream is open the poll timer is suspended and a
+  matching event triggers a debounced refetch through the same `fetcher`. Events
+  carry ids and a status only, so authorization and response shape stay in the
+  REST endpoints. When the stream is connecting, paused or failed it polls.
+- `usePolling` keeps its behaviour: it fetches every `VITE_POLL_INTERVAL_MS`
+  (default 10 000; offers use `VITE_OFFER_POLL_INTERVAL_MS`, default 5 000),
+  pauses when `document.visibilityState === 'hidden'` and resumes with an
+  immediate fetch, stops permanently once `shouldStop` says the data is final
+  (a `DELIVERED` / `CANCELLED` order), backs off to 30 s after three consecutive
+  failures so a backend blip does not become a request storm, and clears its
+  timer in `onUnmounted` — always, including on the error path. It gains
+  `suspend()` / `resume()`, which `useLiveUpdates` uses to hand over.
 
-The same shape backs `useDriverOffers` (offers are time-critical, so 5 s while
-`AVAILABLE`) and the restaurant's incoming-orders screen (10 s). These
-composables are the seam where WebSockets replace polling later (Future
-Enhancement 2) — only the composable changes.
+Consumers: `customer/OrderDetailView` (`order.status`, `order.updated`, filtered
+to its own order id), `restaurant/IncomingOrdersView` (`order.*`) and
+`driver/OffersView` (`offer.*`). A new live screen uses `useLiveUpdates` rather
+than opening its own connection. Moving the server to several processes
+(Postgres LISTEN/NOTIFY or Redis) is entirely server-side and does not touch the
+client.
 
 ## 6. Forms and validation
 

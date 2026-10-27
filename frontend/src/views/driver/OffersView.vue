@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { driverApi } from '../../services/api.js';
-import { usePolling } from '../../composables/usePolling.js';
+import { useLiveUpdates } from '../../composables/useLiveUpdates.js';
 import { useUiStore } from '../../stores/ui.store.js';
 import { formatMoney } from '../../utils/money.js';
 import { t } from '../../i18n/index.js';
@@ -18,8 +18,10 @@ const busy = ref(null);
 const expired = ref(new Set());
 const now = ref(Date.now());
 
-// Offers are time-critical, so they poll faster than order status.
-const polling = usePolling(async () => (await driverApi.offers()).data, {
+// Offers are time-critical: pushed live, and the fallback poll is faster than
+// order status.
+const polling = useLiveUpdates(async () => (await driverApi.offers()).data, {
+  events: ['offer.created', 'offer.expired', 'offer.taken', 'offer.withdrawn'],
   intervalMs: Number(import.meta.env.VITE_OFFER_POLL_INTERVAL_MS ?? 5000),
   immediate: false,
 });

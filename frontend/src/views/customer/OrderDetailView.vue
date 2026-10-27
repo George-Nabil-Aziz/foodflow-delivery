@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { orderApi, reviewApi } from '../../services/api.js';
-import { usePolling } from '../../composables/usePolling.js';
+import { useLiveUpdates } from '../../composables/useLiveUpdates.js';
 import { useUiStore } from '../../stores/ui.store.js';
 import { formatMoney } from '../../utils/money.js';
 import {
@@ -40,12 +40,16 @@ async function load() {
 }
 
 /**
- * Polls the lightweight status endpoint and stops for good at a terminal
- * status. Pausing while the tab is hidden is handled by the composable.
+ * Refreshes from the lightweight status endpoint: on a pushed event for THIS
+ * order while the live stream is up, by polling when it is not. Stops for good
+ * at a terminal status. Pausing while the tab is hidden is handled by the
+ * composable.
  */
-const polling = usePolling(
+const polling = useLiveUpdates(
   async () => (await orderApi.status(route.params.id)).data,
   {
+    events: ['order.status', 'order.updated'],
+    filter: (event) => event.orderId === route.params.id,
     shouldStop: (status) => isTerminal(status.status),
     immediate: false,
   },
