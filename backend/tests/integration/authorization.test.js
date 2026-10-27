@@ -22,6 +22,9 @@ const PUBLIC_ALLOWLIST = new Set([
   'GET /api/search',
   'GET /api/cuisines',
   'GET /api/__test_boom',
+  // Authenticated by a single-use stream ticket instead of a header (spec-14);
+  // events.test.js proves it refuses a missing, used or forged ticket.
+  'GET /api/events',
 ]);
 
 /** Authenticated but role-agnostic: any signed-in user may call these. */

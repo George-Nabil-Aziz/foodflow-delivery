@@ -17,6 +17,7 @@ export {
   listUnassigned,
   listStuck,
   systemCancelStale,
+  publishOrderEvent,
 } from './orders.service.js';
 
 export { listItems as listOrderItems } from './orders.repository.js';

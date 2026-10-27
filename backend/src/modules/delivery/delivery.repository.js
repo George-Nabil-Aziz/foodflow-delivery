@@ -226,6 +226,11 @@ export async function findExpiredOffers(limit, trx) {
     .limit(limit);
 }
 
+/** Offers still awaiting an answer for an order (to tell their drivers). */
+export function listOfferedForOrder(orderId, trx) {
+  return db(trx)('delivery_assignments').where({ order_id: orderId, status: 'OFFERED' });
+}
+
 export async function reviewsForDriver(driverUserId, trx) {
   return db(trx)('reviews as rv')
     .join('users as cu', 'cu.id', 'rv.customer_user_id')
